@@ -14,25 +14,27 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 
 object AppColors {
-    /** App chrome uses orange only for action, selection, and emphasis. */
-    val Background = Color(0xFF0B0708)
-    val Surface = Color(0xFF171415)
-    val SurfaceRaised = Color(0xFF232020)
-    val Primary = Color(0xFFFF8A00)
-    val PrimaryPressed = Color(0xFFD97000)
-    val OnPrimary = Color(0xFF363636)
-    val Secondary = Color(0xFF363636)
-    val TextPrimary = Color(0xFFFFF2DF)
-    val TextSecondary = Color(0xBDFFF2DF)
-    val TextWeak = Color(0x8AFFF2DF)
-    val Border = Color(0xFF363636)
-    val Divider = Color(0x66363636)
+    /** Cool charcoal chrome; orange and yellow stay reserved for emphasis. */
+    val Background = Color(0xFF222627)
+    val Surface = Color(0xFF2A2F30)
+    val SurfaceRaised = Color(0xFF343A3B)
+    val Primary = Color(0xFFED8F19)
+    val PrimaryAlt = Color(0xFFFEE935)
+    val PrimaryPressed = Color(0xFFC97410)
+    val OnPrimary = Color(0xFF1B1F20)
+    val Secondary = Color(0xFF3B4243)
+    val TextPrimary = Color(0xFFF5F7FA)
+    val TextSecondary = Color(0xFFC8CED3)
+    val TextWeak = Color(0xFF8B9594)
+    val Border = Color(0xFF3D4445)
+    val Divider = Color(0x663D4445)
     val Success = Color(0xFF7FA98A)
-    val Warning = Color(0xFFD5A354)
-    val Danger = Color(0xFFC95C55)
-    val GuideLineBrightRed = Color(0xFFFF3B30)
+    val Warning = Color(0xFFFEE935)
+    val Danger = Color(0xFFE96C62)
+    val GuideLineBrightRed = Color(0xFFFF453A)
     val GuideLineDeepRed = Color(0xFFC62828)
-    val Scrim = Color(0xC90B0708)
+    val GuideLineRedSoft = Color(0x4DFF453A)
+    val Scrim = Color(0xCC16191A)
 }
 
 object AppSpacing {

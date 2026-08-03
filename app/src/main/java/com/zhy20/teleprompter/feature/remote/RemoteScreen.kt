@@ -45,6 +45,7 @@ import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.RichScriptText
+import com.zhy20.teleprompter.core.design.toComposeTextAlign
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.ChoiceRow
 import com.zhy20.teleprompter.core.design.components.ConnectionStatusLabel
@@ -240,7 +241,7 @@ private fun NearbyTextCard(appState: AppState, modifier: Modifier = Modifier) {
                     color = AppColors.TextPrimary,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 3,
-                    textAlign = TextAlign.Center,
+                    textAlign = appState.playbackSettings.textAlignment.toComposeTextAlign(),
                 )
             }
             LinearProgressIndicator(progress = { appState.progress }, modifier = Modifier.fillMaxWidth(), color = AppColors.Primary, trackColor = AppColors.Secondary)

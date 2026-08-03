@@ -3,6 +3,7 @@ package com.zhy20.teleprompter.feature.prompter
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -47,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -63,10 +63,12 @@ import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
+import com.zhy20.teleprompter.core.design.toComposeTextAlign
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
 import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackEvent
+import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
@@ -81,7 +83,9 @@ fun PrompterScreen(
     onExit: () -> Unit,
 ) {
     val view = LocalView.current
-    val activity = LocalContext.current.findActivity()
+    // LocalContext is localized for in-app language switching and is not guaranteed to retain
+    // the Activity wrapper. The View context remains the real host for fullscreen/orientation.
+    val activity = view.context.findActivity()
     val density = LocalDensity.current.density
     var controlsVisible by remember { mutableStateOf(false) }
     val script = appState.script(scriptId)
@@ -91,6 +95,15 @@ fun PrompterScreen(
         val controller = activity?.window?.let { WindowCompat.getInsetsController(it, view) }
         controller?.hide(WindowInsetsCompat.Type.systemBars())
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+    DisposableEffect(activity, settings.orientation) {
+        if (activity == null) return@DisposableEffect onDispose {}
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = when (settings.orientation) {
+            PlaybackOrientation.Portrait -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            PlaybackOrientation.Landscape -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+        onDispose { activity.requestedOrientation = previousOrientation }
     }
     BackHandler { appState.resetPlayback(); onExit() }
 
@@ -145,6 +158,7 @@ fun PrompterScreen(
                         fontSize = settings.fontSize.sp,
                         lineHeight = (settings.fontSize * 1.18f).sp,
                     ),
+                    textAlign = settings.textAlignment.toComposeTextAlign(),
                 )
             }
 

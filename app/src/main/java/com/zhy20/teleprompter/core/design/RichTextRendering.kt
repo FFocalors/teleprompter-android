@@ -14,8 +14,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import com.zhy20.teleprompter.core.model.RichTextDocument
+import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.ScriptContent
 import com.zhy20.teleprompter.core.model.ScriptSpanStyle
+
+fun PlaybackTextAlignment.toComposeTextAlign(): TextAlign = when (this) {
+    PlaybackTextAlignment.Start -> TextAlign.Start
+    PlaybackTextAlignment.Center -> TextAlign.Center
+    PlaybackTextAlignment.End -> TextAlign.End
+}
 
 fun ScriptContent.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
     RichTextDocument.toAnnotatedSegments(this@toAnnotatedString).forEach { (text, styles) ->

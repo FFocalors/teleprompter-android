@@ -34,6 +34,10 @@ class PlaybackSetupTest {
 
     @Test
     fun everyDisplayPreset_updatesBothColorsAndKeepsItsId() {
+        assertEquals(
+            listOf("black_white", "white_black", "deep_blue_white", "deep_green_white"),
+            DisplayPresets.defaults.map { it.id },
+        )
         DisplayPresets.defaults.forEach { preset ->
             val applied = PlaybackSettings().applyDisplayPreset(preset)
             assertEquals(preset.backgroundColor, applied.backgroundColor)
@@ -57,7 +61,7 @@ class PlaybackSetupTest {
     fun legacyColors_takePrecedenceOverAStalePresetIdWhenFindingNearestPreset() {
         val legacy = PlaybackSettings(
             backgroundColor = "#29405A",
-            textColor = "#FFF2DF",
+            textColor = "#F5F7FA",
             displayPresetId = DisplayPresets.BlackOnWhite.id,
         )
 
@@ -66,8 +70,9 @@ class PlaybackSetupTest {
 
     @Test
     fun guideLine_usesBrightRedOnDarkPresetsAndDeepRedOnLightPresets() {
-        assertEquals("#FF3B30", DisplayPresets.BlackOnWhite.guideLineColorForBackground())
+        assertEquals("#FF453A", DisplayPresets.BlackOnWhite.guideLineColorForBackground())
         assertEquals("#C62828", DisplayPresets.WhiteOnBlack.guideLineColorForBackground())
-        assertEquals("#C62828", DisplayPresets.OrangeOnCharcoal.guideLineColorForBackground())
+        assertEquals("#FF453A", DisplayPresets.BlueOnWhite.guideLineColorForBackground())
+        assertEquals("#FF453A", DisplayPresets.GreenOnWhite.guideLineColorForBackground())
     }
 }

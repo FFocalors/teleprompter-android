@@ -24,6 +24,7 @@ class ModelsTest {
         val settings = PlaybackSettings()
 
         assertEquals(PlaybackOrientation.Landscape, settings.orientation)
+        assertEquals(PlaybackTextAlignment.Start, settings.textAlignment)
         assertEquals(CountdownOption.ThreeSeconds, settings.countdown)
         assertEquals(GuideLineStyle.Highlight, settings.guideLineStyle)
         assertTrue(settings.guideLinePosition in 0.15f..0.75f)

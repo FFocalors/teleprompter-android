@@ -6,6 +6,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppTheme
 import com.zhy20.teleprompter.core.model.PlaybackState
+import com.zhy20.teleprompter.core.model.PlaybackOrientation
+import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.DisplayPresets
@@ -31,7 +33,7 @@ private fun PreviewState(
 @Preview(name = "平板横屏首页", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun TabletLibraryPreview() = PreviewState { LibraryScreen(it, {}, {}, {}, {}, {}) }
 
-@Preview(name = "橙灰主题编辑页", widthDp = 900, heightDp = 720, showBackground = true)
+@Preview(name = "冷灰主题编辑页", widthDp = 900, heightDp = 720, showBackground = true)
 @Composable private fun EditorPreview() = PreviewState { EditorScreen("1", it, {}, {}) }
 
 @Preview(name = "编辑页短文本留白", widthDp = 390, heightDp = 844, showBackground = true)
@@ -46,15 +48,53 @@ private fun PreviewState(
 @Preview(name = "保存图标错误状态", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun ErrorSavePreview() = PreviewState { EditorScreen("1", it, {}, {}, previewSaveState = SaveState.Error) }
 
-@Preview(name = "手机样式页", widthDp = 390, heightDp = 844, showBackground = true)
-@Composable private fun PhoneSetupPreview() = PreviewState { SetupScreen("1", it, {}, {}, {}) }
+@Preview(name = "提词设置：黑底白字", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun DarkSetupPreview() = PreviewState { SetupScreen("1", it, {}, {}, {}) }
 
-@Preview(name = "平板样式页", widthDp = 1280, heightDp = 800, showBackground = true)
-@Composable private fun TabletSetupPreview() = PreviewState { SetupScreen("1", it, {}, {}, {}) }
+@Preview(name = "提词设置：白底黑字", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun LightSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.WhiteOnBlack) },
+) { SetupScreen("1", it, {}, {}, {}) }
 
-@Preview(name = "播放中", widthDp = 1280, heightDp = 720, showBackground = true)
-@Composable private fun PlayingPreview() = PreviewState(
-    initialize = { playbackState = PlaybackState.Playing },
+@Preview(name = "提词设置：深蓝底白字", widthDp = 1280, heightDp = 800, showBackground = true)
+@Composable private fun BlueSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.BlueOnWhite) },
+) { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "提词设置：深绿底白字", widthDp = 1280, heightDp = 800, showBackground = true)
+@Composable private fun GreenSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.GreenOnWhite) },
+) { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "预览：左对齐", widthDp = 1280, heightDp = 800, showBackground = true)
+@Composable private fun StartAlignedSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.Start) },
+) { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "预览：居中对齐", widthDp = 1280, heightDp = 800, showBackground = true)
+@Composable private fun CenterAlignedSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.Center) },
+) { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "预览：右对齐", widthDp = 1280, heightDp = 800, showBackground = true)
+@Composable private fun EndAlignedSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.End) },
+) { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "横屏播放", widthDp = 1280, heightDp = 720, showBackground = true)
+@Composable private fun LandscapePlayingPreview() = PreviewState(
+    initialize = {
+        playbackState = PlaybackState.Playing
+        playbackSettings = playbackSettings.copy(orientation = PlaybackOrientation.Landscape)
+    },
+) { PrompterScreen("1", it, {}) }
+
+@Preview(name = "竖屏播放", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun PortraitPlayingPreview() = PreviewState(
+    initialize = {
+        playbackState = PlaybackState.Playing
+        playbackSettings = playbackSettings.copy(orientation = PlaybackOrientation.Portrait)
+    },
 ) { PrompterScreen("1", it, {}) }
 
 @Preview(name = "黑底白字红色横线", widthDp = 1280, heightDp = 720, showBackground = true)
@@ -70,14 +110,6 @@ private fun PreviewState(
     initialize = {
         playbackState = PlaybackState.Playing
         playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.WhiteOnBlack).copy(guideLineStyle = GuideLineStyle.Highlight)
-    },
-) { PrompterScreen("1", it, {}) }
-
-@Preview(name = "橙底深灰字播放", widthDp = 1280, heightDp = 720, showBackground = true)
-@Composable private fun OrangePrompterPreview() = PreviewState(
-    initialize = {
-        playbackState = PlaybackState.Playing
-        playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.OrangeOnCharcoal)
     },
 ) { PrompterScreen("1", it, {}) }
 

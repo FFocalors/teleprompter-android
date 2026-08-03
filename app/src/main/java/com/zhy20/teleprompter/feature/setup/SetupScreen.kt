@@ -54,6 +54,7 @@ import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
+import com.zhy20.teleprompter.core.design.toComposeTextAlign
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
@@ -62,11 +63,13 @@ import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackSettings
+import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
 import com.zhy20.teleprompter.core.model.ScriptContent
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
 import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.PlaybackTiming
+import com.zhy20.teleprompter.core.util.PlaybackPreviewLayout
 import com.zhy20.teleprompter.core.util.formatDuration
 
 @Composable
@@ -106,7 +109,9 @@ fun SetupScreen(
                     SetupPreview(
                         document = script.content,
                         settings = appState.playbackSettings,
-                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        modifier = Modifier.fillMaxWidth().height(
+                            if (appState.playbackSettings.orientation == PlaybackOrientation.Portrait) 320.dp else 260.dp,
+                        ),
                     )
                     SettingsPanel(
                         settings = appState.playbackSettings,
@@ -158,29 +163,38 @@ fun SetupPreview(document: ScriptContent, settings: PlaybackSettings, modifier: 
     val guideLineColor = colorFromHex(settings.activeDisplayPreset().guideLineColorForBackground())
     BoxWithConstraints(modifier.background(AppColors.SurfaceRaised).padding(AppSpacing.md)) {
         val portrait = settings.orientation == PlaybackOrientation.Portrait
-        val previewWidthFraction = if (portrait) 0.48f else 0.94f
-        val previewRatio = if (portrait) 9f / 16f else 16f / 9f
+        val previewRatio = PlaybackPreviewLayout.aspectRatio(settings.orientation)
+        val sizeModifier = if (maxWidth / previewRatio <= maxHeight) {
+            Modifier.fillMaxWidth().aspectRatio(previewRatio)
+        } else {
+            Modifier.fillMaxHeight().aspectRatio(previewRatio)
+        }
         BoxWithConstraints(
-            Modifier.align(Alignment.Center).fillMaxWidth(previewWidthFraction).aspectRatio(previewRatio)
+            Modifier.align(Alignment.Center).then(sizeModifier)
                 .clip(MaterialTheme.shapes.medium).background(background),
         ) {
             val guideY = maxHeight * settings.guideLinePosition
-            val textSize = (settings.fontSize * .34f).sp
+            val textSize = (settings.fontSize * if (portrait) .31f else .36f).sp
             val lineHeight = (settings.fontSize * .44f).sp
+            val maxPreviewLines = PlaybackPreviewLayout.maxVisibleLines(maxHeight.value, settings.fontSize)
             RichScriptText(
                 document = document,
                 modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(AppSpacing.lg)
                     .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
                 color = foreground,
                 style = MaterialTheme.typography.bodyLarge.copy(fontSize = textSize, lineHeight = lineHeight),
-                maxLines = 4,
+                maxLines = maxPreviewLines,
+                textAlign = settings.textAlignment.toComposeTextAlign(),
             )
             if (settings.guideLineEnabled) {
                 when (settings.guideLineStyle) {
-                GuideLineStyle.Highlight -> Box(
-                    Modifier.fillMaxWidth().height(42.dp).offset(y = guideY - 21.dp)
-                            .background(guideLineColor.copy(alpha = .26f)),
-                    )
+                    GuideLineStyle.Highlight -> {
+                        Box(
+                            Modifier.fillMaxWidth().height(48.dp).offset(y = guideY - 24.dp)
+                                .background(guideLineColor.copy(alpha = .26f)),
+                        )
+                        Box(Modifier.fillMaxWidth().height(3.dp).offset(y = guideY + 22.dp).background(guideLineColor))
+                    }
                     GuideLineStyle.Line -> Box(
                         Modifier.fillMaxWidth().height(3.dp).offset(y = guideY).background(guideLineColor),
                     )
@@ -255,6 +269,30 @@ private fun DisplaySettings(settings: PlaybackSettings, onSettings: (PlaybackSet
             labels = listOf(stringResource(R.string.portrait), stringResource(R.string.landscape)),
             selectedIndex = if (settings.orientation == PlaybackOrientation.Portrait) 0 else 1,
             onSelected = { onSettings(settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape)) },
+        )
+        Text(stringResource(R.string.text_alignment), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+        SimpleChoiceRow(
+            labels = listOf(
+                stringResource(R.string.align_start),
+                stringResource(R.string.align_center),
+                stringResource(R.string.align_end),
+            ),
+            selectedIndex = when (settings.textAlignment) {
+                PlaybackTextAlignment.Start -> 0
+                PlaybackTextAlignment.Center -> 1
+                PlaybackTextAlignment.End -> 2
+            },
+            onSelected = { index ->
+                onSettings(
+                    settings.copy(
+                        textAlignment = when (index) {
+                            0 -> PlaybackTextAlignment.Start
+                            1 -> PlaybackTextAlignment.Center
+                            else -> PlaybackTextAlignment.End
+                        },
+                    ),
+                )
+            },
         )
         ToggleSetting(stringResource(R.string.mirror), settings.mirrorEnabled) { onSettings(settings.copy(mirrorEnabled = it)) }
     }

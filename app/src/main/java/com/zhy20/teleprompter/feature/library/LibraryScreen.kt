@@ -130,7 +130,7 @@ fun LibraryScreen(
                     )
                 },
                 floatingActionButton = {
-                    FloatingActionButton(onClick = onNewScript, containerColor = AppColors.Primary, contentColor = AppColors.TextPrimary) {
+                    FloatingActionButton(onClick = onNewScript, containerColor = AppColors.Primary, contentColor = AppColors.OnPrimary) {
                         Icon(Icons.Default.Add, stringResource(R.string.new_script))
                     }
                 },

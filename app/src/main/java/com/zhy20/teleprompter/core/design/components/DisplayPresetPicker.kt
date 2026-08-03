@@ -88,6 +88,5 @@ private fun presetDisplayName(preset: DisplayPreset): String = when (preset.id) 
     "white_black" -> stringResource(R.string.display_preset_white_black)
     "deep_blue_white" -> stringResource(R.string.display_preset_deep_blue_white)
     "deep_green_white" -> stringResource(R.string.display_preset_deep_green_white)
-    "orange_charcoal" -> stringResource(R.string.display_preset_orange_charcoal)
     else -> stringResource(R.string.display_preset_black_white)
 }

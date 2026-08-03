@@ -66,10 +66,11 @@ data class ScriptFolder(
 )
 
 data class PlaybackSettings(
-    val backgroundColor: String = "#111319",
-    val textColor: String = "#FFF2DF",
+    val backgroundColor: String = "#121719",
+    val textColor: String = "#F5F7FA",
     val fontSize: Int = 64,
     val orientation: PlaybackOrientation = PlaybackOrientation.Landscape,
+    val textAlignment: PlaybackTextAlignment = PlaybackTextAlignment.Start,
     val mirrorEnabled: Boolean = false,
     val rhythmMode: RhythmMode = RhythmMode.Speed,
     val speedMultiplier: Float = 1f,
@@ -97,50 +98,41 @@ object DisplayPresets {
     val BlackOnWhite = DisplayPreset(
         id = "black_white",
         name = "black_white",
-        backgroundColor = "#111319",
-        textColor = "#FFF2DF",
+        backgroundColor = "#121719",
+        textColor = "#F5F7FA",
         previewLabel = "preset_black_white",
-        guideLineDarkModeColor = "#FF3B30",
+        guideLineDarkModeColor = "#FF453A",
         guideLineLightModeColor = "#C62828",
     )
     val WhiteOnBlack = DisplayPreset(
         id = "white_black",
         name = "white_black",
-        backgroundColor = "#F1F3F6",
-        textColor = "#171A22",
+        backgroundColor = "#EFF2F4",
+        textColor = "#202426",
         previewLabel = "preset_white_black",
-        guideLineDarkModeColor = "#FF3B30",
+        guideLineDarkModeColor = "#FF453A",
         guideLineLightModeColor = "#C62828",
     )
     val BlueOnWhite = DisplayPreset(
         id = "deep_blue_white",
         name = "deep_blue_white",
-        backgroundColor = "#273B55",
-        textColor = "#FFF2DF",
+        backgroundColor = "#1D3550",
+        textColor = "#F5F7FA",
         previewLabel = "preset_deep_blue_white",
-        guideLineDarkModeColor = "#FF3B30",
+        guideLineDarkModeColor = "#FF453A",
         guideLineLightModeColor = "#C62828",
     )
     val GreenOnWhite = DisplayPreset(
         id = "deep_green_white",
         name = "deep_green_white",
-        backgroundColor = "#28483F",
-        textColor = "#FFF2DF",
+        backgroundColor = "#1E443B",
+        textColor = "#F5F7FA",
         previewLabel = "preset_deep_green_white",
-        guideLineDarkModeColor = "#FF3B30",
-        guideLineLightModeColor = "#C62828",
-    )
-    val OrangeOnCharcoal = DisplayPreset(
-        id = "orange_charcoal",
-        name = "orange_charcoal",
-        backgroundColor = "#FF8A00",
-        textColor = "#363636",
-        previewLabel = "preset_orange_charcoal",
-        guideLineDarkModeColor = "#FF3B30",
+        guideLineDarkModeColor = "#FF453A",
         guideLineLightModeColor = "#C62828",
     )
 
-    val defaults = listOf(BlackOnWhite, WhiteOnBlack, BlueOnWhite, GreenOnWhite, OrangeOnCharcoal)
+    val defaults = listOf(BlackOnWhite, WhiteOnBlack, BlueOnWhite, GreenOnWhite)
 
     fun matching(backgroundColor: String, textColor: String): DisplayPreset? = defaults.firstOrNull {
         it.backgroundColor.equals(backgroundColor, ignoreCase = true) &&
@@ -197,6 +189,7 @@ private fun String.toRgbOrNull(): Rgb? = runCatching {
 }.getOrNull()
 
 enum class PlaybackOrientation { Portrait, Landscape }
+enum class PlaybackTextAlignment { Start, Center, End }
 enum class RhythmMode { Speed, TargetDuration }
 enum class CountdownOption(val seconds: Int) { Off(0), ThreeSeconds(3), FiveSeconds(5), TenSeconds(10) }
 enum class GuideLineStyle { Highlight, Line }

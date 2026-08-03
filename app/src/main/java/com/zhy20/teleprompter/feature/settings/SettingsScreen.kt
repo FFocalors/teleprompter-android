@@ -47,6 +47,7 @@ import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
+import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
 
 @Composable
@@ -75,6 +76,23 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         stringResource(R.string.landscape) to (settings.orientation == PlaybackOrientation.Landscape),
                     ),
                     { appState.globalDefaults = settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape) },
+                )
+                Text(stringResource(R.string.text_alignment), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+                ChoiceRow(
+                    listOf(
+                        stringResource(R.string.align_start) to (settings.textAlignment == PlaybackTextAlignment.Start),
+                        stringResource(R.string.align_center) to (settings.textAlignment == PlaybackTextAlignment.Center),
+                        stringResource(R.string.align_end) to (settings.textAlignment == PlaybackTextAlignment.End),
+                    ),
+                    { index ->
+                        appState.globalDefaults = settings.copy(
+                            textAlignment = when (index) {
+                                0 -> PlaybackTextAlignment.Start
+                                1 -> PlaybackTextAlignment.Center
+                                else -> PlaybackTextAlignment.End
+                            },
+                        )
+                    },
                 )
                 ToggleRow(stringResource(R.string.mirror), settings.mirrorEnabled) { appState.globalDefaults = settings.copy(mirrorEnabled = it) }
             }

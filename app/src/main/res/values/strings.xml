@@ -41,7 +41,6 @@
     <string name="display_preset_white_black">白底黑字</string>
     <string name="display_preset_deep_blue_white">深蓝底白字</string>
     <string name="display_preset_deep_green_white">深绿底白字</string>
-    <string name="display_preset_orange_charcoal">橙底深灰字</string>
     <string name="display_preset_description">显示预设：%1$s</string>
     <string name="preset_preview_sample">台本 Aa</string>
     <string name="background_color">背景颜色</string>
@@ -51,6 +50,10 @@
     <string name="orientation">屏幕方向</string>
     <string name="portrait">竖屏</string>
     <string name="landscape">横屏</string>
+    <string name="text_alignment">文字对齐</string>
+    <string name="align_start">左对齐</string>
+    <string name="align_center">居中对齐</string>
+    <string name="align_end">右对齐</string>
     <string name="mirror">镜像</string>
     <string name="scroll_rhythm">滚动节奏</string>
     <string name="speed_mode">速度模式</string>

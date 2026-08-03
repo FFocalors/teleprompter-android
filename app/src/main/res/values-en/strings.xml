@@ -41,7 +41,6 @@
     <string name="display_preset_white_black">Light background</string>
     <string name="display_preset_deep_blue_white">Deep blue background</string>
     <string name="display_preset_deep_green_white">Deep green background</string>
-    <string name="display_preset_orange_charcoal">Orange background</string>
     <string name="display_preset_description">Display preset: %1$s</string>
     <string name="preset_preview_sample">Script Aa</string>
     <string name="background_color">Background color</string>
@@ -51,6 +50,10 @@
     <string name="orientation">Orientation</string>
     <string name="portrait">Portrait</string>
     <string name="landscape">Landscape</string>
+    <string name="text_alignment">Text alignment</string>
+    <string name="align_start">Align left</string>
+    <string name="align_center">Align center</string>
+    <string name="align_end">Align right</string>
     <string name="mirror">Mirror</string>
     <string name="scroll_rhythm">Scrolling rhythm</string>
     <string name="speed_mode">Speed</string>
