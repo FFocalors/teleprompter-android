@@ -18,6 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -37,15 +39,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
+import com.zhy20.teleprompter.core.design.toAnnotatedString
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
+import com.zhy20.teleprompter.core.model.RichTextDocument
+import com.zhy20.teleprompter.core.model.RichTextEditorState
 import com.zhy20.teleprompter.core.model.SaveState
+import com.zhy20.teleprompter.core.model.ScriptSpanStyle
+import com.zhy20.teleprompter.core.model.TextSelection
 import kotlinx.coroutines.delay
 
 @Composable
@@ -57,40 +66,56 @@ fun EditorScreen(
 ) {
     val script = appState.script(scriptId)
     var title by remember(scriptId) { mutableStateOf(script.title) }
-    var body by remember(scriptId) { mutableStateOf(script.content.plainText()) }
-    var previousBody by remember(scriptId) { mutableStateOf(body) }
-    var boldActive by remember { mutableStateOf(false) }
+    var editorState by remember(scriptId) { mutableStateOf(appState.editorState(scriptId)) }
 
-    LaunchedEffect(title, body) {
+    LaunchedEffect(title, editorState.document) {
         appState.saveState = SaveState.Saving
-        delay(550)
-        appState.updateScript(scriptId, title, body)
+        delay(350)
+        appState.updateEditor(scriptId, title, editorState)
         appState.saveState = SaveState.Saved
     }
+
+    val textFieldValue = remember(editorState.document, editorState.selection) {
+        TextFieldValue(
+            annotatedString = editorState.document.toAnnotatedString(),
+            selection = TextRange(editorState.selection.start, editorState.selection.end),
+        )
+    }
+    val selectionAvailable = !editorState.selection.isCollapsed
 
     Column(Modifier.fillMaxSize()) {
         EditorHeader(
             title = title,
             onTitleChange = { title = it },
             saveState = appState.saveState,
-            boldActive = boldActive,
-            onBold = { boldActive = !boldActive },
-            onUndo = { val current = body; body = previousBody; previousBody = current },
+            editorState = editorState,
+            onToggleStyle = { style -> editorState = editorState.toggleStyle(style) },
+            onUndo = { editorState = editorState.undo() },
             onBack = onBack,
             onSetup = { onSetup(scriptId) },
         )
         BasicTextField(
-            value = body,
-            onValueChange = { updated -> previousBody = body; body = updated },
+            value = textFieldValue,
+            onValueChange = { updated ->
+                val nextSelection = TextSelection(updated.selection.start, updated.selection.end)
+                editorState = if (updated.text == editorState.text) {
+                    editorState.withSelection(nextSelection)
+                } else {
+                    editorState.replaceText(updated.text, nextSelection)
+                }
+            },
             modifier = Modifier.fillMaxSize().padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xl),
-            textStyle = MaterialTheme.typography.headlineMedium.copy(
-                color = AppColors.TextPrimary,
-                fontWeight = if (boldActive) FontWeight.Bold else FontWeight.Normal,
-            ),
+            textStyle = MaterialTheme.typography.headlineMedium.copy(color = AppColors.TextPrimary),
             cursorBrush = SolidColor(AppColors.Primary),
             decorationBox = { inner ->
                 Box(Modifier.fillMaxSize()) {
-                    if (body.isEmpty()) Text(stringResource(R.string.script_body_hint), color = AppColors.TextWeak, style = MaterialTheme.typography.headlineMedium)
+                    if (editorState.text.isEmpty()) {
+                        Text(
+                            stringResource(R.string.script_body_hint),
+                            color = AppColors.TextWeak,
+                            style = MaterialTheme.typography.headlineMedium,
+                        )
+                    }
                     inner()
                 }
             },
@@ -103,8 +128,8 @@ private fun EditorHeader(
     title: String,
     onTitleChange: (String) -> Unit,
     saveState: SaveState,
-    boldActive: Boolean,
-    onBold: () -> Unit,
+    editorState: RichTextEditorState,
+    onToggleStyle: (ScriptSpanStyle) -> Unit,
     onUndo: () -> Unit,
     onBack: () -> Unit,
     onSetup: () -> Unit,
@@ -113,20 +138,24 @@ private fun EditorHeader(
         BoxWithConstraints(Modifier.fillMaxWidth().padding(AppSpacing.sm)) {
             val expanded = maxWidth >= 700.dp
             if (expanded) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                    IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                ) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                     TitleField(title, onTitleChange, Modifier.weight(1f))
-                    EditorTools(saveState, boldActive, onBold, onUndo)
+                    EditorTools(saveState, editorState, onToggleStyle, onUndo)
                     PrimaryButton(stringResource(R.string.enter_prompt_settings), onSetup) { Icon(Icons.Default.PlayArrow, null) }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                         TitleField(title, onTitleChange, Modifier.weight(1f))
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        EditorTools(saveState, boldActive, onBold, onUndo)
+                        EditorTools(saveState, editorState, onToggleStyle, onUndo)
                         Spacer(Modifier.weight(1f))
                         PrimaryButton(stringResource(R.string.start_prompting), onSetup)
                     }
@@ -143,7 +172,11 @@ private fun TitleField(value: String, onValueChange: (String) -> Unit, modifier:
         onValueChange = onValueChange,
         modifier = modifier.heightIn(min = 48.dp).padding(horizontal = AppSpacing.xs, vertical = AppSpacing.sm),
         singleLine = true,
-        textStyle = TextStyle(color = AppColors.TextPrimary, fontSize = MaterialTheme.typography.headlineMedium.fontSize, fontWeight = FontWeight.Bold),
+        textStyle = TextStyle(
+            color = AppColors.TextPrimary,
+            fontSize = MaterialTheme.typography.headlineMedium.fontSize,
+            fontWeight = FontWeight.Bold,
+        ),
         cursorBrush = SolidColor(AppColors.Primary),
         decorationBox = { inner ->
             Box {
@@ -155,12 +188,38 @@ private fun TitleField(value: String, onValueChange: (String) -> Unit, modifier:
 }
 
 @Composable
-private fun EditorTools(saveState: SaveState, boldActive: Boolean, onBold: () -> Unit, onUndo: () -> Unit) {
+private fun EditorTools(
+    saveState: SaveState,
+    editorState: RichTextEditorState,
+    onToggleStyle: (ScriptSpanStyle) -> Unit,
+    onUndo: () -> Unit,
+) {
+    val canFormat = !editorState.selection.isCollapsed
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onUndo) { Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.undo)) }
-        IconToggleButton(checked = boldActive, onCheckedChange = { onBold() }) {
-            Icon(Icons.Default.FormatBold, stringResource(R.string.bold), tint = if (boldActive) AppColors.Primary else AppColors.TextSecondary)
+        IconButton(onClick = onUndo, enabled = editorState.canUndo) {
+            Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.undo))
         }
+        StyleToggle(
+            style = ScriptSpanStyle.Bold,
+            icon = { Icon(Icons.Default.FormatBold, stringResource(R.string.bold)) },
+            editorState = editorState,
+            enabled = canFormat,
+            onToggleStyle = onToggleStyle,
+        )
+        StyleToggle(
+            style = ScriptSpanStyle.Italic,
+            icon = { Icon(Icons.Default.FormatItalic, stringResource(R.string.italic)) },
+            editorState = editorState,
+            enabled = canFormat,
+            onToggleStyle = onToggleStyle,
+        )
+        StyleToggle(
+            style = ScriptSpanStyle.Underline,
+            icon = { Icon(Icons.Default.FormatUnderlined, stringResource(R.string.underline)) },
+            editorState = editorState,
+            enabled = canFormat,
+            onToggleStyle = onToggleStyle,
+        )
         val (icon, label, color) = when (saveState) {
             SaveState.Saving -> Triple(Icons.Default.Save, stringResource(R.string.saving), AppColors.TextWeak)
             SaveState.Saved -> Triple(Icons.Default.Check, stringResource(R.string.saved), AppColors.Success)
@@ -170,4 +229,20 @@ private fun EditorTools(saveState: SaveState, boldActive: Boolean, onBold: () ->
         Spacer(Modifier.width(6.dp))
         Text(label, color = color, style = MaterialTheme.typography.labelMedium)
     }
+}
+
+@Composable
+private fun StyleToggle(
+    style: ScriptSpanStyle,
+    editorState: RichTextEditorState,
+    enabled: Boolean,
+    onToggleStyle: (ScriptSpanStyle) -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    val selected = RichTextDocument.isStyleFullyApplied(editorState.document, editorState.selection, style)
+    IconToggleButton(
+        checked = selected,
+        onCheckedChange = { onToggleStyle(style) },
+        enabled = enabled,
+    ) { icon() }
 }

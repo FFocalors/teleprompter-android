@@ -44,6 +44,7 @@ import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
+import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.ChoiceRow
 import com.zhy20.teleprompter.core.design.components.ConnectionStatusLabel
@@ -232,11 +233,16 @@ private fun NearbyTextCard(appState: AppState, modifier: Modifier = Modifier) {
     AppCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.nearby_text), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
-            Text(stringResource(R.string.preview_sample_previous), color = AppColors.TextWeak, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             Surface(color = AppColors.Secondary.copy(alpha = .25f), shape = MaterialTheme.shapes.medium) {
-                Text(stringResource(R.string.preview_sample_current), Modifier.fillMaxWidth().padding(AppSpacing.md), color = AppColors.TextPrimary, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                RichScriptText(
+                    document = script.content,
+                    modifier = Modifier.fillMaxWidth().padding(AppSpacing.md),
+                    color = AppColors.TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 3,
+                    textAlign = TextAlign.Center,
+                )
             }
-            Text(stringResource(R.string.preview_sample_next), color = AppColors.TextSecondary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             LinearProgressIndicator(progress = { appState.progress }, modifier = Modifier.fillMaxWidth(), color = AppColors.Primary, trackColor = AppColors.Secondary)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.progress_percent, (appState.progress * 100).toInt()), color = AppColors.TextSecondary)

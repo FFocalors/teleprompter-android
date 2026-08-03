@@ -1,6 +1,5 @@
 package com.zhy20.teleprompter.feature.setup
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,55 +9,69 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
-import com.zhy20.teleprompter.core.design.AppColorOptions
 import com.zhy20.teleprompter.core.design.AppSpacing
+import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
-import com.zhy20.teleprompter.core.design.components.AppCard
-import com.zhy20.teleprompter.core.design.components.ChoiceRow
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
 import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
+import com.zhy20.teleprompter.core.model.DisplayPreset
+import com.zhy20.teleprompter.core.model.DisplayPresets
 import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.RhythmMode
+import com.zhy20.teleprompter.core.model.ScriptContent
+import com.zhy20.teleprompter.core.model.activeDisplayPreset
+import com.zhy20.teleprompter.core.model.applyDisplayPreset
+import com.zhy20.teleprompter.core.model.withCustomColors
+import com.zhy20.teleprompter.core.util.PlaybackTiming
 import com.zhy20.teleprompter.core.util.formatDuration
 
 @Composable
@@ -70,45 +83,45 @@ fun SetupScreen(
     onStart: (String) -> Unit,
 ) {
     val script = appState.script(scriptId)
-    BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        val expanded = maxWidth >= 840.dp
-        if (expanded) {
-            Row(Modifier.fillMaxSize()) {
-                SetupPreview(appState.playbackSettings, Modifier.weight(1.3f).fillMaxHeight())
-                SettingsPanel(
-                    settings = appState.playbackSettings,
-                    onSettings = { appState.playbackSettings = it },
-                    normalSeconds = script.normalEstimatedDurationSeconds,
-                    appState = appState,
-                    onBack = onBack,
-                    onRemote = onRemote,
-                    onStart = { onStart(scriptId) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    showStart = true,
-                )
-            }
-        } else {
-            Scaffold(
-                containerColor = AppColors.Background,
-                bottomBar = {
-                    Box(Modifier.fillMaxWidth().background(AppColors.Surface).padding(AppSpacing.md)) {
-                        PrimaryButton(stringResource(R.string.start_playback), { onStart(scriptId) }, Modifier.fillMaxWidth()) { Icon(Icons.Default.PlayArrow, null) }
+    Column(Modifier.fillMaxSize().background(AppColors.Background)) {
+        SetupTopBar(onBack)
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+            val expanded = maxWidth >= 840.dp
+            if (expanded) {
+                Row(Modifier.fillMaxSize()) {
+                    SetupPreview(
+                        document = script.content,
+                        settings = appState.playbackSettings,
+                        modifier = Modifier.weight(1.3f).fillMaxHeight(),
+                    )
+                    Column(Modifier.weight(1f).fillMaxHeight().background(AppColors.Background)) {
+                        SettingsPanel(
+                            settings = appState.playbackSettings,
+                            onSettings = appState::updatePlaybackSettings,
+                            normalSeconds = script.normalEstimatedDurationSeconds,
+                            appState = appState,
+                            onRemote = onRemote,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StartBar(onStart = { onStart(scriptId) })
                     }
-                },
-            ) { padding ->
-                Column(Modifier.fillMaxSize().padding(padding)) {
-                    SetupPreview(appState.playbackSettings, Modifier.fillMaxWidth().height(260.dp))
+                }
+            } else {
+                Column(Modifier.fillMaxSize()) {
+                    SetupPreview(
+                        document = script.content,
+                        settings = appState.playbackSettings,
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                    )
                     SettingsPanel(
                         settings = appState.playbackSettings,
-                        onSettings = { appState.playbackSettings = it },
+                        onSettings = appState::updatePlaybackSettings,
                         normalSeconds = script.normalEstimatedDurationSeconds,
                         appState = appState,
-                        onBack = onBack,
                         onRemote = onRemote,
-                        onStart = { onStart(scriptId) },
                         modifier = Modifier.weight(1f),
-                        showStart = false,
                     )
+                    StartBar(onStart = { onStart(scriptId) })
                 }
             }
         }
@@ -116,25 +129,74 @@ fun SetupScreen(
 }
 
 @Composable
-fun SetupPreview(settings: PlaybackSettings, modifier: Modifier = Modifier) {
+private fun SetupTopBar(onBack: () -> Unit) {
+    Surface(color = AppColors.Surface) {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+            }
+            Text(stringResource(R.string.prompt_settings), style = MaterialTheme.typography.headlineMedium)
+        }
+    }
+}
+
+@Composable
+private fun StartBar(onStart: () -> Unit) {
+    Surface(color = AppColors.Surface) {
+        Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(AppSpacing.md)) {
+            PrimaryButton(
+                text = stringResource(R.string.start_playback),
+                onClick = onStart,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Icon(Icons.Default.PlayArrow, null) }
+        }
+    }
+}
+
+@Composable
+fun SetupPreview(document: ScriptContent, settings: PlaybackSettings, modifier: Modifier = Modifier) {
     val background = colorFromHex(settings.backgroundColor)
     val foreground = colorFromHex(settings.textColor)
-    BoxWithConstraints(modifier.background(background).clip(MaterialTheme.shapes.medium)) {
-        val guideY = maxHeight * settings.guideLinePosition
-        Column(
-            Modifier.align(Alignment.Center).fillMaxWidth().padding(AppSpacing.lg).graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+    BoxWithConstraints(modifier.background(AppColors.SurfaceRaised).padding(AppSpacing.md)) {
+        val portrait = settings.orientation == PlaybackOrientation.Portrait
+        val previewWidthFraction = if (portrait) 0.48f else 0.94f
+        val previewRatio = if (portrait) 9f / 16f else 16f / 9f
+        BoxWithConstraints(
+            Modifier.align(Alignment.Center).fillMaxWidth(previewWidthFraction).aspectRatio(previewRatio)
+                .clip(MaterialTheme.shapes.medium).background(background),
         ) {
-            Text(stringResource(R.string.preview_sample_previous), color = foreground.copy(alpha = .45f), fontSize = (settings.fontSize * .55f).sp, lineHeight = (settings.fontSize * .68f).sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.preview_sample_current), color = foreground, fontSize = (settings.fontSize * .55f).sp, lineHeight = (settings.fontSize * .68f).sp, fontWeight = FontWeight.Bold)
-        }
-        if (settings.guideLineEnabled) {
-            when (settings.guideLineStyle) {
-                GuideLineStyle.Highlight -> Box(Modifier.fillMaxWidth().height(54.dp).offset(y = guideY).background(AppColors.Secondary.copy(alpha = .26f)))
-                GuideLineStyle.Line -> Box(Modifier.fillMaxWidth().height(2.dp).offset(y = guideY).background(AppColors.Secondary))
+            val guideY = maxHeight * settings.guideLinePosition
+            val textSize = (settings.fontSize * .34f).sp
+            val lineHeight = (settings.fontSize * .44f).sp
+            RichScriptText(
+                document = document,
+                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(AppSpacing.lg)
+                    .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
+                color = foreground,
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = textSize, lineHeight = lineHeight),
+                maxLines = 4,
+            )
+            if (settings.guideLineEnabled) {
+                when (settings.guideLineStyle) {
+                    GuideLineStyle.Highlight -> Box(
+                        Modifier.fillMaxWidth().height(42.dp).offset(y = guideY - 21.dp)
+                            .background(AppColors.Secondary.copy(alpha = .36f)),
+                    )
+                    GuideLineStyle.Line -> Box(
+                        Modifier.fillMaxWidth().height(2.dp).offset(y = guideY).background(AppColors.Secondary),
+                    )
+                }
             }
+            Text(
+                stringResource(R.string.live_preview),
+                Modifier.align(Alignment.TopStart).padding(AppSpacing.sm),
+                color = foreground.copy(alpha = .68f),
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
-        Text(stringResource(R.string.live_preview), Modifier.align(Alignment.TopStart).padding(AppSpacing.md), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -144,72 +206,228 @@ private fun SettingsPanel(
     onSettings: (PlaybackSettings) -> Unit,
     normalSeconds: Int,
     appState: AppState,
-    onBack: () -> Unit,
     onRemote: () -> Unit,
-    onStart: () -> Unit,
     modifier: Modifier,
-    showStart: Boolean,
 ) {
-    Column(modifier.background(AppColors.Background).verticalScroll(rememberScrollState()).padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
-            Text(stringResource(R.string.prompt_settings), style = MaterialTheme.typography.headlineMedium)
-        }
-        SettingsCard(stringResource(R.string.display_settings)) {
-            ColorSetting(stringResource(R.string.background_color), settings.backgroundColor, AppColorOptions.Backgrounds) { onSettings(settings.copy(backgroundColor = it)) }
-            ColorSetting(stringResource(R.string.text_color), settings.textColor, AppColorOptions.Texts) { onSettings(settings.copy(textColor = it)) }
-            SettingLabel(stringResource(R.string.font_size), stringResource(R.string.font_size_value, settings.fontSize))
-            Slider(settings.fontSize.toFloat(), { onSettings(settings.copy(fontSize = it.toInt())) }, valueRange = 32f..100f)
-            ChoiceRow(
-                listOf(
-                    stringResource(R.string.portrait) to (settings.orientation == PlaybackOrientation.Portrait),
-                    stringResource(R.string.landscape) to (settings.orientation == PlaybackOrientation.Landscape),
-                ),
-                { onSettings(settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape)) },
-            )
-            ToggleSetting(stringResource(R.string.mirror), settings.mirrorEnabled) { onSettings(settings.copy(mirrorEnabled = it)) }
-        }
-        SettingsCard(
-            stringResource(R.string.scroll_rhythm),
-            supportingText = stringResource(R.string.normal_duration_format, formatDuration(normalSeconds)),
-        ) {
-            ChoiceRow(
-                listOf(
-                    stringResource(R.string.speed_mode) to (settings.rhythmMode == RhythmMode.Speed),
-                    stringResource(R.string.target_time_mode) to (settings.rhythmMode == RhythmMode.TargetDuration),
-                ),
-                { onSettings(settings.copy(rhythmMode = if (it == 0) RhythmMode.Speed else RhythmMode.TargetDuration)) },
-            )
-            if (settings.rhythmMode == RhythmMode.Speed) {
-                SettingLabel(stringResource(R.string.speed), stringResource(R.string.speed_multiplier, settings.speedMultiplier))
-                Slider(settings.speedMultiplier, { onSettings(settings.copy(speedMultiplier = it)) }, valueRange = .5f..2f)
-            } else {
-                ChoiceRow(listOf(120, 180, 300).map { stringResource(R.string.target_duration) + " " + formatDuration(it) to (settings.targetDurationSeconds == it) }, onSelected = { index ->
-                    onSettings(settings.copy(targetDurationSeconds = listOf(120, 180, 300)[index]))
-                })
-            }
-        }
+    Column(
+        modifier.background(AppColors.Background).verticalScroll(rememberScrollState()).padding(AppSpacing.lg),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+    ) {
+        DisplaySettings(settings, onSettings)
+        RhythmSettings(settings, onSettings, normalSeconds)
         SettingsCard(stringResource(R.string.countdown)) {
             val options = CountdownOption.entries
-            ChoiceRow(options.map { option -> (if (option == CountdownOption.Off) stringResource(R.string.countdown_off) else stringResource(R.string.seconds_format, option.seconds)) to (settings.countdown == option) }, onSelected = {
-                onSettings(settings.copy(countdown = options[it]))
-            })
+            Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                options.forEach { option ->
+                    val selected = settings.countdown == option
+                    Surface(
+                        modifier = Modifier.weight(1f).height(48.dp).clickable { onSettings(settings.copy(countdown = option)) },
+                        shape = MaterialTheme.shapes.medium,
+                        color = if (selected) AppColors.Secondary.copy(alpha = .55f) else Color.Transparent,
+                        border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(if (option == CountdownOption.Off) stringResource(R.string.countdown_off) else stringResource(R.string.seconds_format, option.seconds))
+                        }
+                    }
+                }
+            }
         }
         SettingsCard(stringResource(R.string.guide_line)) {
             ToggleSetting(stringResource(R.string.guide_line), settings.guideLineEnabled) { onSettings(settings.copy(guideLineEnabled = it)) }
-            ChoiceRow(
-                listOf(
-                    stringResource(R.string.guide_highlight) to (settings.guideLineStyle == GuideLineStyle.Highlight),
-                    stringResource(R.string.guide_horizontal) to (settings.guideLineStyle == GuideLineStyle.Line),
-                ),
-                { onSettings(settings.copy(guideLineStyle = if (it == 0) GuideLineStyle.Highlight else GuideLineStyle.Line)) },
+            SimpleChoiceRow(
+                labels = listOf(stringResource(R.string.guide_highlight), stringResource(R.string.guide_horizontal)),
+                selectedIndex = if (settings.guideLineStyle == GuideLineStyle.Highlight) 0 else 1,
+                onSelected = { onSettings(settings.copy(guideLineStyle = if (it == 0) GuideLineStyle.Highlight else GuideLineStyle.Line)) },
             )
             SettingLabel(stringResource(R.string.guide_position), "${(settings.guideLinePosition * 100).toInt()}%")
             Slider(settings.guideLinePosition, { onSettings(settings.copy(guideLinePosition = it)) }, valueRange = .15f..0.75f)
         }
         RemoteStatusCard(appState.remoteConnectionState, onRemote)
-        if (showStart) PrimaryButton(stringResource(R.string.start_playback), onStart, Modifier.fillMaxWidth()) { Icon(Icons.Default.PlayArrow, null) }
-        Spacer(Modifier.height(AppSpacing.md))
+        Spacer(Modifier.height(AppSpacing.xl))
+    }
+}
+
+@Composable
+private fun DisplaySettings(settings: PlaybackSettings, onSettings: (PlaybackSettings) -> Unit) {
+    SettingsCard(stringResource(R.string.display_settings)) {
+        Text(stringResource(R.string.display_presets), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+        val activePreset = settings.activeDisplayPreset()
+        DisplayPresets.defaults.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                row.forEach { preset ->
+                    DisplayPresetCard(
+                        preset = preset,
+                        selected = activePreset.id == preset.id,
+                        onClick = { onSettings(settings.applyDisplayPreset(preset)) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        Text(stringResource(R.string.custom_colors), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+        CustomColorInput(
+            label = stringResource(R.string.background_color),
+            value = settings.backgroundColor,
+            onValidColor = { onSettings(settings.withCustomColors(backgroundColor = it)) },
+        )
+        CustomColorInput(
+            label = stringResource(R.string.text_color),
+            value = settings.textColor,
+            onValidColor = { onSettings(settings.withCustomColors(textColor = it)) },
+        )
+        if (activePreset.isCustom) {
+            Text(stringResource(R.string.custom_display_active), color = AppColors.Primary, style = MaterialTheme.typography.labelMedium)
+        }
+        SettingLabel(stringResource(R.string.font_size), stringResource(R.string.font_size_value, settings.fontSize))
+        Slider(settings.fontSize.toFloat(), { onSettings(settings.copy(fontSize = it.toInt())) }, valueRange = 32f..100f)
+        SimpleChoiceRow(
+            labels = listOf(stringResource(R.string.portrait), stringResource(R.string.landscape)),
+            selectedIndex = if (settings.orientation == PlaybackOrientation.Portrait) 0 else 1,
+            onSelected = { onSettings(settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape)) },
+        )
+        ToggleSetting(stringResource(R.string.mirror), settings.mirrorEnabled) { onSettings(settings.copy(mirrorEnabled = it)) }
+    }
+}
+
+@Composable
+private fun DisplayPresetCard(preset: DisplayPreset, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val label = presetDisplayName(preset)
+    val description = stringResource(R.string.display_preset_description, label)
+    Surface(
+        modifier = modifier.height(92.dp).semantics { contentDescription = description }.clickable(onClick = onClick),
+        color = colorFromHex(preset.backgroundColor),
+        contentColor = colorFromHex(preset.textColor),
+        shape = MaterialTheme.shapes.medium,
+        border = androidx.compose.foundation.BorderStroke(if (selected) 3.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
+    ) {
+        Column(Modifier.padding(AppSpacing.sm), verticalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Text(stringResource(R.string.preset_preview_sample), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun presetDisplayName(preset: DisplayPreset): String = when (preset.id) {
+    "black_white" -> stringResource(R.string.display_preset_black_white)
+    "white_black" -> stringResource(R.string.display_preset_white_black)
+    "blue_white" -> stringResource(R.string.display_preset_blue_white)
+    "green_white" -> stringResource(R.string.display_preset_green_white)
+    else -> stringResource(R.string.custom_colors)
+}
+
+@Composable
+private fun CustomColorInput(label: String, value: String, onValidColor: (String) -> Unit) {
+    var draft by remember(value) { mutableStateOf(value) }
+    val valid = draft.matches(Regex("^#[0-9A-Fa-f]{6}$"))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+        Box(Modifier.width(36.dp).height(48.dp).clip(CircleShape).background(colorFromHex(if (valid) draft else value)))
+        OutlinedTextField(
+            value = draft,
+            onValueChange = {
+                draft = it.take(7)
+                if (draft.matches(Regex("^#[0-9A-Fa-f]{6}$"))) onValidColor(draft.uppercase())
+            },
+            modifier = Modifier.weight(1f),
+            label = { Text(label) },
+            placeholder = { Text(stringResource(R.string.color_hex_hint)) },
+            singleLine = true,
+            isError = draft.isNotBlank() && !valid,
+            supportingText = if (draft.isNotBlank() && !valid) {{ Text(stringResource(R.string.color_hex_invalid)) }} else null,
+        )
+    }
+}
+
+@Composable
+private fun RhythmSettings(settings: PlaybackSettings, onSettings: (PlaybackSettings) -> Unit, normalSeconds: Int) {
+    SettingsCard(
+        title = stringResource(R.string.scroll_rhythm),
+        supportingText = stringResource(R.string.normal_duration_format, formatDuration(normalSeconds)),
+    ) {
+        SimpleChoiceRow(
+            labels = listOf(stringResource(R.string.speed_mode), stringResource(R.string.target_time_mode)),
+            selectedIndex = if (settings.rhythmMode == RhythmMode.Speed) 0 else 1,
+            onSelected = { onSettings(settings.copy(rhythmMode = if (it == 0) RhythmMode.Speed else RhythmMode.TargetDuration)) },
+        )
+        if (settings.rhythmMode == RhythmMode.Speed) {
+            SettingLabel(stringResource(R.string.speed), stringResource(R.string.speed_multiplier, settings.speedMultiplier))
+            Slider(settings.speedMultiplier, { onSettings(settings.copy(speedMultiplier = it)) }, valueRange = .5f..2f)
+        } else {
+            TargetDurationEditor(settings, onSettings, normalSeconds)
+        }
+    }
+}
+
+@Composable
+private fun TargetDurationEditor(settings: PlaybackSettings, onSettings: (PlaybackSettings) -> Unit, normalSeconds: Int) {
+    val split = PlaybackTiming.split(settings.targetDurationSeconds)
+    var minutes by remember(settings.targetDurationSeconds) { mutableStateOf(split.minutes.toString()) }
+    var seconds by remember(settings.targetDurationSeconds) { mutableStateOf(split.seconds.toString()) }
+    val parsedDuration = PlaybackTiming.fromMinuteSecond(minutes.toIntOrNull(), seconds.toIntOrNull())
+    val invalid = parsedDuration == null
+    val multiplier = PlaybackTiming.roundedMultiplier(normalSeconds, settings.targetDurationSeconds)
+
+    SettingLabel(stringResource(R.string.target_duration), formatDuration(settings.targetDurationSeconds))
+    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm), verticalAlignment = Alignment.Top) {
+        DurationField(
+            value = minutes,
+            label = stringResource(R.string.minutes_unit),
+            isError = invalid,
+            onValueChange = { updated ->
+                minutes = updated
+                PlaybackTiming.fromMinuteSecond(minutes.toIntOrNull(), seconds.toIntOrNull())?.let { duration ->
+                    onSettings(settings.copy(targetDurationSeconds = duration, speedMultiplier = PlaybackTiming.roundedMultiplier(normalSeconds, duration)))
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+        DurationField(
+            value = seconds,
+            label = stringResource(R.string.seconds_unit),
+            isError = invalid,
+            onValueChange = { updated ->
+                seconds = updated
+                PlaybackTiming.fromMinuteSecond(minutes.toIntOrNull(), seconds.toIntOrNull())?.let { duration ->
+                    onSettings(settings.copy(targetDurationSeconds = duration, speedMultiplier = PlaybackTiming.roundedMultiplier(normalSeconds, duration)))
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+    }
+    if (invalid) Text(stringResource(R.string.target_time_invalid), color = AppColors.Danger, style = MaterialTheme.typography.labelMedium)
+    SettingLabel(stringResource(R.string.corresponding_speed), stringResource(R.string.speed_multiplier, multiplier))
+}
+
+@Composable
+private fun DurationField(value: String, label: String, isError: Boolean, onValueChange: (String) -> Unit, modifier: Modifier) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onValueChange(it.filter(Char::isDigit).take(6)) },
+        modifier = modifier,
+        label = { Text(label) },
+        singleLine = true,
+        isError = isError,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    )
+}
+
+@Composable
+private fun SimpleChoiceRow(labels: List<String>, selectedIndex: Int, onSelected: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+        labels.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            Surface(
+                modifier = Modifier.weight(1f).height(48.dp).clickable { onSelected(index) },
+                color = if (selected) AppColors.Secondary.copy(alpha = .55f) else Color.Transparent,
+                contentColor = if (selected) AppColors.TextPrimary else AppColors.TextSecondary,
+                border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
+                shape = MaterialTheme.shapes.medium,
+            ) {
+                Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 2) }
+            }
+        }
     }
 }
 
@@ -226,20 +444,5 @@ private fun ToggleSetting(label: String, checked: Boolean, onChecked: (Boolean) 
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.weight(1f), color = AppColors.TextSecondary)
         Switch(checked, onChecked)
-    }
-}
-
-@Composable
-private fun ColorSetting(label: String, selected: String, options: List<String>, onSelected: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-        SettingLabel(label, selected)
-        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-            options.forEach { hex ->
-                Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(colorFromHex(hex)).clickable { onSelected(hex) }
-                        .then(if (selected == hex) Modifier.background(Color.Transparent) else Modifier),
-                )
-            }
-        }
     }
 }

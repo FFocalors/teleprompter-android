@@ -64,6 +64,7 @@ import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
+import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
@@ -127,9 +128,14 @@ fun PrompterScreen(
                 .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
             verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
         ) {
-            Text(stringResource(R.string.preview_sample_previous), color = foreground, fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * 1.18f).sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.preview_sample_current), color = foreground.copy(alpha = .76f), fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * 1.18f).sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.preview_sample_next), color = foreground.copy(alpha = .52f), fontSize = settings.fontSize.sp, lineHeight = (settings.fontSize * 1.18f).sp, fontWeight = FontWeight.Bold)
+            RichScriptText(
+                document = script.content,
+                color = foreground,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = settings.fontSize.sp,
+                    lineHeight = (settings.fontSize * 1.18f).sp,
+                ),
+            )
         }
 
         if (settings.guideLineEnabled) {

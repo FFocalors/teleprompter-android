@@ -10,12 +10,10 @@ import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.PrompterSurface
+import com.zhy20.teleprompter.core.model.RichTextEditorState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.core.model.Script
-import com.zhy20.teleprompter.core.model.ScriptBlock
-import com.zhy20.teleprompter.core.model.ScriptContent
-import com.zhy20.teleprompter.core.model.ScriptSpan
 import com.zhy20.teleprompter.data.fake.FakeData
 
 class AppState {
@@ -35,6 +33,7 @@ class AppState {
     var progress by mutableFloatStateOf(0.38f)
     var saveState by mutableStateOf(SaveState.Saved)
     var selectedLanguage by mutableStateOf("zh-CN")
+    private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
     fun script(id: String): Script = scripts.firstOrNull { it.id == id } ?: draftScript
 
@@ -46,17 +45,33 @@ class AppState {
         playbackSettings = script(id).playbackSettings
     }
 
-    fun updateScript(id: String, title: String, text: String) {
+    fun editorState(id: String): RichTextEditorState = editorStates.getOrPut(id) {
+        val script = script(id)
+        RichTextEditorState(script.content)
+    }
+
+    fun updateEditor(id: String, title: String, editorState: RichTextEditorState) {
+        editorStates[id] = editorState
+        updateScript(id, title, editorState.document)
+    }
+
+    fun updateScript(id: String, title: String, content: com.zhy20.teleprompter.core.model.ScriptContent) {
         val old = script(id)
         val updated = old.copy(
             title = title,
-            plainTextPreview = text.replace('\n', ' ').take(140),
-            content = ScriptContent(text.split("\n\n").mapIndexed { index, paragraph ->
-                ScriptBlock.Paragraph("edited-$index", listOf(ScriptSpan(paragraph)))
-            }),
-            wordCount = text.count { !it.isWhitespace() },
+            plainTextPreview = content.plainText().replace('\n', ' ').take(140),
+            content = content,
+            wordCount = content.plainText().count { !it.isWhitespace() },
             lastModifiedAt = System.currentTimeMillis(),
         )
+        if (id == "new") draftScript = updated else scripts = scripts.map { if (it.id == id) updated else it }
+    }
+
+    fun updatePlaybackSettings(settings: PlaybackSettings) {
+        playbackSettings = settings
+        val id = selectedScriptId
+        val old = script(id)
+        val updated = old.copy(playbackSettings = settings, lastModifiedAt = System.currentTimeMillis())
         if (id == "new") draftScript = updated else scripts = scripts.map { if (it.id == id) updated else it }
     }
 
@@ -71,7 +86,7 @@ class AppState {
     fun finishCountdown() { playbackState = PlaybackState.Playing }
 
     fun updateGuidePosition(position: Float) {
-        playbackSettings = playbackSettings.copy(guideLinePosition = position.coerceIn(0.15f, 0.75f))
+        updatePlaybackSettings(playbackSettings.copy(guideLinePosition = position.coerceIn(0.15f, 0.75f)))
     }
 
     fun onPlaybackEvent(event: PlaybackEvent) {
@@ -80,14 +95,14 @@ class AppState {
             PlaybackEvent.PausePlayback -> playbackState = PlaybackState.Paused
             PlaybackEvent.ResumeImmediately -> playbackState = PlaybackState.Playing
             PlaybackEvent.ResumeWithCountdown -> playbackState = PlaybackState.Countdown(3)
-            PlaybackEvent.IncreaseSpeed -> playbackSettings = playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier + 0.1f).coerceAtMost(2f))
-            PlaybackEvent.DecreaseSpeed -> playbackSettings = playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier - 0.1f).coerceAtLeast(0.5f))
+            PlaybackEvent.IncreaseSpeed -> updatePlaybackSettings(playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier + 0.1f).coerceAtMost(2f)))
+            PlaybackEvent.DecreaseSpeed -> updatePlaybackSettings(playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier - 0.1f).coerceAtLeast(0.5f)))
             PlaybackEvent.SeekForwardSmall -> progress = (progress + 0.03f).coerceAtMost(1f)
             PlaybackEvent.SeekBackwardSmall -> progress = (progress - 0.03f).coerceAtLeast(0f)
             is PlaybackEvent.SeekTo -> progress = event.progress.coerceIn(0f, 1f)
             PlaybackEvent.EndPlayback -> playbackState = PlaybackState.Finished
-            PlaybackEvent.ToggleGuideLine -> playbackSettings = playbackSettings.copy(guideLineEnabled = !playbackSettings.guideLineEnabled)
-            is PlaybackEvent.ChangeGuideLineStyle -> playbackSettings = playbackSettings.copy(guideLineStyle = event.style)
+            PlaybackEvent.ToggleGuideLine -> updatePlaybackSettings(playbackSettings.copy(guideLineEnabled = !playbackSettings.guideLineEnabled))
+            is PlaybackEvent.ChangeGuideLineStyle -> updatePlaybackSettings(playbackSettings.copy(guideLineStyle = event.style))
         }
     }
 
