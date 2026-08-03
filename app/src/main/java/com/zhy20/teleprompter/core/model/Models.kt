@@ -66,8 +66,8 @@ data class ScriptFolder(
 )
 
 data class PlaybackSettings(
-    val backgroundColor: String = "#141622",
-    val textColor: String = "#F2F5FA",
+    val backgroundColor: String = "#111319",
+    val textColor: String = "#FFF2DF",
     val fontSize: Int = 64,
     val orientation: PlaybackOrientation = PlaybackOrientation.Landscape,
     val mirrorEnabled: Boolean = false,
@@ -78,8 +78,8 @@ data class PlaybackSettings(
     val guideLineEnabled: Boolean = true,
     val guideLineStyle: GuideLineStyle = GuideLineStyle.Highlight,
     val guideLinePosition: Float = 0.25f,
-    /** Null keeps older saved settings fully compatible. */
-    val displayPresetId: String? = null,
+    /** Kept alongside resolved colors so playback never depends on a UI component. */
+    val displayPresetId: String? = "black_white",
 )
 
 data class DisplayPreset(
@@ -88,54 +88,73 @@ data class DisplayPreset(
     val name: String,
     val backgroundColor: String,
     val textColor: String,
-    val previewAccentColor: String? = null,
-    val isCustom: Boolean = false,
+    val previewLabel: String,
+    val guideLineDarkModeColor: String,
+    val guideLineLightModeColor: String,
 )
 
 object DisplayPresets {
-    const val CustomId = "custom"
-
     val BlackOnWhite = DisplayPreset(
         id = "black_white",
         name = "black_white",
         backgroundColor = "#111319",
-        textColor = "#F2F5FA",
-        previewAccentColor = "#3E4C6B",
+        textColor = "#FFF2DF",
+        previewLabel = "preset_black_white",
+        guideLineDarkModeColor = "#FF3B30",
+        guideLineLightModeColor = "#C62828",
     )
     val WhiteOnBlack = DisplayPreset(
         id = "white_black",
         name = "white_black",
         backgroundColor = "#F1F3F6",
         textColor = "#171A22",
-        previewAccentColor = "#3F6987",
+        previewLabel = "preset_white_black",
+        guideLineDarkModeColor = "#FF3B30",
+        guideLineLightModeColor = "#C62828",
     )
     val BlueOnWhite = DisplayPreset(
-        id = "blue_white",
-        name = "blue_white",
-        backgroundColor = "#29465E",
-        textColor = "#F2F5FA",
-        previewAccentColor = "#81A9C5",
+        id = "deep_blue_white",
+        name = "deep_blue_white",
+        backgroundColor = "#273B55",
+        textColor = "#FFF2DF",
+        previewLabel = "preset_deep_blue_white",
+        guideLineDarkModeColor = "#FF3B30",
+        guideLineLightModeColor = "#C62828",
     )
     val GreenOnWhite = DisplayPreset(
-        id = "green_white",
-        name = "green_white",
-        backgroundColor = "#294C42",
-        textColor = "#F2F5FA",
-        previewAccentColor = "#88AA97",
+        id = "deep_green_white",
+        name = "deep_green_white",
+        backgroundColor = "#28483F",
+        textColor = "#FFF2DF",
+        previewLabel = "preset_deep_green_white",
+        guideLineDarkModeColor = "#FF3B30",
+        guideLineLightModeColor = "#C62828",
     )
-    val Custom = DisplayPreset(
-        id = CustomId,
-        name = "custom",
-        backgroundColor = "",
-        textColor = "",
-        isCustom = true,
+    val OrangeOnCharcoal = DisplayPreset(
+        id = "orange_charcoal",
+        name = "orange_charcoal",
+        backgroundColor = "#FF8A00",
+        textColor = "#363636",
+        previewLabel = "preset_orange_charcoal",
+        guideLineDarkModeColor = "#FF3B30",
+        guideLineLightModeColor = "#C62828",
     )
 
-    val defaults = listOf(BlackOnWhite, WhiteOnBlack, BlueOnWhite, GreenOnWhite)
+    val defaults = listOf(BlackOnWhite, WhiteOnBlack, BlueOnWhite, GreenOnWhite, OrangeOnCharcoal)
 
     fun matching(backgroundColor: String, textColor: String): DisplayPreset? = defaults.firstOrNull {
         it.backgroundColor.equals(backgroundColor, ignoreCase = true) &&
             it.textColor.equals(textColor, ignoreCase = true)
+    }
+
+    fun nearest(backgroundColor: String, textColor: String): DisplayPreset {
+        val targetBackground = backgroundColor.toRgbOrNull()
+        val targetText = textColor.toRgbOrNull()
+        if (targetBackground == null || targetText == null) return BlackOnWhite
+        return defaults.minByOrNull { preset ->
+            preset.backgroundColor.toRgbOrNull()!!.distanceTo(targetBackground) +
+                preset.textColor.toRgbOrNull()!!.distanceTo(targetText)
+        } ?: BlackOnWhite
     }
 }
 
@@ -145,19 +164,37 @@ fun PlaybackSettings.applyDisplayPreset(preset: DisplayPreset): PlaybackSettings
     displayPresetId = preset.id,
 )
 
-fun PlaybackSettings.withCustomColors(backgroundColor: String = this.backgroundColor, textColor: String = this.textColor): PlaybackSettings = copy(
-    backgroundColor = backgroundColor,
-    textColor = textColor,
-    displayPresetId = DisplayPresets.CustomId,
-)
+fun PlaybackSettings.activeDisplayPreset(): DisplayPreset =
+    DisplayPresets.matching(backgroundColor, textColor)
+        ?: DisplayPresets.nearest(backgroundColor, textColor)
 
-fun PlaybackSettings.activeDisplayPreset(): DisplayPreset = when {
-    displayPresetId == DisplayPresets.CustomId -> DisplayPresets.Custom
-    displayPresetId != null -> DisplayPresets.defaults.firstOrNull { it.id == displayPresetId }
-        ?: DisplayPresets.matching(backgroundColor, textColor)
-        ?: DisplayPresets.Custom
-    else -> DisplayPresets.matching(backgroundColor, textColor) ?: DisplayPresets.Custom
+/** Converts legacy or unsupported colors to the closest supported display pair. */
+fun PlaybackSettings.normalizedToDisplayPreset(): PlaybackSettings = applyDisplayPreset(activeDisplayPreset())
+
+fun DisplayPreset.guideLineColorForBackground(): String = if (backgroundColor.toRgbOrNull()?.isLight() == true) {
+    guideLineLightModeColor
+} else {
+    guideLineDarkModeColor
 }
+
+private data class Rgb(val red: Int, val green: Int, val blue: Int) {
+    fun distanceTo(other: Rgb): Int =
+        (red - other.red) * (red - other.red) +
+            (green - other.green) * (green - other.green) +
+            (blue - other.blue) * (blue - other.blue)
+
+    fun isLight(): Boolean = (red * 299 + green * 587 + blue * 114) / 1000 >= 150
+}
+
+private fun String.toRgbOrNull(): Rgb? = runCatching {
+    val normalized = removePrefix("#")
+    require(normalized.length == 6)
+    Rgb(
+        normalized.substring(0, 2).toInt(16),
+        normalized.substring(2, 4).toInt(16),
+        normalized.substring(4, 6).toInt(16),
+    )
+}.getOrNull()
 
 enum class PlaybackOrientation { Portrait, Landscape }
 enum class RhythmMode { Speed, TargetDuration }
@@ -165,7 +202,7 @@ enum class CountdownOption(val seconds: Int) { Off(0), ThreeSeconds(3), FiveSeco
 enum class GuideLineStyle { Highlight, Line }
 enum class RemoteConnectionState { Disconnected, Waiting, Connected, ConnectionLost }
 enum class PrompterSurface { Library, Editor, Setup, Prompter }
-enum class SaveState { Saving, Saved, Error }
+enum class SaveState { Initial, Saving, Saved, Error }
 
 sealed interface PlaybackState {
     data object Idle : PlaybackState

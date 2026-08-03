@@ -2,6 +2,8 @@ package com.zhy20.teleprompter.core.design.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -83,14 +87,17 @@ fun PrimaryButton(
     enabled: Boolean = true,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
     Button(
         onClick = onClick,
         modifier = modifier.height(52.dp),
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = MaterialTheme.shapes.medium,
         colors = ButtonDefaults.buttonColors(
-            containerColor = AppColors.Primary,
-            contentColor = AppColors.TextPrimary,
+            containerColor = if (pressed) AppColors.PrimaryPressed else AppColors.Primary,
+            contentColor = AppColors.OnPrimary,
             disabledContainerColor = AppColors.Secondary,
             disabledContentColor = AppColors.TextWeak,
         ),

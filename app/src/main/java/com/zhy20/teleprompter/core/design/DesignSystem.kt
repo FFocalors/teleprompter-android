@@ -14,24 +14,25 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.toColorInt
 
 object AppColors {
-    val Background = Color(0xFF141622)
-    val Surface = Color(0xFF1B1D2A)
-    val SurfaceRaised = Color(0xFF222536)
-    val Primary = Color(0xFF3F6987)
-    val Secondary = Color(0xFF3E4C6B)
-    val TextPrimary = Color(0xFFF2F5FA)
-    val TextSecondary = Color(0xFFC4CBD6)
-    val TextWeak = Color(0xFF9AA3B2)
-    val Border = Color(0xFF3A4560)
-    val Success = Color(0xFF6F9A82)
-    val Warning = Color(0xFFB59A68)
-    val Danger = Color(0xFFA96F75)
-    val Scrim = Color(0xB3141622)
-}
-
-object AppColorOptions {
-    val Backgrounds = listOf("#141622", "#202331", "#0E1118")
-    val Texts = listOf("#F2F5FA", "#C4CBD6", "#D6E0EA")
+    /** App chrome uses orange only for action, selection, and emphasis. */
+    val Background = Color(0xFF0B0708)
+    val Surface = Color(0xFF171415)
+    val SurfaceRaised = Color(0xFF232020)
+    val Primary = Color(0xFFFF8A00)
+    val PrimaryPressed = Color(0xFFD97000)
+    val OnPrimary = Color(0xFF363636)
+    val Secondary = Color(0xFF363636)
+    val TextPrimary = Color(0xFFFFF2DF)
+    val TextSecondary = Color(0xBDFFF2DF)
+    val TextWeak = Color(0x8AFFF2DF)
+    val Border = Color(0xFF363636)
+    val Divider = Color(0x66363636)
+    val Success = Color(0xFF7FA98A)
+    val Warning = Color(0xFFD5A354)
+    val Danger = Color(0xFFC95C55)
+    val GuideLineBrightRed = Color(0xFFFF3B30)
+    val GuideLineDeepRed = Color(0xFFC62828)
+    val Scrim = Color(0xC90B0708)
 }
 
 object AppSpacing {
@@ -42,6 +43,7 @@ object AppSpacing {
     val lg = 24.dp
     val xl = 32.dp
     val xxl = 40.dp
+    val EditorTail = 160.dp
 }
 
 object AppShapes {
@@ -74,7 +76,7 @@ val AppTypography = Typography(
 
 private val AppColorScheme = darkColorScheme(
     primary = AppColors.Primary,
-    onPrimary = AppColors.TextPrimary,
+    onPrimary = AppColors.OnPrimary,
     primaryContainer = AppColors.Secondary,
     onPrimaryContainer = AppColors.TextPrimary,
     secondary = AppColors.Secondary,

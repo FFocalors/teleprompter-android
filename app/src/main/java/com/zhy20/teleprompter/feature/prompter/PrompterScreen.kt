@@ -6,14 +6,12 @@ import android.content.ContextWrapper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,7 +33,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -49,9 +46,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -72,6 +69,8 @@ import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
+import com.zhy20.teleprompter.core.model.activeDisplayPreset
+import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.formatDuration
 import kotlinx.coroutines.delay
 
@@ -83,6 +82,7 @@ fun PrompterScreen(
 ) {
     val view = LocalView.current
     val activity = LocalContext.current.findActivity()
+    val density = LocalDensity.current.density
     var controlsVisible by remember { mutableStateOf(false) }
     val script = appState.script(scriptId)
     val settings = appState.playbackSettings
@@ -115,64 +115,90 @@ fun PrompterScreen(
         }
     }
 
-    BoxWithConstraints(
-        Modifier.fillMaxSize().background(colorFromHex(settings.backgroundColor)).clickable { controlsVisible = !controlsVisible },
-    ) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(colorFromHex(settings.backgroundColor))) {
+        val contentWidth = maxWidth
+        val gesturesEnabled = appState.playbackState == PlaybackState.Playing && !controlsVisible
+        val gestureModifier = Modifier.playbackTouchGestures(
+            enabled = gesturesEnabled,
+            density = density,
+            onTap = { controlsVisible = true },
+            onDoubleTap = { appState.onPlaybackEvent(PlaybackEvent.PausePlayback) },
+            onVerticalDrag = { delta -> appState.onPlaybackEvent(PlaybackEvent.SeekTo(appState.progress - delta)) },
+        )
+
         val foreground = colorFromHex(settings.textColor)
         val guideY = maxHeight * settings.guideLinePosition
+        val guideLineColor = colorFromHex(settings.activeDisplayPreset().guideLineColorForBackground())
         val elapsed = (script.normalEstimatedDurationSeconds * appState.progress).toInt()
         val remaining = (script.normalEstimatedDurationSeconds - elapsed).coerceAtLeast(0)
 
-        Column(
-            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = if (maxWidth >= 700.dp) 72.dp else 28.dp)
-                .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
-        ) {
-            RichScriptText(
-                document = script.content,
-                color = foreground,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = settings.fontSize.sp,
-                    lineHeight = (settings.fontSize * 1.18f).sp,
-                ),
-            )
-        }
-
-        if (settings.guideLineEnabled) {
-            when (settings.guideLineStyle) {
-                GuideLineStyle.Highlight -> Box(Modifier.fillMaxWidth().height(70.dp).offset(y = guideY).background(AppColors.Secondary.copy(alpha = .24f)))
-                GuideLineStyle.Line -> Box(Modifier.fillMaxWidth().height(2.dp).offset(y = guideY).background(AppColors.Secondary))
+        Box(Modifier.fillMaxSize().then(gestureModifier)) {
+            Column(
+                Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = if (contentWidth >= 700.dp) 72.dp else 28.dp)
+                    .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.xl),
+            ) {
+                RichScriptText(
+                    document = script.content,
+                    color = foreground,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = settings.fontSize.sp,
+                        lineHeight = (settings.fontSize * 1.18f).sp,
+                    ),
+                )
             }
-        }
 
-        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.progress_percent, (appState.progress * 100).toInt()), color = foreground.copy(alpha = .7f), style = MaterialTheme.typography.labelLarge)
+            if (settings.guideLineEnabled) {
+                when (settings.guideLineStyle) {
+                    GuideLineStyle.Highlight -> {
+                        Box(
+                            Modifier.fillMaxWidth().height(56.dp).offset(y = guideY - 28.dp)
+                                .background(guideLineColor.copy(alpha = .28f)),
+                        )
+                        Box(Modifier.fillMaxWidth().height(3.dp).offset(y = guideY + 26.dp).background(guideLineColor))
+                    }
+                    GuideLineStyle.Line -> Box(
+                        Modifier.fillMaxWidth().height(3.dp).offset(y = guideY).background(guideLineColor),
+                    )
+                }
+            }
+
+            Row(
+                Modifier.align(Alignment.TopCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.sm),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
                 Text(
-                    stringResource(R.string.playback_time_format, formatDuration(elapsed), formatDuration(script.normalEstimatedDurationSeconds)),
-                    color = foreground.copy(alpha = .7f),
+                    stringResource(R.string.progress_percent, (appState.progress * 100).toInt()),
+                    color = foreground.copy(alpha = .68f),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Text(
+                    stringResource(R.string.playback_elapsed_remaining, formatDuration(elapsed), formatDuration(remaining)),
+                    color = foreground.copy(alpha = .68f),
                     style = MaterialTheme.typography.labelLarge,
                 )
             }
-            LinearProgressIndicator(progress = { appState.progress }, modifier = Modifier.fillMaxWidth().height(3.dp), color = AppColors.Primary, trackColor = AppColors.Secondary)
-        }
 
-        if (appState.remoteConnectionState == RemoteConnectionState.ConnectionLost) {
-            Surface(Modifier.align(Alignment.BottomCenter).padding(AppSpacing.lg), color = AppColors.Surface, shape = MaterialTheme.shapes.medium) {
-                Text(stringResource(R.string.connection_lost_continue), Modifier.padding(AppSpacing.sm), color = AppColors.TextSecondary)
+            if (appState.remoteConnectionState == RemoteConnectionState.ConnectionLost) {
+                Surface(Modifier.align(Alignment.BottomCenter).padding(AppSpacing.lg), color = AppColors.Surface, shape = MaterialTheme.shapes.medium) {
+                    Text(stringResource(R.string.connection_lost_continue), Modifier.padding(AppSpacing.sm), color = AppColors.TextSecondary)
+                }
             }
-        }
 
-        when (val state = appState.playbackState) {
-            is PlaybackState.Countdown -> CountdownOverlay(state.secondsRemaining)
-            PlaybackState.Paused -> PauseOverlay(appState, elapsed, remaining, onExit)
-            PlaybackState.Finished -> FinishedOverlay(onExit)
-            else -> if (controlsVisible) PlaybackControls(
-                onPause = { appState.onPlaybackEvent(PlaybackEvent.PausePlayback); controlsVisible = false },
-                onToggleGuide = { appState.onPlaybackEvent(PlaybackEvent.ToggleGuideLine) },
-                onGuideStyle = { appState.onPlaybackEvent(PlaybackEvent.ChangeGuideLineStyle(if (settings.guideLineStyle == GuideLineStyle.Highlight) GuideLineStyle.Line else GuideLineStyle.Highlight)) },
-                onExit = { appState.resetPlayback(); onExit() },
-            )
+            when (val state = appState.playbackState) {
+                is PlaybackState.Countdown -> CountdownOverlay(state.secondsRemaining)
+                PlaybackState.Paused -> PauseOverlay(appState, elapsed, remaining, onExit)
+                PlaybackState.Finished -> FinishedOverlay(onExit)
+                else -> if (controlsVisible) PlaybackControls(
+                    progress = appState.progress,
+                    onProgressChange = { appState.onPlaybackEvent(PlaybackEvent.SeekTo(it)) },
+                    onPause = { appState.onPlaybackEvent(PlaybackEvent.PausePlayback); controlsVisible = false },
+                    onToggleGuide = { appState.onPlaybackEvent(PlaybackEvent.ToggleGuideLine) },
+                    onGuideStyle = { appState.onPlaybackEvent(PlaybackEvent.ChangeGuideLineStyle(if (settings.guideLineStyle == GuideLineStyle.Highlight) GuideLineStyle.Line else GuideLineStyle.Highlight)) },
+                    onExit = { appState.resetPlayback(); onExit() },
+                )
+            }
         }
     }
 }
@@ -185,17 +211,27 @@ private fun CountdownOverlay(seconds: Int) {
 }
 
 @Composable
-private fun PlaybackControls(onPause: () -> Unit, onToggleGuide: () -> Unit, onGuideStyle: () -> Unit, onExit: () -> Unit) {
+private fun PlaybackControls(
+    progress: Float,
+    onProgressChange: (Float) -> Unit,
+    onPause: () -> Unit,
+    onToggleGuide: () -> Unit,
+    onGuideStyle: () -> Unit,
+    onExit: () -> Unit,
+) {
     Box(Modifier.fillMaxSize().background(AppColors.Scrim), contentAlignment = Alignment.Center) {
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.Surface), shape = MaterialTheme.shapes.extraLarge) {
-            Row(Modifier.padding(AppSpacing.lg), horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg), verticalAlignment = Alignment.CenterVertically) {
-                ControlIcon(Icons.Default.Close, stringResource(R.string.end_playback), onExit)
-                ControlIcon(Icons.Default.SwapVert, stringResource(R.string.guide_line), onToggleGuide)
-                Surface(shape = CircleShape, color = AppColors.Primary) {
-                    IconButton(onPause, Modifier.size(104.dp)) { Icon(Icons.Default.Pause, stringResource(R.string.pause), Modifier.size(52.dp)) }
+            Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.lg), verticalAlignment = Alignment.CenterVertically) {
+                    ControlIcon(Icons.Default.Close, stringResource(R.string.end_playback), onExit)
+                    ControlIcon(Icons.Default.SwapVert, stringResource(R.string.guide_line), onToggleGuide)
+                    Surface(shape = CircleShape, color = AppColors.Primary) {
+                        IconButton(onPause, Modifier.size(104.dp)) { Icon(Icons.Default.Pause, stringResource(R.string.pause), Modifier.size(52.dp), tint = AppColors.OnPrimary) }
+                    }
+                    ControlIcon(Icons.Default.HorizontalRule, stringResource(R.string.guide_horizontal), onGuideStyle)
+                    ControlIcon(Icons.Default.Settings, stringResource(R.string.prompt_settings), onExit)
                 }
-                ControlIcon(Icons.Default.HorizontalRule, stringResource(R.string.guide_horizontal), onGuideStyle)
-                ControlIcon(Icons.Default.Settings, stringResource(R.string.prompt_settings), onExit)
+                Slider(value = progress, onValueChange = onProgressChange, modifier = Modifier.fillMaxWidth())
             }
         }
     }

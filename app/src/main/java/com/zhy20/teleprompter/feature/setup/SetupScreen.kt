@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,8 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -58,19 +55,17 @@ import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
+import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
 import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
-import com.zhy20.teleprompter.core.model.DisplayPreset
-import com.zhy20.teleprompter.core.model.DisplayPresets
 import com.zhy20.teleprompter.core.model.GuideLineStyle
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.RhythmMode
 import com.zhy20.teleprompter.core.model.ScriptContent
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
-import com.zhy20.teleprompter.core.model.applyDisplayPreset
-import com.zhy20.teleprompter.core.model.withCustomColors
+import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.PlaybackTiming
 import com.zhy20.teleprompter.core.util.formatDuration
 
@@ -160,6 +155,7 @@ private fun StartBar(onStart: () -> Unit) {
 fun SetupPreview(document: ScriptContent, settings: PlaybackSettings, modifier: Modifier = Modifier) {
     val background = colorFromHex(settings.backgroundColor)
     val foreground = colorFromHex(settings.textColor)
+    val guideLineColor = colorFromHex(settings.activeDisplayPreset().guideLineColorForBackground())
     BoxWithConstraints(modifier.background(AppColors.SurfaceRaised).padding(AppSpacing.md)) {
         val portrait = settings.orientation == PlaybackOrientation.Portrait
         val previewWidthFraction = if (portrait) 0.48f else 0.94f
@@ -181,12 +177,12 @@ fun SetupPreview(document: ScriptContent, settings: PlaybackSettings, modifier: 
             )
             if (settings.guideLineEnabled) {
                 when (settings.guideLineStyle) {
-                    GuideLineStyle.Highlight -> Box(
-                        Modifier.fillMaxWidth().height(42.dp).offset(y = guideY - 21.dp)
-                            .background(AppColors.Secondary.copy(alpha = .36f)),
+                GuideLineStyle.Highlight -> Box(
+                    Modifier.fillMaxWidth().height(42.dp).offset(y = guideY - 21.dp)
+                            .background(guideLineColor.copy(alpha = .26f)),
                     )
                     GuideLineStyle.Line -> Box(
-                        Modifier.fillMaxWidth().height(2.dp).offset(y = guideY).background(AppColors.Secondary),
+                        Modifier.fillMaxWidth().height(3.dp).offset(y = guideY).background(guideLineColor),
                     )
                 }
             }
@@ -252,34 +248,7 @@ private fun SettingsPanel(
 private fun DisplaySettings(settings: PlaybackSettings, onSettings: (PlaybackSettings) -> Unit) {
     SettingsCard(stringResource(R.string.display_settings)) {
         Text(stringResource(R.string.display_presets), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
-        val activePreset = settings.activeDisplayPreset()
-        DisplayPresets.defaults.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                row.forEach { preset ->
-                    DisplayPresetCard(
-                        preset = preset,
-                        selected = activePreset.id == preset.id,
-                        onClick = { onSettings(settings.applyDisplayPreset(preset)) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-        Text(stringResource(R.string.custom_colors), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
-        CustomColorInput(
-            label = stringResource(R.string.background_color),
-            value = settings.backgroundColor,
-            onValidColor = { onSettings(settings.withCustomColors(backgroundColor = it)) },
-        )
-        CustomColorInput(
-            label = stringResource(R.string.text_color),
-            value = settings.textColor,
-            onValidColor = { onSettings(settings.withCustomColors(textColor = it)) },
-        )
-        if (activePreset.isCustom) {
-            Text(stringResource(R.string.custom_display_active), color = AppColors.Primary, style = MaterialTheme.typography.labelMedium)
-        }
+        DisplayPresetPicker(settings, onSettings)
         SettingLabel(stringResource(R.string.font_size), stringResource(R.string.font_size_value, settings.fontSize))
         Slider(settings.fontSize.toFloat(), { onSettings(settings.copy(fontSize = it.toInt())) }, valueRange = 32f..100f)
         SimpleChoiceRow(
@@ -288,55 +257,6 @@ private fun DisplaySettings(settings: PlaybackSettings, onSettings: (PlaybackSet
             onSelected = { onSettings(settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape)) },
         )
         ToggleSetting(stringResource(R.string.mirror), settings.mirrorEnabled) { onSettings(settings.copy(mirrorEnabled = it)) }
-    }
-}
-
-@Composable
-private fun DisplayPresetCard(preset: DisplayPreset, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    val label = presetDisplayName(preset)
-    val description = stringResource(R.string.display_preset_description, label)
-    Surface(
-        modifier = modifier.height(92.dp).semantics { contentDescription = description }.clickable(onClick = onClick),
-        color = colorFromHex(preset.backgroundColor),
-        contentColor = colorFromHex(preset.textColor),
-        shape = MaterialTheme.shapes.medium,
-        border = androidx.compose.foundation.BorderStroke(if (selected) 3.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
-    ) {
-        Column(Modifier.padding(AppSpacing.sm), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-            Text(stringResource(R.string.preset_preview_sample), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun presetDisplayName(preset: DisplayPreset): String = when (preset.id) {
-    "black_white" -> stringResource(R.string.display_preset_black_white)
-    "white_black" -> stringResource(R.string.display_preset_white_black)
-    "blue_white" -> stringResource(R.string.display_preset_blue_white)
-    "green_white" -> stringResource(R.string.display_preset_green_white)
-    else -> stringResource(R.string.custom_colors)
-}
-
-@Composable
-private fun CustomColorInput(label: String, value: String, onValidColor: (String) -> Unit) {
-    var draft by remember(value) { mutableStateOf(value) }
-    val valid = draft.matches(Regex("^#[0-9A-Fa-f]{6}$"))
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-        Box(Modifier.width(36.dp).height(48.dp).clip(CircleShape).background(colorFromHex(if (valid) draft else value)))
-        OutlinedTextField(
-            value = draft,
-            onValueChange = {
-                draft = it.take(7)
-                if (draft.matches(Regex("^#[0-9A-Fa-f]{6}$"))) onValidColor(draft.uppercase())
-            },
-            modifier = Modifier.weight(1f),
-            label = { Text(label) },
-            placeholder = { Text(stringResource(R.string.color_hex_hint)) },
-            singleLine = true,
-            isError = draft.isNotBlank() && !valid,
-            supportingText = if (draft.isNotBlank() && !valid) {{ Text(stringResource(R.string.color_hex_invalid)) }} else null,
-        )
     }
 }
 

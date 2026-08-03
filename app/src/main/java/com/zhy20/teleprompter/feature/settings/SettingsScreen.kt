@@ -33,18 +33,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
-import com.zhy20.teleprompter.core.design.AppColorOptions
 import com.zhy20.teleprompter.core.design.AppSpacing
-import com.zhy20.teleprompter.core.design.colorFromHex
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.ChoiceRow
+import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.GuideLineStyle
@@ -68,8 +66,7 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                 }
             }
             SettingsCard(stringResource(R.string.display_settings)) {
-                ColorPicker(stringResource(R.string.background_color), settings.backgroundColor, AppColorOptions.Backgrounds) { appState.globalDefaults = settings.copy(backgroundColor = it) }
-                ColorPicker(stringResource(R.string.text_color), settings.textColor, AppColorOptions.Texts) { appState.globalDefaults = settings.copy(textColor = it) }
+                DisplayPresetPicker(settings, onSettingsChange = { appState.globalDefaults = it })
                 LabelValue(stringResource(R.string.font_size), stringResource(R.string.font_size_value, settings.fontSize))
                 Slider(settings.fontSize.toFloat(), { appState.globalDefaults = settings.copy(fontSize = it.toInt()) }, valueRange = 32f..100f)
                 ChoiceRow(
@@ -163,17 +160,5 @@ private fun LabelValue(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(label, Modifier.weight(1f), color = AppColors.TextSecondary)
         Text(value, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun ColorPicker(label: String, selected: String, colors: List<String>, onSelected: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-        LabelValue(label, selected)
-        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-            colors.forEach { hex ->
-                Box(Modifier.size(if (hex == selected) 48.dp else 42.dp).clip(CircleShape).background(colorFromHex(hex)).clickable { onSelected(hex) })
-            }
-        }
     }
 }

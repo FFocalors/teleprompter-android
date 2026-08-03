@@ -2,9 +2,7 @@ package com.zhy20.teleprompter.core.model
 
 import com.zhy20.teleprompter.core.util.PlaybackTiming
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackSetupTest {
@@ -35,25 +33,41 @@ class PlaybackSetupTest {
     }
 
     @Test
-    fun applyingPreset_updatesBothColors_andCustomColorsStayCustom() {
-        val preset = DisplayPresets.BlueOnWhite
-        val applied = PlaybackSettings().applyDisplayPreset(preset)
-        assertEquals(preset.backgroundColor, applied.backgroundColor)
-        assertEquals(preset.textColor, applied.textColor)
-        assertEquals(preset.id, applied.activeDisplayPreset().id)
-
-        val custom = applied.withCustomColors(backgroundColor = "#123456")
-        assertEquals(DisplayPresets.CustomId, custom.activeDisplayPreset().id)
-        assertEquals("#123456", custom.backgroundColor)
+    fun everyDisplayPreset_updatesBothColorsAndKeepsItsId() {
+        DisplayPresets.defaults.forEach { preset ->
+            val applied = PlaybackSettings().applyDisplayPreset(preset)
+            assertEquals(preset.backgroundColor, applied.backgroundColor)
+            assertEquals(preset.textColor, applied.textColor)
+            assertEquals(preset.id, applied.displayPresetId)
+            assertEquals(preset.id, applied.activeDisplayPreset().id)
+        }
     }
 
     @Test
-    fun legacyColorPair_isNotOverwrittenWhenItDoesNotMatchPreset() {
-        val legacy = PlaybackSettings(backgroundColor = "#141622", textColor = "#C4CBD6")
+    fun legacyColorPair_mapsToClosestSafePreset() {
+        val legacy = PlaybackSettings(backgroundColor = "#141622", textColor = "#C4CBD6", displayPresetId = null)
+        val normalized = legacy.normalizedToDisplayPreset()
 
-        assertTrue(legacy.activeDisplayPreset().isCustom)
-        assertEquals("#141622", legacy.backgroundColor)
-        assertEquals("#C4CBD6", legacy.textColor)
-        assertFalse(legacy.activeDisplayPreset().id == DisplayPresets.BlueOnWhite.id)
+        assertEquals(DisplayPresets.BlackOnWhite.id, normalized.displayPresetId)
+        assertEquals(DisplayPresets.BlackOnWhite.backgroundColor, normalized.backgroundColor)
+        assertEquals(DisplayPresets.BlackOnWhite.textColor, normalized.textColor)
+    }
+
+    @Test
+    fun legacyColors_takePrecedenceOverAStalePresetIdWhenFindingNearestPreset() {
+        val legacy = PlaybackSettings(
+            backgroundColor = "#29405A",
+            textColor = "#FFF2DF",
+            displayPresetId = DisplayPresets.BlackOnWhite.id,
+        )
+
+        assertEquals(DisplayPresets.BlueOnWhite.id, legacy.normalizedToDisplayPreset().displayPresetId)
+    }
+
+    @Test
+    fun guideLine_usesBrightRedOnDarkPresetsAndDeepRedOnLightPresets() {
+        assertEquals("#FF3B30", DisplayPresets.BlackOnWhite.guideLineColorForBackground())
+        assertEquals("#C62828", DisplayPresets.WhiteOnBlack.guideLineColorForBackground())
+        assertEquals("#C62828", DisplayPresets.OrangeOnCharcoal.guideLineColorForBackground())
     }
 }

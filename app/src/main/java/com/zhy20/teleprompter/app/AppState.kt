@@ -14,6 +14,7 @@ import com.zhy20.teleprompter.core.model.RichTextEditorState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.core.model.Script
+import com.zhy20.teleprompter.core.model.normalizedToDisplayPreset
 import com.zhy20.teleprompter.data.fake.FakeData
 
 class AppState {
@@ -31,7 +32,7 @@ class AppState {
     var remoteConnectionState by mutableStateOf(RemoteConnectionState.Disconnected)
     var prompterSurface by mutableStateOf(PrompterSurface.Library)
     var progress by mutableFloatStateOf(0.38f)
-    var saveState by mutableStateOf(SaveState.Saved)
+    var saveState by mutableStateOf(SaveState.Initial)
     var selectedLanguage by mutableStateOf("zh-CN")
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
@@ -42,7 +43,7 @@ class AppState {
         if (id == "new" && draftScript.wordCount == 0) {
             draftScript = draftScript.copy(playbackSettings = globalDefaults)
         }
-        playbackSettings = script(id).playbackSettings
+        playbackSettings = script(id).playbackSettings.normalizedToDisplayPreset()
     }
 
     fun editorState(id: String): RichTextEditorState = editorStates.getOrPut(id) {
@@ -68,10 +69,10 @@ class AppState {
     }
 
     fun updatePlaybackSettings(settings: PlaybackSettings) {
-        playbackSettings = settings
+        playbackSettings = settings.normalizedToDisplayPreset()
         val id = selectedScriptId
         val old = script(id)
-        val updated = old.copy(playbackSettings = settings, lastModifiedAt = System.currentTimeMillis())
+        val updated = old.copy(playbackSettings = playbackSettings, lastModifiedAt = System.currentTimeMillis())
         if (id == "new") draftScript = updated else scripts = scripts.map { if (it.id == id) updated else it }
     }
 
