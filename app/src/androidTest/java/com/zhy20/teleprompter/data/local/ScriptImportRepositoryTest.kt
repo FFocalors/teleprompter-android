@@ -71,13 +71,14 @@ class ScriptImportRepositoryTest {
     }
 
     @Test
-    fun createFromDocument_derivesPlainText() = runBlocking {
+    fun createFromDocument_derivesContentAndFlattenedPreview() = runBlocking {
         val doc = document(listOf(ScriptSpan("第一段")), listOf(ScriptSpan("第二段")))
         val script = scripts.createFromDocument("标题", doc, null)
 
-        assertEquals("第一段\n\n第二段", scripts.getById(script.id)!!.plainTextPreview)
-        // The entity stores the full plain text; the model exposes a truncated preview.
+        // The full plain text keeps the paragraph separator between blocks.
         assertEquals("第一段\n\n第二段", scripts.getById(script.id)!!.content.plainText())
+        // The preview field flattens newlines to spaces for list display.
+        assertEquals("第一段  第二段", scripts.getById(script.id)!!.plainTextPreview)
     }
 
     @Test
