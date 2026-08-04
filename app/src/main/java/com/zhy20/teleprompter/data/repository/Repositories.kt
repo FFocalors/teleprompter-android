@@ -20,6 +20,18 @@ interface ScriptRepository {
     fun observeById(id: String): Flow<Script?>
     suspend fun getById(id: String): Script?
     suspend fun create(folderId: String? = null): Script
+
+    /**
+     * Atomically creates a fully populated script from an imported [ScriptDocument] in a single
+     * Repository call. Derives plainText, wordCount and the Chinese-duration estimate, copies the
+     * current global playback defaults, and validates [folderId] exactly like [create].
+     */
+    suspend fun createFromDocument(
+        title: String,
+        document: ScriptDocument,
+        folderId: String? = null,
+    ): Script
+
     suspend fun updateTitle(id: String, title: String)
     suspend fun updateDocument(id: String, document: ScriptDocument)
     suspend fun move(id: String, folderId: String?)

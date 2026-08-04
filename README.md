@@ -6,13 +6,14 @@ Teleprompter Android 是一款面向 Android 手机和平板的开源提词器�
 
 ## 项目状态
 
-项目处于早期开发阶段，尚未发布正式稳定版本，当前适合开发测试和功能体验。台本管理、编辑、播放设置和本地播放主流程已经接入真实本地数据层；文件导入、网络远控和语音跟随仍未完成。
+项目处于早期开发阶段，尚未发布正式稳定版本，当前适合开发测试和功能体验。台本管理、编辑、播放设置、本地播放主流程和 TXT 文件导入已经接入真实本地数据层；DOCX/Markdown 导入、网络远控和语音跟随仍未完成。
 
 ## 当前功能
 
 - Android 手机和平板的响应式 Compose 界面，支持横屏和竖屏播放。
-- 本地台本库和单层台本夹：新建、编辑、重命名、移动、删除和筛选。
+- 本地台本库和单层台本夹：新建、导入、编辑、重命名、移动、删除和筛选。
 - Room 本地持久化，台本正文使用版本化富文本 JSON 保存。
+- TXT 文件导入：通过系统文件选择器读取，支持 UTF-8/UTF-16/GB18030 编码，转换为 `ScriptDocument` 后由 Repository 原子创建台本。
 - 轻量富文本编辑：选区级粗体、斜体、下划线、撤回和防抖自动保存。
 - 中文正常语速预计时长，播放设置与全局默认设置分离保存。
 - 播放预设、字号、文字对齐、方向、镜像、速度模式和目标时间模式。
@@ -23,7 +24,7 @@ Teleprompter Android 是一款面向 Android 手机和平板的开源提词器�
 
 ## 开发计划
 
-- TXT、DOCX、Markdown 导入和系统文件选择器。
+- DOCX、Markdown 导入（当前已支持 TXT 导入，使用系统文件选择器）。
 - 一对一局域网连接、二维码配对和控制端同步。
 - 多设备控制、真实网络传输和更精确的位置同步。
 - 更完整的富文本编辑能力、重做和输入法组合样式。
@@ -75,7 +76,7 @@ app/
 ├── src/main/java/com/zhy20/teleprompter/
 │   ├── app/                 # Application、AppContainer、导航与播放 Session
 │   ├── core/                # Design System、模型、导航、工具和文字渲染
-│   ├── data/                # Room、DataStore、Repository、序列化与 Mock 数据
+│   ├── data/                # Room、DataStore、Repository、序列化、文件导入与 Mock 数据
 │   ├── feature/             # library、editor、setup、prompter、remote、settings
 │   └── preview/             # Compose Preview
 ├── schemas/                 # Room 导出的版本化 schema
@@ -86,6 +87,8 @@ docs/                        # 架构、状态、路线图和历史实现记录
 ## 数据与隐私
 
 台本正文、播放设置和编辑状态默认保存在本地设备。当前版本不要求登录、不上传台本正文，也不依赖云同步；项目没有内置账号、广告或遥测服务。控制端页面目前只使用本地 Mock 状态，后续网络远控将作为可选能力接入。
+
+TXT 文件导入通过 Android Storage Access Framework 只读取用户本次主动选择的文件，不申请任何存储权限，不复制原文件，也不长期持有文件 URI 权限。导入完成后应用只保存转换后的台本内容，与原文件不再关联。
 
 ## 文档
 

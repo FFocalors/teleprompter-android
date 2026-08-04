@@ -54,6 +54,31 @@ class RoomScriptRepository(
         entity.toModel()
     }
 
+    override suspend fun createFromDocument(
+        title: String,
+        document: ScriptDocument,
+        folderId: String?,
+    ): Script = dataOperation("create script from document") {
+        if (folderId != null && folderDao.getById(folderId) == null) throw FolderNotFoundException(folderId)
+        val now = clockMillis()
+        val plainText = document.plainText()
+        val defaults = settingsRepository.settings.first().playbackDefaults
+        val entity = ScriptEntity(
+            id = newId(),
+            title = title.trim().ifEmpty { defaultTitle() },
+            folderId = folderId,
+            documentJson = ScriptDocumentSerializer.encode(document),
+            plainText = plainText,
+            wordCount = plainText.count { !it.isWhitespace() },
+            normalEstimatedDurationSeconds = ChineseSpeechDurationEstimator.estimate(plainText).toLong(),
+            playbackSettingsJson = PlaybackSettingsSerializer.encode(defaults),
+            createdAt = now,
+            updatedAt = now,
+        )
+        scriptDao.insert(entity)
+        entity.toModel()
+    }
+
     override suspend fun updateTitle(id: String, title: String) = dataOperation("update title") {
         val normalized = title.trim().ifBlank(defaultTitle)
         if (scriptDao.updateTitle(id, normalized, clockMillis()) == 0) throw ScriptNotFoundException(id)

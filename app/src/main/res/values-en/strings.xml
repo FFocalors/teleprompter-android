@@ -162,4 +162,14 @@
     <string name="preview_sample_next">First, let’s discuss this quarter’s key initiatives.</string>
     <string name="no_horizontal_overflow">The layout adapts to the available width.</string>
     <string name="tap_language">Open language settings</string>
+    <string name="import_file">Import file</string>
+    <string name="import_in_progress">Importing</string>
+    <string name="import_unsupported_type">This file format is not supported.</string>
+    <string name="import_empty">The file is empty.</string>
+    <string name="import_too_large">The file is too large to import.</string>
+    <string name="import_unreadable">Could not read the file.</string>
+    <string name="import_unrecognized_encoding">Could not recognize the file encoding.</string>
+    <string name="import_corrupt">The file content is damaged.</string>
+    <string name="import_save_failed">Saving the script failed. Please try again.</string>
+    <string name="import_cancelled">Import cancelled.</string>
 </resources>

@@ -133,9 +133,25 @@ Preferences DataStore 文件为 `teleprompter_settings`，键为 `playback_defau
 
 `data/fake/FakeData.kt` 只被 `preview/AppPreviews.kt` 和测试代码显式使用。正式首次启动数据库为空，不执行 seed，也没有隐藏 debug 样例。
 
-## 11. 文件导入接入点
+## 11. 文件导入
 
-后续 TXT/DOCX/Markdown 导入应在独立 importer 中转换为 `ScriptDocument`，再调用 Repository 新增的“以文档创建”方法；不要直接写 DAO 或把 HTML 存入 `documentJson`。导入后由 Repository 派生 plainText、wordCount、预计时长并复制当前全局默认设置。
+TXT 导入已在 `data/importer/` 中实现，接入点如下：
+
+```text
+Compose（系统文件选择器）
+  -> LibraryViewModel（UriFileMetadataReader 读元信息/流）
+  -> ScriptImportCoordinator -> ScriptImportManager
+  -> PlainTextScriptImporter（编码检测 + 解析为 ScriptDocument）
+  -> ScriptRepository.createFromDocument()（原子创建完整台本）
+  -> Room 保存 -> 台本库刷新 -> 进入 editor/{scriptId}
+```
+
+- `ScriptImportManager` 根据文件信息选择 importer，统一 5 MiB 大小限制和异常映射；未来 DOCX/Markdown importer 只需实现 `ScriptImporter` 接口并注册，不影响导航或数据库。
+- `TextEncodingDetector` 支持 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030 回退，严格解码不产生替换字符。
+- `PlainTextScriptImporter` 统一换行，按连续空行切分段落、保留段内单换行，生成的每个段落含至少一个无内联样式的 `ScriptSpan`。
+- `ScriptRepository.createFromDocument()` 一次插入完整 `ScriptEntity`：校验 `folderId`、标题 trim 与默认标题回退、序列化正文、派生 plainText/wordCount、估算中文语速时长、复制全局默认播放设置、`createdAt`/`updatedAt` 同源。
+- 导入失败不会留下空台本或半成品；UI 通过 `ScriptImportState` 阻止重复提交并显示 Snackbar 错误。
+- 只读取用户主动选择的文件：不申请存储权限、不复制原文件、不调用 `takePersistableUriPermission()`，导入完成后与原文件无关联。
 
 ## 12. 迁移原则与已知限制
 
@@ -143,4 +159,5 @@ Preferences DataStore 文件为 `teleprompter_settings`，键为 `playback_defau
 - JSON schema 与 Room schema 分别版本化；字段语义变化时先兼容读取旧 JSON，再通过迁移或后台重写升级。
 - 当前保存标题与正文是两个串行 DAO 更新，不是单 SQL 原子更新；失败会显示 Error，重试为幂等写入。后续可增加 `@Transaction` 的编辑快照更新。
 - 当前轻量富文本编辑器不含重做、输入样式继承、跨段格式工具栏或 IME composition 专项逻辑。
-- 本阶段仍不包含导入、回收站、多级文件夹、搜索、云同步或真实远控。
+- 文件导入已支持 TXT；DOCX、Markdown、批量导入、文件导出和原文件复制尚未实现。
+- 本阶段仍不包含回收站、多级文件夹、搜索、云同步或真实远控。

@@ -121,6 +121,7 @@ private class EditorFakeRepository(initial: Script) : ScriptRepository {
     override fun observeById(id: String): Flow<Script?> = current
     override suspend fun getById(id: String): Script? = current.value
     override suspend fun create(folderId: String?): Script = error("Not used")
+    override suspend fun createFromDocument(title: String, document: ScriptDocument, folderId: String?): Script = error("Not used")
     override suspend fun updateTitle(id: String, title: String) {
         if (failWrites) error("write failed")
         current.value = current.value?.copy(title = title.trim().ifBlank { "未命名台本" })

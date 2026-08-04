@@ -1,14 +1,19 @@
 package com.zhy20.teleprompter.app
 
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -145,6 +150,16 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
         appState.globalDefaults = persistedSettings.playbackDefaults
         appState.selectedLanguage = persistedSettings.languageTag
     }
+
+    // The launcher must be created above NavHost: NavHost destinations do not provide
+    // LocalActivityResultRegistryOwner. The picked uri travels through a pending state that the
+    // Library destination observes; it owns the LibraryViewModel and performs the import.
+    var pendingImportFolderId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) pendingImportUri = uri
+    }
+
     val baseConfiguration = LocalConfiguration.current
     val localizedConfiguration = remember(baseConfiguration, appState.selectedLanguage) {
         Configuration(baseConfiguration).apply {
@@ -166,11 +181,24 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             composable(AppRoutes.Library) { entry ->
                 val factory = remember(container) {
                     viewModelFactory {
-                        initializer { LibraryViewModel(container.scriptRepository, container.folderRepository) }
+                        initializer {
+                            LibraryViewModel(
+                                scriptRepository = container.scriptRepository,
+                                folderRepository = container.folderRepository,
+                                importCoordinator = container.scriptImportCoordinator,
+                                uriFileMetadataReader = container.uriFileMetadataReader,
+                            )
+                        }
                     }
                 }
                 val libraryViewModel: LibraryViewModel = viewModel(viewModelStoreOwner = entry, factory = factory)
                 val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+                val importState by libraryViewModel.importState.collectAsStateWithLifecycle()
+                LaunchedEffect(pendingImportUri) {
+                    val uri = pendingImportUri ?: return@LaunchedEffect
+                    pendingImportUri = null
+                    libraryViewModel.importUri(uri, pendingImportFolderId) { id -> navController.navigate(AppRoutes.editor(id)) }
+                }
                 LaunchedEffect(libraryState.scripts, libraryState.folders) {
                     appState.setLibraryData(libraryState.scripts, libraryState.folders)
                 }
@@ -180,11 +208,22 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     onNewScript = { folderId ->
                         libraryViewModel.createScript(folderId) { id -> navController.navigate(AppRoutes.editor(id)) }
                     },
+                    onImportFile = { folderId ->
+                        pendingImportFolderId = folderId
+                        importLauncher.launch(
+                            arrayOf(
+                                "text/plain",
+                                "application/octet-stream",
+                            ),
+                        )
+                    },
                     onEdit = { navController.navigate(AppRoutes.editor(it)) },
                     onSetup = { id -> appState.selectScript(id); navController.navigate(AppRoutes.setup(id)) },
                     onRemote = { navController.navigate(AppRoutes.Remote) },
                     onSettings = { navController.navigate(AppRoutes.Settings) },
                     uiState = libraryState,
+                    importState = importState,
+                    onImportErrorDismiss = libraryViewModel::clearImportError,
                     onCreateFolder = libraryViewModel::createFolder,
                     onRenameFolder = libraryViewModel::renameFolder,
                     onDeleteFolder = libraryViewModel::deleteFolder,

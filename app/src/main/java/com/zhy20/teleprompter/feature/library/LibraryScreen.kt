@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,7 +44,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,6 +85,8 @@ import com.zhy20.teleprompter.core.model.ScriptFolder
 import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.core.util.formatModifiedAt
+import com.zhy20.teleprompter.data.importer.ScriptImportError
+import com.zhy20.teleprompter.data.importer.ScriptImportState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +98,9 @@ fun LibraryScreen(
     onRemote: () -> Unit,
     onSettings: () -> Unit,
     uiState: LibraryUiState? = null,
+    importState: ScriptImportState? = null,
+    onImportFile: (String?) -> Unit = {},
+    onImportErrorDismiss: () -> Unit = {},
     onCreateFolder: (String) -> Unit = {},
     onRenameFolder: (String, String) -> Unit = { _, _ -> },
     onDeleteFolder: (String) -> Unit = {},
@@ -129,6 +135,13 @@ fun LibraryScreen(
             onClearError()
         }
     }
+    val importErrorText = (importState as? ScriptImportState.Error)?.let { scriptImportErrorText(it.reason) }
+    LaunchedEffect(importErrorText) {
+        if (importErrorText != null) {
+            snackbarHostState.showSnackbar(importErrorText)
+            onImportErrorDismiss()
+        }
+    }
 
     LibraryActionDialog(
         action = action,
@@ -161,7 +174,9 @@ fun LibraryScreen(
                     folders = state.folders,
                     loading = state.loadState == LibraryLoadState.Loading,
                     selectedFolder = selectedFolder,
+                    importInProgress = importState != null && importState != ScriptImportState.Idle,
                     onNewScript = onNewScript,
+                    onImportFile = onImportFile,
                     onEdit = onEdit,
                     onSetup = onSetup,
                     onScriptAction = { action = it },
@@ -183,13 +198,6 @@ fun LibraryScreen(
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.Surface),
                     )
-                },
-                floatingActionButton = {
-                    FloatingActionButton(
-                        onClick = { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) },
-                        containerColor = AppColors.Primary,
-                        contentColor = AppColors.OnPrimary,
-                    ) { Icon(Icons.Default.Add, stringResource(R.string.new_script)) }
                 },
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding)) {
@@ -220,6 +228,12 @@ fun LibraryScreen(
                         onSetup = onSetup,
                         onScriptAction = { action = it },
                         modifier = Modifier.weight(1f),
+                    )
+                    LibraryBottomActions(
+                        importInProgress = importState != null && importState != ScriptImportState.Idle,
+                        onImportFile = { onImportFile(selectedFolder.takeUnless { it == "uncategorized" }) },
+                        onNewScript = { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -379,7 +393,9 @@ private fun LibraryContent(
     folders: List<ScriptFolder>,
     loading: Boolean,
     selectedFolder: String?,
+    importInProgress: Boolean,
     onNewScript: (String?) -> Unit,
+    onImportFile: (String?) -> Unit,
     onEdit: (String) -> Unit,
     onSetup: (String) -> Unit,
     onScriptAction: (LibraryAction) -> Unit,
@@ -388,11 +404,75 @@ private fun LibraryContent(
     Column(modifier.fillMaxHeight().padding(AppSpacing.xl)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.library_title), style = MaterialTheme.typography.headlineLarge, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
-            PrimaryButton(stringResource(R.string.new_script), { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) }) { Icon(Icons.Default.Add, null) }
-        }
+            SecondaryButton(
+                stringResource(if (importInProgress) R.string.import_in_progress else R.string.import_file),
+                { onImportFile(selectedFolder.takeUnless { it == "uncategorized" }) },
+                enabled = !importInProgress,
+            ) {
+                if (importInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = AppColors.TextSecondary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(Icons.Default.FileOpen, stringResource(R.string.import_file))
+                }
+            }
+            Spacer(Modifier.width(AppSpacing.sm))
+            PrimaryButton(stringResource(R.string.new_script), { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) }) { Icon(Icons.Default.Add, null) }        }
         Spacer(Modifier.height(AppSpacing.lg))
         LibraryGrid(scripts, folders, loading, onEdit, onSetup, onScriptAction, Modifier.weight(1f))
     }
+}
+
+@Composable
+private fun LibraryBottomActions(
+    importInProgress: Boolean,
+    onImportFile: (String?) -> Unit,
+    onNewScript: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.navigationBarsPadding(),
+        color = AppColors.Surface,
+        border = BorderStroke(1.dp, AppColors.Border),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+        ) {
+            SecondaryButton(
+                stringResource(if (importInProgress) R.string.import_in_progress else R.string.import_file),
+                { onImportFile(null) },
+                Modifier.weight(1f),
+                enabled = !importInProgress,
+            ) {
+                if (importInProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = AppColors.TextSecondary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Icon(Icons.Default.FileOpen, stringResource(R.string.import_file))
+                }
+            }
+            PrimaryButton(stringResource(R.string.new_script), onNewScript, Modifier.weight(1f)) { Icon(Icons.Default.Add, null) }
+        }
+    }
+}
+
+@Composable
+private fun scriptImportErrorText(error: ScriptImportError): String = when (error) {
+    ScriptImportError.UnsupportedType -> stringResource(R.string.import_unsupported_type)
+    ScriptImportError.Empty -> stringResource(R.string.import_empty)
+    ScriptImportError.TooLarge -> stringResource(R.string.import_too_large)
+    ScriptImportError.Unreadable -> stringResource(R.string.import_unreadable)
+    ScriptImportError.UnrecognizedEncoding -> stringResource(R.string.import_unrecognized_encoding)
+    ScriptImportError.Corrupt -> stringResource(R.string.import_corrupt)
+    ScriptImportError.SaveFailed -> stringResource(R.string.import_save_failed)
+    ScriptImportError.Cancelled -> stringResource(R.string.import_cancelled)
 }
 
 @Composable
