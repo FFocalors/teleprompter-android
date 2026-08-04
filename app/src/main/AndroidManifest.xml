@@ -17,11 +17,15 @@
             android:theme="@style/Theme.Teleprompter" />
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Teleprompter"
             android:windowSoftInputMode="adjustResize">
+            <!-- API 36 otherwise ignores requested playback orientation on sw600dp+ displays. -->
+            <property
+                android:name="android.window.PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY"
+                android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

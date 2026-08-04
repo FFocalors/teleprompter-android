@@ -1,7 +1,6 @@
 package com.zhy20.teleprompter.core.design.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -63,11 +62,12 @@ private fun DisplayPresetCard(
 ) {
     val label = presetDisplayName(preset)
     val description = stringResource(R.string.display_preset_description, label)
+    val shape = MaterialTheme.shapes.medium
     Surface(
-        modifier = modifier.height(92.dp).semantics { contentDescription = description }.clickable(onClick = onClick),
+        modifier = modifier.height(92.dp).semantics { contentDescription = description }.roundedClickable(shape = shape, onClick = onClick),
         color = colorFromHex(preset.backgroundColor),
         contentColor = colorFromHex(preset.textColor),
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         border = BorderStroke(if (selected) 3.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
     ) {
         Column(Modifier.padding(AppSpacing.sm), verticalArrangement = Arrangement.SpaceBetween) {

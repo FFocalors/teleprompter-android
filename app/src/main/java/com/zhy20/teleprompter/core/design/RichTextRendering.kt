@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -24,16 +25,20 @@ fun PlaybackTextAlignment.toComposeTextAlign(): TextAlign = when (this) {
     PlaybackTextAlignment.End -> TextAlign.End
 }
 
-fun ScriptContent.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
-    RichTextDocument.toAnnotatedSegments(this@toAnnotatedString).forEach { (text, styles) ->
-        val start = length
-        append(text)
-        if (styles.isNotEmpty()) {
+/**
+ * The single ScriptDocument -> Compose mapping used by the editor, preview, player and remote.
+ * Explicit normal values prevent a bold parent TextStyle from leaking into ordinary spans.
+ */
+object ScriptAnnotatedStringMapper {
+    fun map(document: ScriptContent): AnnotatedString = buildAnnotatedString {
+        RichTextDocument.toAnnotatedSegments(document).forEach { (text, styles) ->
+            val start = length
+            append(text)
             addStyle(
                 SpanStyle(
-                    fontWeight = if (ScriptSpanStyle.Bold in styles) FontWeight.Bold else null,
-                    fontStyle = if (ScriptSpanStyle.Italic in styles) FontStyle.Italic else null,
-                    textDecoration = if (ScriptSpanStyle.Underline in styles) TextDecoration.Underline else null,
+                    fontWeight = if (ScriptSpanStyle.Bold in styles) FontWeight.Bold else FontWeight.Normal,
+                    fontStyle = if (ScriptSpanStyle.Italic in styles) FontStyle.Italic else FontStyle.Normal,
+                    textDecoration = if (ScriptSpanStyle.Underline in styles) TextDecoration.Underline else TextDecoration.None,
                 ),
                 start,
                 length,
@@ -41,6 +46,8 @@ fun ScriptContent.toAnnotatedString(): AnnotatedString = buildAnnotatedString {
         }
     }
 }
+
+fun ScriptContent.toAnnotatedString(): AnnotatedString = ScriptAnnotatedStringMapper.map(this)
 
 @Composable
 fun RichScriptText(
@@ -50,6 +57,8 @@ fun RichScriptText(
     style: TextStyle,
     maxLines: Int = Int.MAX_VALUE,
     textAlign: TextAlign? = null,
+    overflow: TextOverflow = TextOverflow.Clip,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
 ) {
     Text(
         text = document.toAnnotatedString(),
@@ -57,7 +66,8 @@ fun RichScriptText(
         color = color,
         style = style,
         maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis,
+        overflow = overflow,
         textAlign = textAlign,
+        onTextLayout = onTextLayout,
     )
 }

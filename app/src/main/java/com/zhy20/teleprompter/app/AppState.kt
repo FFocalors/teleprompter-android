@@ -1,11 +1,10 @@
 package com.zhy20.teleprompter.app
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.zhy20.teleprompter.core.model.CountdownOption
-import com.zhy20.teleprompter.core.model.GuideLineStyle
+import com.zhy20.teleprompter.core.model.ChineseSpeechDurationEstimator
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackState
@@ -14,10 +13,13 @@ import com.zhy20.teleprompter.core.model.RichTextEditorState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.core.model.Script
+import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.model.normalizedToDisplayPreset
+import com.zhy20.teleprompter.core.util.PlaybackEngine
+import com.zhy20.teleprompter.core.util.PlaybackEngineState
 import com.zhy20.teleprompter.data.fake.FakeData
 
-class AppState {
+class AppState(private val clockNanos: () -> Long = System::nanoTime) {
     var scripts by mutableStateOf(FakeData.scripts)
         private set
     val folders = FakeData.folders
@@ -28,15 +30,28 @@ class AppState {
         private set
     var playbackSettings by mutableStateOf(FakeData.defaultPlaybackSettings)
     var globalDefaults by mutableStateOf(FakeData.defaultPlaybackSettings)
-    var playbackState: PlaybackState by mutableStateOf(PlaybackState.Idle)
+    var playbackSession by mutableStateOf(PlaybackEngineState())
+        private set
+    var playbackState: PlaybackState
+        get() = playbackSession.playbackState
+        set(value) {
+            playbackSession = PlaybackEngine.setPlaybackState(playbackSession, value, clockNanos())
+        }
     var remoteConnectionState by mutableStateOf(RemoteConnectionState.Disconnected)
     var prompterSurface by mutableStateOf(PrompterSurface.Library)
-    var progress by mutableFloatStateOf(0.38f)
+    var progress: Float
+        get() = playbackSession.currentSemanticProgress
+        set(value) {
+            playbackSession = PlaybackEngine.seek(playbackSession, value, clockNanos())
+        }
     var saveState by mutableStateOf(SaveState.Initial)
     var selectedLanguage by mutableStateOf("zh-CN")
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
     fun script(id: String): Script = scripts.firstOrNull { it.id == id } ?: draftScript
+
+    /** Always derived from the current ScriptDocument; the model field is only a cache. */
+    fun normalEstimatedDurationSeconds(id: String): Int = script(id).currentNormalEstimatedDurationSeconds()
 
     fun selectScript(id: String) {
         selectedScriptId = id
@@ -63,28 +78,80 @@ class AppState {
             plainTextPreview = content.plainText().replace('\n', ' ').take(140),
             content = content,
             wordCount = content.plainText().count { !it.isWhitespace() },
+            normalEstimatedDurationSeconds = ChineseSpeechDurationEstimator.estimate(content),
             lastModifiedAt = System.currentTimeMillis(),
         )
         if (id == "new") draftScript = updated else scripts = scripts.map { if (it.id == id) updated else it }
     }
 
     fun updatePlaybackSettings(settings: PlaybackSettings) {
+        val now = clockNanos()
         playbackSettings = settings.normalizedToDisplayPreset()
         val id = selectedScriptId
         val old = script(id)
         val updated = old.copy(playbackSettings = playbackSettings, lastModifiedAt = System.currentTimeMillis())
         if (id == "new") draftScript = updated else scripts = scripts.map { if (it.id == id) updated else it }
+        playbackSession = PlaybackEngine.reconfigure(
+            playbackSession,
+            playbackSettings,
+            normalEstimatedDurationSeconds(id),
+            now,
+        )
     }
 
     fun setSurface(surface: PrompterSurface) { prompterSurface = surface }
 
     fun beginPlayback(scriptId: String) {
         selectScript(scriptId)
-        playbackState = PlaybackState.Preparing
-        onPlaybackEvent(PlaybackEvent.StartPlayback)
+        startPlaybackFromBeginning()
     }
 
-    fun finishCountdown() { playbackState = PlaybackState.Playing }
+    /**
+     * Starts a new session for the selected script. This is deliberately separate from resume:
+     * the setup page and remote-control entry point must never inherit a prior session position.
+     */
+    private fun startPlaybackFromBeginning() {
+        playbackSession = PlaybackEngine.prepare(playbackSettings, normalEstimatedDurationSeconds(selectedScriptId))
+        val initialState = if (playbackSettings.countdown == CountdownOption.Off) {
+            PlaybackState.Playing
+        } else {
+            PlaybackState.Countdown(playbackSettings.countdown.seconds)
+        }
+        playbackSession = PlaybackEngine.setPlaybackState(playbackSession, initialState, clockNanos())
+    }
+
+    fun finishCountdown() {
+        val now = clockNanos()
+        playbackSession = if (playbackSession.isStartingFromBeginning) {
+            PlaybackEngine.playFromBeginning(playbackSession, now)
+        } else {
+            // Resume countdowns retain their semantic progress and effective elapsed time.
+            PlaybackEngine.setPlaybackState(playbackSession, PlaybackState.Playing, now)
+        }
+    }
+
+    fun updatePlaybackLayout(viewportHeightPx: Float, textHeightPx: Float) {
+        playbackSession = PlaybackEngine.updateLayout(
+            playbackSession,
+            viewportHeightPx,
+            textHeightPx,
+            playbackSettings,
+            normalEstimatedDurationSeconds(selectedScriptId),
+            clockNanos(),
+        )
+    }
+
+    fun onPlaybackFrame(frameTimeNanos: Long) {
+        playbackSession = PlaybackEngine.tick(playbackSession, frameTimeNanos)
+    }
+
+    fun beginManualProgressAdjustment() {
+        playbackSession = PlaybackEngine.beginManualAdjustment(playbackSession, clockNanos())
+    }
+
+    fun endManualProgressAdjustment() {
+        playbackSession = PlaybackEngine.endManualAdjustment(playbackSession, clockNanos())
+    }
 
     fun updateGuidePosition(position: Float) {
         updatePlaybackSettings(playbackSettings.copy(guideLinePosition = position.coerceIn(0.15f, 0.75f)))
@@ -92,7 +159,7 @@ class AppState {
 
     fun onPlaybackEvent(event: PlaybackEvent) {
         when (event) {
-            PlaybackEvent.StartPlayback -> playbackState = if (playbackSettings.countdown == CountdownOption.Off) PlaybackState.Playing else PlaybackState.Countdown(playbackSettings.countdown.seconds)
+            PlaybackEvent.StartPlayback -> startPlaybackFromBeginning()
             PlaybackEvent.PausePlayback -> playbackState = PlaybackState.Paused
             PlaybackEvent.ResumeImmediately -> playbackState = PlaybackState.Playing
             PlaybackEvent.ResumeWithCountdown -> playbackState = PlaybackState.Countdown(3)
@@ -102,13 +169,20 @@ class AppState {
             PlaybackEvent.SeekBackwardSmall -> progress = (progress - 0.03f).coerceAtLeast(0f)
             is PlaybackEvent.SeekTo -> progress = event.progress.coerceIn(0f, 1f)
             PlaybackEvent.EndPlayback -> playbackState = PlaybackState.Finished
-            PlaybackEvent.ToggleGuideLine -> updatePlaybackSettings(playbackSettings.copy(guideLineEnabled = !playbackSettings.guideLineEnabled))
-            is PlaybackEvent.ChangeGuideLineStyle -> updatePlaybackSettings(playbackSettings.copy(guideLineStyle = event.style))
+            is PlaybackEvent.ChangeGuideMode -> updatePlaybackSettings(playbackSettings.copy(guideMode = event.mode))
         }
     }
 
     fun resetPlayback() {
-        playbackState = PlaybackState.Exited
-        progress = 0f
+        playbackSession = PlaybackEngine.reset()
+    }
+
+    fun restorePlaybackSession(scriptId: String, settings: PlaybackSettings, session: PlaybackEngineState) {
+        selectedScriptId = scriptId
+        playbackSettings = settings.normalizedToDisplayPreset()
+        val old = script(scriptId)
+        val updated = old.copy(playbackSettings = playbackSettings)
+        if (scriptId == "new") draftScript = updated else scripts = scripts.map { if (it.id == scriptId) updated else it }
+        playbackSession = session
     }
 }

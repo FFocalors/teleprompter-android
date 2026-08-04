@@ -76,8 +76,7 @@ data class PlaybackSettings(
     val speedMultiplier: Float = 1f,
     val targetDurationSeconds: Int = 200,
     val countdown: CountdownOption = CountdownOption.ThreeSeconds,
-    val guideLineEnabled: Boolean = true,
-    val guideLineStyle: GuideLineStyle = GuideLineStyle.Highlight,
+    val guideMode: GuideMode = GuideMode.HighlightBar,
     val guideLinePosition: Float = 0.25f,
     /** Kept alongside resolved colors so playback never depends on a UI component. */
     val displayPresetId: String? = "black_white",
@@ -192,7 +191,23 @@ enum class PlaybackOrientation { Portrait, Landscape }
 enum class PlaybackTextAlignment { Start, Center, End }
 enum class RhythmMode { Speed, TargetDuration }
 enum class CountdownOption(val seconds: Int) { Off(0), ThreeSeconds(3), FiveSeconds(5), TenSeconds(10) }
-enum class GuideLineStyle { Highlight, Line }
+enum class GuideMode { Off, Line, HighlightBar }
+
+/** The only visual contract consumed by setup and playback renderers. */
+data class GuideVisualState(val lineVisible: Boolean, val highlightBarVisible: Boolean)
+
+fun GuideMode.visualState(): GuideVisualState = when (this) {
+    GuideMode.Off -> GuideVisualState(lineVisible = false, highlightBarVisible = false)
+    GuideMode.Line -> GuideVisualState(lineVisible = true, highlightBarVisible = false)
+    GuideMode.HighlightBar -> GuideVisualState(lineVisible = false, highlightBarVisible = true)
+}
+
+/** One-way migration helper for data written before GuideMode became the source of truth. */
+fun guideModeFromLegacy(enabled: Boolean, highlighted: Boolean): GuideMode = when {
+    !enabled -> GuideMode.Off
+    highlighted -> GuideMode.HighlightBar
+    else -> GuideMode.Line
+}
 enum class RemoteConnectionState { Disconnected, Waiting, Connected, ConnectionLost }
 enum class PrompterSurface { Library, Editor, Setup, Prompter }
 enum class SaveState { Initial, Saving, Saved, Error }
@@ -218,6 +233,5 @@ sealed interface PlaybackEvent {
     data object SeekBackwardSmall : PlaybackEvent
     data class SeekTo(val progress: Float) : PlaybackEvent
     data object EndPlayback : PlaybackEvent
-    data object ToggleGuideLine : PlaybackEvent
-    data class ChangeGuideLineStyle(val style: GuideLineStyle) : PlaybackEvent
+    data class ChangeGuideMode(val mode: GuideMode) : PlaybackEvent
 }

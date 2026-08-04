@@ -1,6 +1,8 @@
 package com.zhy20.teleprompter.core.util
 
 import kotlin.math.roundToInt
+import com.zhy20.teleprompter.core.model.PlaybackSettings
+import com.zhy20.teleprompter.core.model.RhythmMode
 
 data class MinuteSecond(val minutes: Int, val seconds: Int)
 
@@ -29,4 +31,16 @@ object PlaybackTiming {
 
     fun roundedMultiplier(normalDurationSeconds: Int, targetDurationSeconds: Int): Float =
         (speedMultiplier(normalDurationSeconds, targetDurationSeconds) * 100f).roundToInt() / 100f
+
+    /** The status time shared by the player and the setup preview before playback begins. */
+    fun playbackDurationSeconds(settings: PlaybackSettings, normalDurationSeconds: Int): Int {
+        val safeNormal = normalDurationSeconds.coerceAtLeast(1)
+        val multiplier = settings.speedMultiplier.takeIf { it.isFinite() && it > 0f } ?: 1f
+        return when (settings.rhythmMode) {
+            RhythmMode.TargetDuration -> settings.targetDurationSeconds.coerceAtLeast(1)
+            RhythmMode.Speed -> (safeNormal.toDouble() / multiplier.toDouble())
+                .roundToInt()
+                .coerceAtLeast(1)
+        }
+    }
 }

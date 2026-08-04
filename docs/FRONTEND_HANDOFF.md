@@ -55,7 +55,7 @@
 - 应用内普通文字不再使用米色 `#FFF2DF` 或纯白 `#FFFFFF`；播放区的文字由显示预设单独决定。
 - `AppTypography`、`AppSpacing`、`AppShapes`、`AppElevation` 仍集中管理。
 
-## 5. 显示预设、提词线与旧数据
+## 5. 显示预设、GuideMode 与旧数据
 
 `DisplayPreset` 包含 `id`、`name`、`backgroundColor`、`textColor`、`previewLabel`、`guideLineDarkModeColor`、`guideLineLightModeColor`。不支持自定义颜色。
 
@@ -69,7 +69,9 @@
 - 已删除“橙底深灰字”：该组合在长时间提词中干扰性高，且橙色应留给应用强调而非播放底色。
 - `DisplayPresetPicker` 在样式页和全局设置复用。每张卡展示名称、真实背景/文字色、示例“台本 Aa”和橙色选中边框。
 - 旧颜色设置会按 RGB 距离映射至最近安全预设，无法解析时回落黑底白字；不会恢复任何自定义色 UI。
-- 提词线按播放背景亮度选择亮红或深红。横线为 3 dp；提示条为半透明红色阅读带并含实线边缘，默认在屏幕上方约四分之一。
+- 提词辅助统一为 `GuideMode.Off`、`GuideMode.Line`、`GuideMode.HighlightBar`。渲染层不再组合 enabled/style/visible 标记：关闭不渲染，横线只渲染 3 dp 红线，提词条只渲染单行高度的半透明红色区域且没有边线。
+- `guideModeFromLegacy()` 是旧 enabled/style 数据的单向迁移入口；设置预览与播放页共用 `PrompterGuide`，不会残留上一模式的元素。
+- 提词辅助按播放背景亮度选择亮红或深红，默认位于屏幕上方约四分之一。
 
 ## 6. 文字对齐、实时预览与播放方向
 
@@ -81,24 +83,56 @@
 
 ### 真实播放优先的预览
 
-- `SetupPreview` 用 `PlaybackPreviewLayout` 根据方向选择 9:16 或 16:9 的比例，并在可用宽高内取最大尺寸，而不是固定的居中缩略框。
-- 预览沿用最终播放的背景、文字、镜像、左右边距、文字对齐和红色提词辅助；预览区会尽量铺满所属区域。
-- `maxVisibleLines()` 按可用高度和字号计算 3–12 行；`RichScriptText` 使用 `TextOverflow.Ellipsis`，长台本在底部自然显示省略号，短台本完整展示。
+- `PrompterViewport` 是设置预览与正式播放共用的画面骨架：背景、顶部状态区、正文视口、左右边距、字号、行高、对齐、镜像、GuideMode 与富文本渲染均由它统一处理。
+- 长正文使用无界高度获取真实排版尺寸时，`wrapContentHeight` 必须显式指定 `Alignment.Top`；其默认 `CenterVertically` 会把高于视口的正文居中，即使引擎偏移为 `0` 也会从台本中段显示。
+- 运行态使用真实视口；预览态以当前设备在所选方向下的目标宽高建立虚拟播放画布，再整体缩放到预览卡片。该画布与播放页使用相同的大屏断点、字号、行高、边距、状态区和提词线比例，而非根据卡片宽度重新排版。
+- 正文视口从状态区下方开始。预览固定从台本第一行和预览区顶部展示，并只对最终可见片段使用 `TextOverflow.Ellipsis`；正式播放使用完整正文和 `TextOverflow.Clip`，第一段从正文区底部进入并向上滚动。
+- 镜像设置为“正常 / 镜像”双选。`PlaybackMirrorPolicy` 明确只对 `ScriptContent` 返回 `scaleX = -1`；状态信息、进度、控制浮层、提词辅助和手势坐标不镜像。
+
+### 标准中文语速预计
+
+- `ChineseSpeechDurationEstimator` 是唯一的正常语速来源，标准值为 `STANDARD_CHINESE_UNITS_PER_MINUTE = 255`；850 个中文等效字符的基础时长为 200 秒（3:20）。
+- 每个中文字符、数字和其他可朗读字符计 1 单位；连续英文单词计 1.5 单位；空格不计。逗号/顿号/分号增加 180 ms，自然句末标点增加 350 ms，连续段落换行增加 500 ms。
+- 估算输入始终为 `ScriptDocument.plainText()`，富文本样式不会重复计数。空文档为 0 秒，其余结果四舍五入到秒且至少为 1 秒。
+- 首页、设置页、播放引擎、控制端和 Mock 数据都通过当前 `ScriptDocument` 重新估算；`Script.normalEstimatedDurationSeconds` 仅作为同步更新的缓存。字体、方向和对齐改变实际滚动距离，但不会改变正常朗读时长。
+
+### 统一富文本映射
+
+- `ScriptAnnotatedStringMapper` 是 `ScriptDocument -> AnnotatedString` 的唯一转换层，编辑器、预览、播放与控制端均通过 `RichScriptText` 复用它。
+- 每个 Span 都显式写入 `FontWeight.Normal/Bold`、`FontStyle.Normal/Italic` 和 `TextDecoration.None/Underline`。此前编辑器使用默认 Bold 的 `headlineMedium`，而普通 Span 没有覆盖字重，导致全文看起来加粗；现在编辑器基础样式和普通 Span 都明确为 Normal。
 
 ### 实际横竖屏播放
 
 - `PrompterScreen` 从 `LocalView.context` 获取真实宿主 Activity（不会受语言本地化 Context 影响），进入播放后将 `requestedOrientation` 设为 `SCREEN_ORIENTATION_PORTRAIT` 或 `SCREEN_ORIENTATION_LANDSCAPE`。
-- 离开播放页时恢复进入前的方向请求。`MainActivity` 在 manifest 声明 `orientation|screenSize|keyboardHidden` 配置变化处理，以免锁定方向时 Activity 重建、Mock 状态或导航回到首页。
+- 方向设置与恢复使用分离的 Effect：进入/设置变化时请求目标方向，离开播放页时恢复进入前策略，不会因 Effect 重启提前恢复。
+- `MainActivity` 在 manifest 处理 `orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden`；`rememberAppState()` 另用 Saver 保存当前台本、播放设置、状态、有效已用时间和语义进度，配置重建后重新测量但不从头播放。
+- targetSdk 36 下，`MainActivity` 还声明 `PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY`，暂时退出 Android 16 大屏忽略方向请求的兼容行为；Android 17/API 37 将取消该退出能力，届时需重新评估平板方向策略。
 - 样式页保存的方向在 `AppState.beginPlayback()` 再次选择台本时仍保留，因此预览比例、实际播放和暂停背景文本一致。
 
-## 7. 既有播放与编辑交互
+## 7. 测量驱动的播放引擎与控制浮层
 
-- 播放页顶部没有全宽进度条，仅显示百分比与已用/剩余时间；进度滑块仅出现在控制面板。
+- `PlaybackEngineState` 是播放单一状态源，包含 `layoutReady`、`requiresScrolling`、播放状态、有效已用时间、语义进度、像素偏移、总距离、速度、目标时间、实际时长及开始/结束偏移。
+- `PrompterLayoutMetrics` 统一记录完整视口、状态区高度、正文视口、正文上下边界、真实文本高度、Guide 位置和开始/结束偏移。`RichScriptText.onTextLayout` 返回真实排版高度；播放引擎只接收正文视口高度，不会将正文或 Guide 滚进顶部状态区。
+- 顶部状态区为运行时约 56 dp（大屏约 64 dp）并处理状态栏 Insets；左侧已用时长、右侧剩余时长和条件进度条固定在该区域。正文从其下方开始，文本高度不超过正文视口时不滚动、不自动完成，文本块在底部保留约 8% 安全余量。
+- 播放开始偏移为 `viewportHeight * 0.82`，使第一行完整出现在正文区底部附近；结束偏移为 `viewportHeight * 0.67 - textHeight`，使最后一行停在正文下三分之一处。短台本也沿同一时间轴从底部向上移动。
+- `AppState.startPlaybackFromBeginning()` 是样式页与控制端共用的新播放入口，会重新创建 Engine Session；`PlaybackEngineState.isStartingFromBeginning` 显式标识首次播放，倒计时和第一移动帧均保持原点。恢复倒计时不会获得该标记，因此保留原位置。
+- 自动滚动由 `withFrameNanos` 提供单调时间，但位置按“时间差 / 实际总时长”计算，不按帧累加像素。因此刷新率、掉帧不会改变同一时间点的位置。
+- 速度模式以正常预计时长除以倍率得到实际时长；目标时间模式直接使用用户目标时长。变速前先结算旧时间锚点，再以当前位置建立新锚点，位置和已用时间都不清零。
+- 暂停先结算当前帧再冻结；立即恢复或倒计时恢复从相同位置建立新锚点，倒计时不计入有效已用时间。滑块和纵向微调期间设置 `isManualAdjusting`，松手后从新位置继续。
+- 长台本到达末尾后进入 Finished、固定在结束偏移且不自动退出；播放页不显示完成弹窗，只保留非模态顶部任务栏供用户退出。短台本的零滚动距离不会触发 Finished。
+- 左上常驻显示已用时间，右上显示剩余时间。只有布局完成、长台本正在播放且未手动调整时，右上才显示有限宽度的橙色轨道进度条；暂停、倒计时、短台本和完成状态均隐藏。
+- 播放控制改为顶部居中的紧凑半透明卡片，无全屏强遮罩。播放态包含退出、暂停、减速、倍率、加速、带手柄进度和三态提词辅助；约 3 秒无操作自动隐藏。暂停态保持显示，并增加立即/倒计时恢复、进度、提词位置、提词模式和退出。
 - 播放中边缘触摸由最内层 `PointerInput` 消费，中央区域才支持点击、双击和纵向微调；暂停或显示控制栏后恢复完整 App 内容区操作。
+- 正文镜像位于独立 graphics layer；状态、提词辅助和浮层是平级渲染层，触摸语义保持正常。
+- `roundedClickable` 先按控件 Shape 裁剪再附着点击反馈；可点击卡片、选择项、预设卡和侧栏项目的鼠标 Hover/按压层与圆角外框一致，主/次/文字按钮同样在 Modifier 层裁剪反馈。
+
+## 8. 既有编辑交互
+
 - 编辑器使用单一 `ScrollState`、IME/导航栏 Padding、尾部空间和 `BringIntoViewRequester`，短文本与键盘同时出现时仍可上滑并保持光标可见。
+- 编辑器可见文本使用与播放完全相同的 `ScriptAnnotatedStringMapper`；普通、粗体、斜体、下划线及组合样式可在同一正文中明确区分，工具栏状态不会把整个文档临时渲染为粗体。
 - 保存状态为纯图标：Initial 中性、Saving 不闪烁、Saved 绿色、Error 红色可重试；辅助功能文案在资源中提供。
 
-## 8. 工程结构、导航与 Mock 状态
+## 9. 工程结构、导航与 Mock 状态
 
 ```text
 com.zhy20.teleprompter
@@ -112,16 +146,16 @@ com.zhy20.teleprompter
 └── preview              # Compose Preview
 ```
 
-路由：`library`、`editor/{scriptId}`、`setup/{scriptId}`、`prompter/{scriptId}`、`remote`、`settings`、`settings/language`。只传 `scriptId`；`AppState` 保存内存台本、播放设置、方向、对齐、进度、连接和保存状态，后续可替换为 Repository/Session。
+路由：`library`、`editor/{scriptId}`、`setup/{scriptId}`、`prompter/{scriptId}`、`remote`、`settings`、`settings/language`。只传 `scriptId`；`AppState` 保存内存台本、播放设置、方向、对齐、进度、连接和保存状态，并在正文变更时刷新缓存的语速估算，后续可替换为 Repository/Session。
 
-## 9. Preview、测试与验证
+## 10. Preview、测试与验证
 
-- Preview 覆盖：四种显示预设的设置页、左/中/右对齐预览、横屏/竖屏播放、编辑器与保存状态、红线/红色提示条、控制端和设置页。
-- 单元测试覆盖：四个预设、旧颜色回退、四种预设的红线对比、文字对齐映射、方向/对齐在开始播放后不被覆盖、预览比例和可见行数规则、富文本、保存状态与触控边缘死区。
-- Android Compose UI 测试覆盖播放中央点击与边缘事件消费。构建会编译 AndroidTest APK。
+- Preview 覆盖：四种显示预设的设置页、横屏/竖屏真实虚拟播放预览、局部格式编辑器、横屏/竖屏播放、顶部状态区、红线/红色提示条、控制端和设置页。
+- 单元测试覆盖：255 单位/分钟语速基准、850 字 3:20、标点/段落/英文/数字、富文本样式不影响时长、正文变更更新缓存、普通/粗体/斜体/下划线映射、状态区正文几何隔离，以及既有 GuideMode、播放引擎和触控策略。
+- Android Compose UI 测试覆盖播放中央点击、边缘事件消费、Off/Line/HighlightBar 切换无残留，以及状态区、正文和 Guide 的边界隔离。构建会编译 AndroidTest APK。
 - Android 16 模拟器的触摸注入使用 Espresso 3.7.0；这是测试依赖的兼容性修正，未调整 Gradle、AGP、Kotlin 或 Compose 工具链。
 
-## 10. 构建与运行
+## 11. 构建与运行
 
 PowerShell：
 
@@ -135,9 +169,12 @@ $env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 
 Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。Android Studio 直接打开仓库根目录、等待现有 Gradle Sync 后运行 `app`；不要仅因版本提示升级工具链。
 
-## 11. 尚未实现与建议下一阶段
+## 12. 尚未实现、限制与建议下一阶段
 
-- 未实现 Room/DataStore、文件导入与解析、正式富文本控件、精确滚动播放引擎、局域网发现/二维码/网络通信、语音、账号和云端。
+- 未实现 Room/DataStore、文件导入与解析、正式富文本控件、局域网发现/二维码/网络通信、语音、账号和云端。
 - 真实实现可用 Repository/Session 替换 `AppState`，并继续复用 `PlaybackEvent` 与 `ScriptContent` 的 block/span 结构。
-- 实际滚动引擎应基于文字布局、时间轴和滚动位置；未来富文本控件可提供精确光标 bounds，替代当前输入字段级 `BringIntoViewRequester`。
+- 当前播放引擎已按 Compose 文本布局和时间轴运行，但仍属于本地前端会话；后续业务层应持久化 Session 快照，并由真实播放服务/远控事件驱动同一 reducer。
+- `ChineseSpeechDurationEstimator` 是产品级启发式估算，不会替代未来逐词计时、语速训练或语音识别；导入富文本/多语种内容接入后应在同一模块扩展单位与停顿规则。
+- 预览为保持可读性允许末尾省略号和缩放后的虚拟画布；正式播放不截断正文。后续可补充截图回归，覆盖更多字体缩放和 OEM Insets 组合。
+- 未来富文本控件可提供逐段或逐词位置，用于控制端“附近文字”的精确窗口及更细粒度语义进度；当前进度仍以整段总滚动距离为基准。
 - 建议继续补充真实设备截图回归、TalkBack、大字体、输入法矩阵与联网远控测试。

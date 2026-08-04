@@ -161,7 +161,12 @@ fun EditorScreen(
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = editorMinHeight).bringIntoViewRequester(bringIntoViewRequester)
                         .onFocusChanged { editorFocused = it.isFocused },
-                    textStyle = MaterialTheme.typography.headlineMedium.copy(color = AppColors.TextPrimary),
+                    // Inline spans use the shared mapper, while the editor base must stay normal
+                    // so unformatted text never inherits the headline token's bold weight.
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(
+                        color = AppColors.TextPrimary,
+                        fontWeight = FontWeight.Normal,
+                    ),
                     cursorBrush = SolidColor(AppColors.Primary),
                     decorationBox = { inner ->
                         Box(Modifier.fillMaxWidth().heightIn(min = editorMinHeight)) {

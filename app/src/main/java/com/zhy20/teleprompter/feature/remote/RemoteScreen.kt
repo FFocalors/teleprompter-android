@@ -36,8 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zhy20.teleprompter.R
@@ -179,7 +181,13 @@ private fun ReadyPanel(appState: AppState) {
             Text(script.title, style = MaterialTheme.typography.headlineMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.ready), color = AppColors.Success)
-                Text(stringResource(R.string.estimated_duration_format, formatDuration(script.normalEstimatedDurationSeconds)), color = AppColors.TextSecondary)
+                Text(
+                    stringResource(
+                        R.string.estimated_duration_format,
+                        formatDuration(appState.normalEstimatedDurationSeconds(script.id)),
+                    ),
+                    color = AppColors.TextSecondary,
+                )
             }
             PrimaryButton(stringResource(R.string.start_playback), {
                 appState.setSurface(PrompterSurface.Prompter)
@@ -242,12 +250,20 @@ private fun NearbyTextCard(appState: AppState, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 3,
                     textAlign = appState.playbackSettings.textAlignment.toComposeTextAlign(),
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             LinearProgressIndicator(progress = { appState.progress }, modifier = Modifier.fillMaxWidth(), color = AppColors.Primary, trackColor = AppColors.Secondary)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.progress_percent, (appState.progress * 100).toInt()), color = AppColors.TextSecondary)
-                Text(stringResource(R.string.estimated_duration_format, formatDuration(script.normalEstimatedDurationSeconds)), color = AppColors.TextSecondary)
+                Text(
+                    stringResource(
+                        R.string.playback_elapsed_remaining,
+                        formatDuration((appState.playbackSession.elapsedTimeMillis / 1_000L).toInt()),
+                        formatDuration((appState.playbackSession.remainingTimeMillis / 1_000L).toInt()),
+                    ),
+                    color = AppColors.TextSecondary,
+                )
             }
         }
     }
@@ -277,7 +293,10 @@ private fun RemoteControls(appState: AppState, modifier: Modifier = Modifier) {
                 stringResource(R.string.hold_to_end),
                 color = AppColors.Danger,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.combinedClickable(onClick = {}, onLongClick = { appState.onPlaybackEvent(PlaybackEvent.EndPlayback) }).padding(AppSpacing.md),
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.medium)
+                    .combinedClickable(onClick = {}, onLongClick = { appState.onPlaybackEvent(PlaybackEvent.EndPlayback) })
+                    .padding(AppSpacing.md),
             )
         }
     }

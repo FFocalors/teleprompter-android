@@ -55,6 +55,8 @@
     <string name="align_center">Align center</string>
     <string name="align_end">Align right</string>
     <string name="mirror">Mirror</string>
+    <string name="normal_display">Normal</string>
+    <string name="mirrored_display">Mirrored</string>
     <string name="scroll_rhythm">Scrolling rhythm</string>
     <string name="speed_mode">Speed</string>
     <string name="target_time_mode">Target time</string>
@@ -68,7 +70,8 @@
     <string name="countdown_off">Off</string>
     <string name="seconds_format">%1$d sec</string>
     <string name="guide_line">Guide line</string>
-    <string name="guide_highlight">Highlight</string>
+    <string name="guide_off">Off</string>
+    <string name="guide_highlight_bar">Highlight bar</string>
     <string name="guide_horizontal">Line</string>
     <string name="guide_position">Guide position</string>
     <string name="remote_status">Remote status</string>

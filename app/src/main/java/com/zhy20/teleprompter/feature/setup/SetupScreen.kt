@@ -1,7 +1,6 @@
 package com.zhy20.teleprompter.feature.setup
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,10 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -31,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,30 +38,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
-import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.colorFromHex
-import com.zhy20.teleprompter.core.design.toComposeTextAlign
+import com.zhy20.teleprompter.core.design.scaleForViewport
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
+import com.zhy20.teleprompter.core.design.components.PrompterViewport
+import com.zhy20.teleprompter.core.design.components.PrompterViewportMode
+import com.zhy20.teleprompter.core.design.components.PrompterPreviewTarget
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
+import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
-import com.zhy20.teleprompter.core.model.GuideLineStyle
+import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
 import com.zhy20.teleprompter.core.model.ScriptContent
+import com.zhy20.teleprompter.core.model.ChineseSpeechDurationEstimator
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
 import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.PlaybackTiming
@@ -96,7 +95,7 @@ fun SetupScreen(
                         SettingsPanel(
                             settings = appState.playbackSettings,
                             onSettings = appState::updatePlaybackSettings,
-                            normalSeconds = script.normalEstimatedDurationSeconds,
+                            normalSeconds = appState.normalEstimatedDurationSeconds(scriptId),
                             appState = appState,
                             onRemote = onRemote,
                             modifier = Modifier.weight(1f),
@@ -116,7 +115,7 @@ fun SetupScreen(
                     SettingsPanel(
                         settings = appState.playbackSettings,
                         onSettings = appState::updatePlaybackSettings,
-                        normalSeconds = script.normalEstimatedDurationSeconds,
+                        normalSeconds = appState.normalEstimatedDurationSeconds(scriptId),
                         appState = appState,
                         onRemote = onRemote,
                         modifier = Modifier.weight(1f),
@@ -158,53 +157,63 @@ private fun StartBar(onStart: () -> Unit) {
 
 @Composable
 fun SetupPreview(document: ScriptContent, settings: PlaybackSettings, modifier: Modifier = Modifier) {
+    val configuration = LocalConfiguration.current
+    val targetViewport = PlaybackPreviewLayout.targetViewport(
+        currentWidthDp = configuration.screenWidthDp,
+        currentHeightDp = configuration.screenHeightDp,
+        orientation = settings.orientation,
+    )
+    val previewTarget = PrompterPreviewTarget(
+        width = targetViewport.widthDp.dp,
+        height = targetViewport.heightDp.dp,
+        usesLargeLayout = targetViewport.usesLargeLayout,
+    )
     val background = colorFromHex(settings.backgroundColor)
     val foreground = colorFromHex(settings.textColor)
     val guideLineColor = colorFromHex(settings.activeDisplayPreset().guideLineColorForBackground())
+    val previewRemainingSeconds = PlaybackTiming.playbackDurationSeconds(
+        settings,
+        ChineseSpeechDurationEstimator.estimate(document),
+    )
     BoxWithConstraints(modifier.background(AppColors.SurfaceRaised).padding(AppSpacing.md)) {
-        val portrait = settings.orientation == PlaybackOrientation.Portrait
-        val previewRatio = PlaybackPreviewLayout.aspectRatio(settings.orientation)
+        val previewRatio = targetViewport.aspectRatio
         val sizeModifier = if (maxWidth / previewRatio <= maxHeight) {
             Modifier.fillMaxWidth().aspectRatio(previewRatio)
         } else {
             Modifier.fillMaxHeight().aspectRatio(previewRatio)
         }
-        BoxWithConstraints(
+        Box(
             Modifier.align(Alignment.Center).then(sizeModifier)
                 .clip(MaterialTheme.shapes.medium).background(background),
         ) {
-            val guideY = maxHeight * settings.guideLinePosition
-            val textSize = (settings.fontSize * if (portrait) .31f else .36f).sp
-            val lineHeight = (settings.fontSize * .44f).sp
-            val maxPreviewLines = PlaybackPreviewLayout.maxVisibleLines(maxHeight.value, settings.fontSize)
-            RichScriptText(
+            PrompterViewport(
                 document = document,
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(AppSpacing.lg)
-                    .graphicsLayer { scaleX = if (settings.mirrorEnabled) -1f else 1f },
-                color = foreground,
-                style = MaterialTheme.typography.bodyLarge.copy(fontSize = textSize, lineHeight = lineHeight),
-                maxLines = maxPreviewLines,
-                textAlign = settings.textAlignment.toComposeTextAlign(),
-            )
-            if (settings.guideLineEnabled) {
-                when (settings.guideLineStyle) {
-                    GuideLineStyle.Highlight -> {
-                        Box(
-                            Modifier.fillMaxWidth().height(48.dp).offset(y = guideY - 24.dp)
-                                .background(guideLineColor.copy(alpha = .26f)),
+                settings = settings,
+                mode = PrompterViewportMode.Preview,
+                previewTarget = previewTarget,
+                foreground = foreground,
+                guideColor = guideLineColor,
+                modifier = Modifier.fillMaxSize(),
+                statusContent = { _, viewportScale ->
+                    val statusStyle = MaterialTheme.typography.labelMedium.scaleForViewport(viewportScale)
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = AppSpacing.sm * viewportScale, vertical = AppSpacing.xs * viewportScale),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            stringResource(R.string.elapsed, formatDuration(0)),
+                            color = foreground.copy(alpha = .68f),
+                            style = statusStyle,
                         )
-                        Box(Modifier.fillMaxWidth().height(3.dp).offset(y = guideY + 22.dp).background(guideLineColor))
+                        Text(
+                            stringResource(R.string.remaining, formatDuration(previewRemainingSeconds)),
+                            color = foreground.copy(alpha = .68f),
+                            style = statusStyle,
+                        )
                     }
-                    GuideLineStyle.Line -> Box(
-                        Modifier.fillMaxWidth().height(3.dp).offset(y = guideY).background(guideLineColor),
-                    )
-                }
-            }
-            Text(
-                stringResource(R.string.live_preview),
-                Modifier.align(Alignment.TopStart).padding(AppSpacing.sm),
-                color = foreground.copy(alpha = .68f),
-                style = MaterialTheme.typography.labelMedium,
+                },
             )
         }
     }
@@ -230,9 +239,10 @@ private fun SettingsPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                 options.forEach { option ->
                     val selected = settings.countdown == option
+                    val shape = MaterialTheme.shapes.medium
                     Surface(
-                        modifier = Modifier.weight(1f).height(48.dp).clickable { onSettings(settings.copy(countdown = option)) },
-                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.weight(1f).height(48.dp).roundedClickable(shape = shape) { onSettings(settings.copy(countdown = option)) },
+                        shape = shape,
                         color = if (selected) AppColors.Secondary.copy(alpha = .55f) else Color.Transparent,
                         border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
                     ) {
@@ -244,11 +254,14 @@ private fun SettingsPanel(
             }
         }
         SettingsCard(stringResource(R.string.guide_line)) {
-            ToggleSetting(stringResource(R.string.guide_line), settings.guideLineEnabled) { onSettings(settings.copy(guideLineEnabled = it)) }
             SimpleChoiceRow(
-                labels = listOf(stringResource(R.string.guide_highlight), stringResource(R.string.guide_horizontal)),
-                selectedIndex = if (settings.guideLineStyle == GuideLineStyle.Highlight) 0 else 1,
-                onSelected = { onSettings(settings.copy(guideLineStyle = if (it == 0) GuideLineStyle.Highlight else GuideLineStyle.Line)) },
+                labels = listOf(
+                    stringResource(R.string.guide_off),
+                    stringResource(R.string.guide_horizontal),
+                    stringResource(R.string.guide_highlight_bar),
+                ),
+                selectedIndex = settings.guideMode.ordinal,
+                onSelected = { onSettings(settings.copy(guideMode = GuideMode.entries[it])) },
             )
             SettingLabel(stringResource(R.string.guide_position), "${(settings.guideLinePosition * 100).toInt()}%")
             Slider(settings.guideLinePosition, { onSettings(settings.copy(guideLinePosition = it)) }, valueRange = .15f..0.75f)
@@ -294,7 +307,12 @@ private fun DisplaySettings(settings: PlaybackSettings, onSettings: (PlaybackSet
                 )
             },
         )
-        ToggleSetting(stringResource(R.string.mirror), settings.mirrorEnabled) { onSettings(settings.copy(mirrorEnabled = it)) }
+        Text(stringResource(R.string.mirror), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+        SimpleChoiceRow(
+            labels = listOf(stringResource(R.string.normal_display), stringResource(R.string.mirrored_display)),
+            selectedIndex = if (settings.mirrorEnabled) 1 else 0,
+            onSelected = { onSettings(settings.copy(mirrorEnabled = it == 1)) },
+        )
     }
 }
 
@@ -376,12 +394,13 @@ private fun SimpleChoiceRow(labels: List<String>, selectedIndex: Int, onSelected
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
         labels.forEachIndexed { index, label ->
             val selected = index == selectedIndex
+            val shape = MaterialTheme.shapes.medium
             Surface(
-                modifier = Modifier.weight(1f).height(48.dp).clickable { onSelected(index) },
+                modifier = Modifier.weight(1f).height(48.dp).roundedClickable(shape = shape) { onSelected(index) },
                 color = if (selected) AppColors.Secondary.copy(alpha = .55f) else Color.Transparent,
                 contentColor = if (selected) AppColors.TextPrimary else AppColors.TextSecondary,
                 border = androidx.compose.foundation.BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
-                shape = MaterialTheme.shapes.medium,
+                shape = shape,
             ) {
                 Box(contentAlignment = Alignment.Center) { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 2) }
             }
@@ -394,13 +413,5 @@ private fun SettingLabel(label: String, value: String) {
     Row(Modifier.fillMaxWidth()) {
         Text(label, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
         Text(value, color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun ToggleSetting(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), color = AppColors.TextSecondary)
-        Switch(checked, onChecked)
     }
 }

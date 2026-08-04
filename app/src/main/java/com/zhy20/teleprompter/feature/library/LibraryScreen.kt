@@ -2,7 +2,6 @@ package com.zhy20.teleprompter.feature.library
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -50,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,8 +62,10 @@ import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
+import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
 import com.zhy20.teleprompter.core.model.Script
+import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.core.util.formatModifiedAt
 
@@ -91,8 +93,19 @@ fun LibraryScreen(
             onDismissRequest = { showFolderDialog = false },
             title = { Text(stringResource(R.string.new_folder)) },
             text = { TextField(folderName, { folderName = it }, label = { Text(stringResource(R.string.folder_name)) }) },
-            confirmButton = { TextButton(onClick = { showFolderDialog = false }, enabled = folderName.isNotBlank()) { Text(stringResource(R.string.create)) } },
-            dismissButton = { TextButton(onClick = { showFolderDialog = false }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = {
+                TextButton(
+                    onClick = { showFolderDialog = false },
+                    modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                    enabled = folderName.isNotBlank(),
+                ) { Text(stringResource(R.string.create)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showFolderDialog = false },
+                    modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                ) { Text(stringResource(R.string.cancel)) }
+            },
         )
     }
 
@@ -123,8 +136,14 @@ fun LibraryScreen(
                     TopAppBar(
                         title = { Text(stringResource(R.string.library_title), fontWeight = FontWeight.Bold) },
                         actions = {
-                            TextButton(onClick = onRemote) { Text(stringResource(R.string.remote_controller)) }
-                            TextButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
+                            TextButton(
+                                onClick = onRemote,
+                                modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                            ) { Text(stringResource(R.string.remote_controller)) }
+                            TextButton(
+                                onClick = onSettings,
+                                modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                            ) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.Surface),
                     )
@@ -206,9 +225,10 @@ private fun SidebarGroupTitle(text: String) = Text(text, color = AppColors.TextW
 
 @Composable
 private fun SidebarItem(text: String, selected: Boolean, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    val shape = MaterialTheme.shapes.medium
     Surface(
-        modifier = Modifier.fillMaxWidth().height(48.dp).clickable(onClick = onClick),
-        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().height(48.dp).roundedClickable(shape = shape, onClick = onClick),
+        shape = shape,
         color = if (selected) AppColors.Secondary.copy(alpha = .45f) else Color.Transparent,
         border = if (selected) BorderStroke(1.dp, AppColors.Border) else null,
     ) {
@@ -279,7 +299,7 @@ private fun ScriptCard(script: Script, onEdit: (String) -> Unit, onSetup: (Strin
             Text(
                 listOf(
                     stringResource(R.string.words_format, script.wordCount),
-                    stringResource(R.string.estimated_duration_format, formatDuration(script.normalEstimatedDurationSeconds)),
+                    stringResource(R.string.estimated_duration_format, formatDuration(script.currentNormalEstimatedDurationSeconds())),
                     stringResource(R.string.modified_format, formatModifiedAt(script.lastModifiedAt)),
                 ).joinToString("  ·  "),
                 color = AppColors.TextWeak,

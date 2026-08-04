@@ -11,7 +11,7 @@ import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.DisplayPresets
-import com.zhy20.teleprompter.core.model.GuideLineStyle
+import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.applyDisplayPreset
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.feature.editor.EditorScreen
@@ -39,6 +39,9 @@ private fun PreviewState(
 @Preview(name = "编辑页短文本留白", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun ShortEditorPreview() = PreviewState { EditorScreen("3", it, {}, {}) }
 
+@Preview(name = "编辑页：普通、粗体、斜体和下划线", widthDp = 900, heightDp = 720, showBackground = true)
+@Composable private fun RichTextEditorPreview() = PreviewState { EditorScreen("5", it, {}, {}) }
+
 @Preview(name = "保存图标初始状态", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun InitialSavePreview() = PreviewState { EditorScreen("1", it, {}, {}, previewSaveState = SaveState.Initial) }
 
@@ -50,6 +53,11 @@ private fun PreviewState(
 
 @Preview(name = "提词设置：黑底白字", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun DarkSetupPreview() = PreviewState { SetupScreen("1", it, {}, {}, {}) }
+
+@Preview(name = "提词设置：竖屏真实预览", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun PortraitSetupPreview() = PreviewState(
+    initialize = { playbackSettings = playbackSettings.copy(orientation = PlaybackOrientation.Portrait) },
+) { SetupScreen("5", it, {}, {}, {}) }
 
 @Preview(name = "提词设置：白底黑字", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun LightSetupPreview() = PreviewState(
@@ -101,7 +109,7 @@ private fun PreviewState(
 @Composable private fun DarkLinePrompterPreview() = PreviewState(
     initialize = {
         playbackState = PlaybackState.Playing
-        playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.BlackOnWhite).copy(guideLineStyle = GuideLineStyle.Line)
+        playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.BlackOnWhite).copy(guideMode = GuideMode.Line)
     },
 ) { PrompterScreen("1", it, {}) }
 
@@ -109,9 +117,30 @@ private fun PreviewState(
 @Composable private fun LightHighlightPrompterPreview() = PreviewState(
     initialize = {
         playbackState = PlaybackState.Playing
-        playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.WhiteOnBlack).copy(guideLineStyle = GuideLineStyle.Highlight)
+        playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.WhiteOnBlack).copy(guideMode = GuideMode.HighlightBar)
     },
 ) { PrompterScreen("1", it, {}) }
+
+@Preview(name = "关闭提词辅助", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun GuideOffPrompterPreview() = PreviewState(
+    initialize = {
+        playbackState = PlaybackState.Playing
+        playbackSettings = playbackSettings.copy(guideMode = GuideMode.Off)
+    },
+) { PrompterScreen("1", it, {}) }
+
+@Preview(name = "镜像正文播放", widthDp = 1280, heightDp = 720, showBackground = true)
+@Composable private fun MirroredPrompterPreview() = PreviewState(
+    initialize = {
+        playbackState = PlaybackState.Playing
+        playbackSettings = playbackSettings.copy(mirrorEnabled = true, guideMode = GuideMode.Line)
+    },
+) { PrompterScreen("1", it, {}) }
+
+@Preview(name = "短台本底部布局", widthDp = 390, heightDp = 844, showBackground = true)
+@Composable private fun ShortPrompterPreview() = PreviewState(
+    initialize = { playbackState = PlaybackState.Playing },
+) { PrompterScreen("3", it, {}) }
 
 @Preview(name = "暂停状态", widthDp = 1280, heightDp = 720, showBackground = true)
 @Composable private fun PausedPreview() = PreviewState(

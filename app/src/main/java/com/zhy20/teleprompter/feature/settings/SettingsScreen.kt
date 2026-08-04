@@ -27,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -45,7 +44,7 @@ import com.zhy20.teleprompter.core.design.components.ChoiceRow
 import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.SettingsCard
 import com.zhy20.teleprompter.core.model.CountdownOption
-import com.zhy20.teleprompter.core.model.GuideLineStyle
+import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
@@ -94,7 +93,14 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         )
                     },
                 )
-                ToggleRow(stringResource(R.string.mirror), settings.mirrorEnabled) { appState.globalDefaults = settings.copy(mirrorEnabled = it) }
+                Text(stringResource(R.string.mirror), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
+                ChoiceRow(
+                    listOf(
+                        stringResource(R.string.normal_display) to !settings.mirrorEnabled,
+                        stringResource(R.string.mirrored_display) to settings.mirrorEnabled,
+                    ),
+                    { appState.globalDefaults = settings.copy(mirrorEnabled = it == 1) },
+                )
             }
             SettingsCard(stringResource(R.string.default_scroll_mode)) {
                 ChoiceRow(
@@ -114,13 +120,13 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                 })
             }
             SettingsCard(stringResource(R.string.guide_line)) {
-                ToggleRow(stringResource(R.string.guide_line), settings.guideLineEnabled) { appState.globalDefaults = settings.copy(guideLineEnabled = it) }
                 ChoiceRow(
                     listOf(
-                        stringResource(R.string.guide_highlight) to (settings.guideLineStyle == GuideLineStyle.Highlight),
-                        stringResource(R.string.guide_horizontal) to (settings.guideLineStyle == GuideLineStyle.Line),
+                        stringResource(R.string.guide_off) to (settings.guideMode == GuideMode.Off),
+                        stringResource(R.string.guide_horizontal) to (settings.guideMode == GuideMode.Line),
+                        stringResource(R.string.guide_highlight_bar) to (settings.guideMode == GuideMode.HighlightBar),
                     ),
-                    { appState.globalDefaults = settings.copy(guideLineStyle = if (it == 0) GuideLineStyle.Highlight else GuideLineStyle.Line) },
+                    { appState.globalDefaults = settings.copy(guideMode = GuideMode.entries[it]) },
                 )
                 Slider(settings.guideLinePosition, { appState.globalDefaults = settings.copy(guideLinePosition = it) }, valueRange = .15f..0.75f)
             }
@@ -162,14 +168,6 @@ private fun LanguageOption(label: String, selected: Boolean) {
     Row(Modifier.fillMaxWidth().padding(AppSpacing.lg), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
         Box(Modifier.size(22.dp).clip(CircleShape).background(if (selected) AppColors.Primary else AppColors.Border))
-    }
-}
-
-@Composable
-private fun ToggleRow(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), color = AppColors.TextSecondary)
-        Switch(checked, onChecked)
     }
 }
 

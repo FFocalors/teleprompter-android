@@ -1,7 +1,6 @@
 package com.zhy20.teleprompter.core.design.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -48,10 +48,11 @@ fun AppCard(
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    val clickableModifier = if (onClick == null) modifier else modifier.clickable(onClick = onClick)
+    val shape = MaterialTheme.shapes.large
+    val clickableModifier = if (onClick == null) modifier else modifier.roundedClickable(shape = shape, onClick = onClick)
     Card(
         modifier = clickableModifier,
-        shape = MaterialTheme.shapes.large,
+        shape = shape,
         colors = CardDefaults.cardColors(containerColor = AppColors.Surface),
         border = BorderStroke(1.dp, AppColors.Border),
         elevation = CardDefaults.cardElevation(defaultElevation = AppElevation.Card),
@@ -89,12 +90,13 @@ fun PrimaryButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val shape = MaterialTheme.shapes.medium
     Button(
         onClick = onClick,
-        modifier = modifier.height(52.dp),
+        modifier = modifier.clip(shape).height(52.dp),
         enabled = enabled,
         interactionSource = interactionSource,
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (pressed) AppColors.PrimaryPressed else AppColors.Primary,
             contentColor = AppColors.OnPrimary,
@@ -119,11 +121,12 @@ fun SecondaryButton(
     enabled: Boolean = true,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
+    val shape = MaterialTheme.shapes.medium
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.height(52.dp),
+        modifier = modifier.clip(shape).height(52.dp),
         enabled = enabled,
-        shape = MaterialTheme.shapes.medium,
+        shape = shape,
         border = BorderStroke(1.dp, AppColors.Border),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = AppSpacing.lg),
@@ -143,13 +146,14 @@ fun ChoiceRow(
     modifier: Modifier = Modifier,
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+        val shape = MaterialTheme.shapes.medium
         choices.forEachIndexed { index, (label, selected) ->
             Surface(
-                modifier = Modifier.weight(1f).height(48.dp).clickable { onSelected(index) },
+                modifier = Modifier.weight(1f).height(48.dp).roundedClickable(shape = shape) { onSelected(index) },
                 color = if (selected) AppColors.Secondary.copy(alpha = 0.55f) else Color.Transparent,
                 contentColor = if (selected) AppColors.TextPrimary else AppColors.TextSecondary,
                 border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) AppColors.Primary else AppColors.Border),
-                shape = MaterialTheme.shapes.medium,
+                shape = shape,
             ) {
                 Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, maxLines = 2)

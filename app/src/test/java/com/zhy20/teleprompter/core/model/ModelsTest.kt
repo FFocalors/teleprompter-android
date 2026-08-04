@@ -26,7 +26,7 @@ class ModelsTest {
         assertEquals(PlaybackOrientation.Landscape, settings.orientation)
         assertEquals(PlaybackTextAlignment.Start, settings.textAlignment)
         assertEquals(CountdownOption.ThreeSeconds, settings.countdown)
-        assertEquals(GuideLineStyle.Highlight, settings.guideLineStyle)
+        assertEquals(GuideMode.HighlightBar, settings.guideMode)
         assertTrue(settings.guideLinePosition in 0.15f..0.75f)
     }
 
@@ -35,5 +35,13 @@ class ModelsTest {
         FakeData.folders.forEach { folder ->
             assertEquals(folder.scriptCount, FakeData.scripts.count { it.folderId == folder.id })
         }
+    }
+
+    @Test
+    fun fakeDurationSample_isGeneratedFromIts850CharacterDocument() {
+        val sample = FakeData.scripts.single { it.id == "6" }
+
+        assertEquals(850, sample.wordCount)
+        assertEquals(200, sample.normalEstimatedDurationSeconds)
     }
 }

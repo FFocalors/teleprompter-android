@@ -108,3 +108,12 @@ fun AppTheme(content: @Composable () -> Unit) {
 fun colorFromHex(hex: String): Color = runCatching {
     Color(hex.toColorInt())
 }.getOrDefault(AppColors.Background)
+
+/** Scales status typography with the setup's virtual playback canvas. */
+fun TextStyle.scaleForViewport(scale: Float): TextStyle {
+    val safeScale = scale.coerceAtLeast(.01f)
+    return copy(
+        fontSize = fontSize * safeScale,
+        lineHeight = lineHeight * safeScale,
+    )
+}

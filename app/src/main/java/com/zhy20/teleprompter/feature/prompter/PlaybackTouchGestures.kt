@@ -17,7 +17,9 @@ fun Modifier.playbackTouchGestures(
     density: Float,
     onTap: () -> Unit,
     onDoubleTap: () -> Unit,
+    onVerticalDragStart: () -> Unit = {},
     onVerticalDrag: (Float) -> Unit,
+    onVerticalDragEnd: () -> Unit = {},
 ): Modifier {
     if (!enabled) return this
     return this
@@ -36,7 +38,10 @@ fun Modifier.playbackTouchGestures(
             detectVerticalDragGestures(
                 onDragStart = { offset ->
                     accepted = PlaybackTouchPolicy.allowsPlaybackGesture(size.width.toFloat(), size.height.toFloat(), density, offset.x, offset.y, true, false)
+                    if (accepted) onVerticalDragStart()
                 },
+                onDragEnd = { if (accepted) onVerticalDragEnd() },
+                onDragCancel = { if (accepted) onVerticalDragEnd() },
                 onVerticalDrag = { change, dragAmount ->
                     if (accepted) {
                         change.consume()

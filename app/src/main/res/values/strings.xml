@@ -55,6 +55,8 @@
     <string name="align_center">居中对齐</string>
     <string name="align_end">右对齐</string>
     <string name="mirror">镜像</string>
+    <string name="normal_display">正常</string>
+    <string name="mirrored_display">镜像</string>
     <string name="scroll_rhythm">滚动节奏</string>
     <string name="speed_mode">速度模式</string>
     <string name="target_time_mode">目标时间</string>
@@ -68,7 +70,8 @@
     <string name="countdown_off">不启用</string>
     <string name="seconds_format">%1$d 秒</string>
     <string name="guide_line">提词线</string>
-    <string name="guide_highlight">荧光底色</string>
+    <string name="guide_off">关闭</string>
+    <string name="guide_highlight_bar">提词条</string>
     <string name="guide_horizontal">横线</string>
     <string name="guide_position">提词线位置</string>
     <string name="remote_status">控制端状态</string>
