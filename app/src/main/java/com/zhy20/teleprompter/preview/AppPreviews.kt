@@ -20,12 +20,23 @@ import com.zhy20.teleprompter.feature.prompter.PrompterScreen
 import com.zhy20.teleprompter.feature.remote.RemoteScreen
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.setup.SetupScreen
+import com.zhy20.teleprompter.data.fake.FakeData
 
 @Composable
 private fun PreviewState(
     initialize: AppState.() -> Unit = {},
     content: @Composable (AppState) -> Unit,
-) = AppTheme { content(remember { AppState().apply(initialize) }) }
+) = AppTheme {
+    content(
+        remember {
+            AppState(
+                initialScripts = FakeData.scripts,
+                initialFolders = FakeData.folders,
+                initialDefaults = FakeData.defaultPlaybackSettings,
+            ).apply(initialize)
+        },
+    )
+}
 
 @Preview(name = "手机首页", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun PhoneLibraryPreview() = PreviewState { LibraryScreen(it, {}, {}, {}, {}, {}) }

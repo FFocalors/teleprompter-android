@@ -36,4 +36,11 @@ class PlaybackTouchPolicyTest {
         assertFalse(PlaybackTouchPolicy.allowsPlaybackGesture(1_080f, 2_200f, 3f, 540f, 1_100f, false, false))
         assertFalse(PlaybackTouchPolicy.allowsPlaybackGesture(1_080f, 2_200f, 3f, 540f, 1_100f, true, true))
     }
+
+    @Test
+    fun pausedContentTapUsesTheCentralRegionAndKeepsTheEdgeDeadZone() {
+        assertTrue(PlaybackTouchPolicy.allowsCentralContentTap(1_080f, 2_200f, 3f, 540f, 1_100f))
+        assertFalse(PlaybackTouchPolicy.allowsCentralContentTap(1_080f, 2_200f, 3f, 12f, 1_100f))
+        assertFalse(PlaybackTouchPolicy.allowsCentralContentTap(1_080f, 2_200f, 3f, 540f, 18f))
+    }
 }

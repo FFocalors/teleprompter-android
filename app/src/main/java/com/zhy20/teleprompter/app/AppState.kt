@@ -13,23 +13,32 @@ import com.zhy20.teleprompter.core.model.RichTextEditorState
 import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.core.model.Script
+import com.zhy20.teleprompter.core.model.ScriptBlock
+import com.zhy20.teleprompter.core.model.ScriptContent
+import com.zhy20.teleprompter.core.model.ScriptFolder
+import com.zhy20.teleprompter.core.model.ScriptSpan
 import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.model.normalizedToDisplayPreset
 import com.zhy20.teleprompter.core.util.PlaybackEngine
 import com.zhy20.teleprompter.core.util.PlaybackEngineState
-import com.zhy20.teleprompter.data.fake.FakeData
 
-class AppState(private val clockNanos: () -> Long = System::nanoTime) {
-    var scripts by mutableStateOf(FakeData.scripts)
+class AppState(
+    private val clockNanos: () -> Long = System::nanoTime,
+    initialScripts: List<Script> = emptyList(),
+    initialFolders: List<ScriptFolder> = emptyList(),
+    initialDefaults: PlaybackSettings = PlaybackSettings(),
+) {
+    var scripts by mutableStateOf(initialScripts)
         private set
-    val folders = FakeData.folders
+    var folders by mutableStateOf(initialFolders)
+        private set
 
-    var selectedScriptId by mutableStateOf("1")
+    var selectedScriptId by mutableStateOf(initialScripts.firstOrNull()?.id.orEmpty())
         private set
-    var draftScript by mutableStateOf(FakeData.blankScript)
+    var draftScript by mutableStateOf(emptyScript("new", initialDefaults))
         private set
-    var playbackSettings by mutableStateOf(FakeData.defaultPlaybackSettings)
-    var globalDefaults by mutableStateOf(FakeData.defaultPlaybackSettings)
+    var playbackSettings by mutableStateOf(initialScripts.firstOrNull()?.playbackSettings ?: initialDefaults)
+    var globalDefaults by mutableStateOf(initialDefaults)
     var playbackSession by mutableStateOf(PlaybackEngineState())
         private set
     var playbackState: PlaybackState
@@ -48,7 +57,19 @@ class AppState(private val clockNanos: () -> Long = System::nanoTime) {
     var selectedLanguage by mutableStateOf("zh-CN")
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
-    fun script(id: String): Script = scripts.firstOrNull { it.id == id } ?: draftScript
+    fun script(id: String): Script = scripts.firstOrNull { it.id == id }
+        ?: if (id == "new") draftScript else emptyScript(id, playbackSettings)
+
+    fun setLibraryData(scripts: List<Script>, folders: List<ScriptFolder>) {
+        this.scripts = scripts
+        this.folders = folders
+    }
+
+    fun setActiveScript(script: Script) {
+        scripts = (scripts.filterNot { it.id == script.id } + script).sortedByDescending { it.lastModifiedAt }
+        selectedScriptId = script.id
+        playbackSettings = script.playbackSettings.normalizedToDisplayPreset()
+    }
 
     /** Always derived from the current ScriptDocument; the model field is only a cache. */
     fun normalEstimatedDurationSeconds(id: String): Int = script(id).currentNormalEstimatedDurationSeconds()
@@ -163,6 +184,7 @@ class AppState(private val clockNanos: () -> Long = System::nanoTime) {
             PlaybackEvent.PausePlayback -> playbackState = PlaybackState.Paused
             PlaybackEvent.ResumeImmediately -> playbackState = PlaybackState.Playing
             PlaybackEvent.ResumeWithCountdown -> playbackState = PlaybackState.Countdown(3)
+            PlaybackEvent.CancelResumeCountdown -> playbackState = PlaybackState.Paused
             PlaybackEvent.IncreaseSpeed -> updatePlaybackSettings(playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier + 0.1f).coerceAtMost(2f)))
             PlaybackEvent.DecreaseSpeed -> updatePlaybackSettings(playbackSettings.copy(speedMultiplier = (playbackSettings.speedMultiplier - 0.1f).coerceAtLeast(0.5f)))
             PlaybackEvent.SeekForwardSmall -> progress = (progress + 0.03f).coerceAtMost(1f)
@@ -186,3 +208,15 @@ class AppState(private val clockNanos: () -> Long = System::nanoTime) {
         playbackSession = session
     }
 }
+
+private fun emptyScript(id: String, settings: PlaybackSettings): Script = Script(
+    id = id,
+    title = "",
+    plainTextPreview = "",
+    content = ScriptContent(listOf(ScriptBlock.Paragraph("paragraph-0", listOf(ScriptSpan(""))))),
+    folderId = null,
+    wordCount = 0,
+    normalEstimatedDurationSeconds = 1,
+    lastModifiedAt = 0L,
+    playbackSettings = settings,
+)

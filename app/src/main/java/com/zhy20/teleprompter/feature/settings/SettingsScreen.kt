@@ -48,11 +48,21 @@ import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
+import com.zhy20.teleprompter.core.model.PlaybackSettings
 
 @Composable
-fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Unit) {
+fun SettingsScreen(
+    appState: AppState,
+    onBack: () -> Unit,
+    onLanguage: () -> Unit,
+    defaultsOverride: PlaybackSettings? = null,
+    languageOverride: String? = null,
+    onDefaultsChange: ((PlaybackSettings) -> Unit)? = null,
+) {
+    val settings = defaultsOverride ?: appState.globalDefaults
+    val updateDefaults: (PlaybackSettings) -> Unit = onDefaultsChange ?: { appState.globalDefaults = it }
+    val selectedLanguage = languageOverride ?: appState.selectedLanguage
     BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-        val settings = appState.globalDefaults
         Column(
             Modifier.align(Alignment.TopCenter).widthIn(max = if (maxWidth >= 840.dp) 860.dp else 620.dp).fillMaxWidth()
                 .verticalScroll(rememberScrollState()).padding(AppSpacing.lg),
@@ -66,15 +76,15 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                 }
             }
             SettingsCard(stringResource(R.string.display_settings)) {
-                DisplayPresetPicker(settings, onSettingsChange = { appState.globalDefaults = it })
+                DisplayPresetPicker(settings, onSettingsChange = updateDefaults)
                 LabelValue(stringResource(R.string.font_size), stringResource(R.string.font_size_value, settings.fontSize))
-                Slider(settings.fontSize.toFloat(), { appState.globalDefaults = settings.copy(fontSize = it.toInt()) }, valueRange = 32f..100f)
+                Slider(settings.fontSize.toFloat(), { updateDefaults(settings.copy(fontSize = it.toInt())) }, valueRange = 32f..100f)
                 ChoiceRow(
                     listOf(
                         stringResource(R.string.portrait) to (settings.orientation == PlaybackOrientation.Portrait),
                         stringResource(R.string.landscape) to (settings.orientation == PlaybackOrientation.Landscape),
                     ),
-                    { appState.globalDefaults = settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape) },
+                    { updateDefaults(settings.copy(orientation = if (it == 0) PlaybackOrientation.Portrait else PlaybackOrientation.Landscape)) },
                 )
                 Text(stringResource(R.string.text_alignment), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
                 ChoiceRow(
@@ -84,13 +94,13 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         stringResource(R.string.align_end) to (settings.textAlignment == PlaybackTextAlignment.End),
                     ),
                     { index ->
-                        appState.globalDefaults = settings.copy(
+                        updateDefaults(settings.copy(
                             textAlignment = when (index) {
                                 0 -> PlaybackTextAlignment.Start
                                 1 -> PlaybackTextAlignment.Center
                                 else -> PlaybackTextAlignment.End
                             },
-                        )
+                        ))
                     },
                 )
                 Text(stringResource(R.string.mirror), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelLarge)
@@ -99,7 +109,7 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         stringResource(R.string.normal_display) to !settings.mirrorEnabled,
                         stringResource(R.string.mirrored_display) to settings.mirrorEnabled,
                     ),
-                    { appState.globalDefaults = settings.copy(mirrorEnabled = it == 1) },
+                    { updateDefaults(settings.copy(mirrorEnabled = it == 1)) },
                 )
             }
             SettingsCard(stringResource(R.string.default_scroll_mode)) {
@@ -108,15 +118,15 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         stringResource(R.string.speed_mode) to (settings.rhythmMode == RhythmMode.Speed),
                         stringResource(R.string.target_time_mode) to (settings.rhythmMode == RhythmMode.TargetDuration),
                     ),
-                    { appState.globalDefaults = settings.copy(rhythmMode = if (it == 0) RhythmMode.Speed else RhythmMode.TargetDuration) },
+                    { updateDefaults(settings.copy(rhythmMode = if (it == 0) RhythmMode.Speed else RhythmMode.TargetDuration)) },
                 )
                 LabelValue(stringResource(R.string.speed), stringResource(R.string.speed_multiplier, settings.speedMultiplier))
-                Slider(settings.speedMultiplier, { appState.globalDefaults = settings.copy(speedMultiplier = it) }, valueRange = .5f..2f)
+                Slider(settings.speedMultiplier, { updateDefaults(settings.copy(speedMultiplier = it)) }, valueRange = .5f..2f)
             }
             SettingsCard(stringResource(R.string.countdown)) {
                 val options = CountdownOption.entries
                 ChoiceRow(options.map { (if (it == CountdownOption.Off) stringResource(R.string.countdown_off) else stringResource(R.string.seconds_format, it.seconds)) to (settings.countdown == it) }, onSelected = { index ->
-                    appState.globalDefaults = settings.copy(countdown = options[index])
+                    updateDefaults(settings.copy(countdown = options[index]))
                 })
             }
             SettingsCard(stringResource(R.string.guide_line)) {
@@ -126,9 +136,9 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                         stringResource(R.string.guide_horizontal) to (settings.guideMode == GuideMode.Line),
                         stringResource(R.string.guide_highlight_bar) to (settings.guideMode == GuideMode.HighlightBar),
                     ),
-                    { appState.globalDefaults = settings.copy(guideMode = GuideMode.entries[it]) },
+                    { updateDefaults(settings.copy(guideMode = GuideMode.entries[it])) },
                 )
-                Slider(settings.guideLinePosition, { appState.globalDefaults = settings.copy(guideLinePosition = it) }, valueRange = .15f..0.75f)
+                Slider(settings.guideLinePosition, { updateDefaults(settings.copy(guideLinePosition = it)) }, valueRange = .15f..0.75f)
             }
             AppCard(Modifier.fillMaxWidth(), onClick = onLanguage) {
                 Row(Modifier.fillMaxWidth().padding(AppSpacing.lg), verticalAlignment = Alignment.CenterVertically) {
@@ -136,7 +146,7 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
                     Spacer(Modifier.size(AppSpacing.sm))
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.language), style = MaterialTheme.typography.titleMedium)
-                        Text(if (appState.selectedLanguage == "zh-CN") stringResource(R.string.simplified_chinese) else stringResource(R.string.english), color = AppColors.TextSecondary)
+                        Text(if (selectedLanguage == "zh-CN") stringResource(R.string.simplified_chinese) else stringResource(R.string.english), color = AppColors.TextSecondary)
                     }
                     Text(stringResource(R.string.tap_language), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
                 }
@@ -147,18 +157,25 @@ fun SettingsScreen(appState: AppState, onBack: () -> Unit, onLanguage: () -> Uni
 }
 
 @Composable
-fun LanguageScreen(appState: AppState, onBack: () -> Unit) {
+fun LanguageScreen(
+    appState: AppState,
+    onBack: () -> Unit,
+    languageOverride: String? = null,
+    onLanguageChange: ((String) -> Unit)? = null,
+) {
+    val selectedLanguage = languageOverride ?: appState.selectedLanguage
+    val updateLanguage: (String) -> Unit = onLanguageChange ?: { appState.selectedLanguage = it }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
             Text(stringResource(R.string.language_settings), style = MaterialTheme.typography.headlineMedium)
         }
         Text(stringResource(R.string.language_hint), color = AppColors.TextSecondary)
-        AppCard(Modifier.fillMaxWidth(), onClick = { appState.selectedLanguage = "zh-CN" }) {
-            LanguageOption(stringResource(R.string.simplified_chinese), appState.selectedLanguage == "zh-CN")
+        AppCard(Modifier.fillMaxWidth(), onClick = { updateLanguage("zh-CN") }) {
+            LanguageOption(stringResource(R.string.simplified_chinese), selectedLanguage == "zh-CN")
         }
-        AppCard(Modifier.fillMaxWidth(), onClick = { appState.selectedLanguage = "en-US" }) {
-            LanguageOption(stringResource(R.string.english), appState.selectedLanguage == "en-US")
+        AppCard(Modifier.fillMaxWidth(), onClick = { updateLanguage("en-US") }) {
+            LanguageOption(stringResource(R.string.english), selectedLanguage == "en-US")
         }
     }
 }

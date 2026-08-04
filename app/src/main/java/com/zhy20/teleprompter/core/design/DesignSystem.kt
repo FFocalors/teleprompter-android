@@ -46,6 +46,8 @@ object AppSpacing {
     val xl = 32.dp
     val xxl = 40.dp
     val EditorTail = 160.dp
+    /** Minimum height for library cards, including the complete action row. */
+    val ScriptCardHeight = 296.dp
 }
 
 object AppShapes {

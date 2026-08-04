@@ -29,4 +29,12 @@ object PlaybackTouchPolicy {
         isPlaying: Boolean,
         controlsVisible: Boolean,
     ): Boolean = isPlaying && !controlsVisible && centralRegion(widthPx, heightPx, density).contains(x, y)
+
+    fun allowsCentralContentTap(
+        widthPx: Float,
+        heightPx: Float,
+        density: Float,
+        x: Float,
+        y: Float,
+    ): Boolean = centralRegion(widthPx, heightPx, density).contains(x, y)
 }

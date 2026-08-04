@@ -64,7 +64,9 @@ import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
 import com.zhy20.teleprompter.core.model.RhythmMode
 import com.zhy20.teleprompter.core.model.ScriptContent
+import com.zhy20.teleprompter.core.model.Script
 import com.zhy20.teleprompter.core.model.ChineseSpeechDurationEstimator
+import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
 import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.PlaybackTiming
@@ -78,8 +80,13 @@ fun SetupScreen(
     onBack: () -> Unit,
     onRemote: () -> Unit,
     onStart: (String) -> Unit,
+    scriptOverride: Script? = null,
+    settingsOverride: PlaybackSettings? = null,
+    onSettingsChange: ((PlaybackSettings) -> Unit)? = null,
 ) {
-    val script = appState.script(scriptId)
+    val script = scriptOverride ?: appState.script(scriptId)
+    val settings = settingsOverride ?: appState.playbackSettings
+    val updateSettings = onSettingsChange ?: appState::updatePlaybackSettings
     Column(Modifier.fillMaxSize().background(AppColors.Background)) {
         SetupTopBar(onBack)
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
@@ -88,14 +95,14 @@ fun SetupScreen(
                 Row(Modifier.fillMaxSize()) {
                     SetupPreview(
                         document = script.content,
-                        settings = appState.playbackSettings,
+                        settings = settings,
                         modifier = Modifier.weight(1.3f).fillMaxHeight(),
                     )
                     Column(Modifier.weight(1f).fillMaxHeight().background(AppColors.Background)) {
                         SettingsPanel(
-                            settings = appState.playbackSettings,
-                            onSettings = appState::updatePlaybackSettings,
-                            normalSeconds = appState.normalEstimatedDurationSeconds(scriptId),
+                            settings = settings,
+                            onSettings = updateSettings,
+                            normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                             appState = appState,
                             onRemote = onRemote,
                             modifier = Modifier.weight(1f),
@@ -107,15 +114,15 @@ fun SetupScreen(
                 Column(Modifier.fillMaxSize()) {
                     SetupPreview(
                         document = script.content,
-                        settings = appState.playbackSettings,
+                        settings = settings,
                         modifier = Modifier.fillMaxWidth().height(
-                            if (appState.playbackSettings.orientation == PlaybackOrientation.Portrait) 320.dp else 260.dp,
+                            if (settings.orientation == PlaybackOrientation.Portrait) 320.dp else 260.dp,
                         ),
                     )
                     SettingsPanel(
-                        settings = appState.playbackSettings,
-                        onSettings = appState::updatePlaybackSettings,
-                        normalSeconds = appState.normalEstimatedDurationSeconds(scriptId),
+                        settings = settings,
+                        onSettings = updateSettings,
+                        normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                         appState = appState,
                         onRemote = onRemote,
                         modifier = Modifier.weight(1f),

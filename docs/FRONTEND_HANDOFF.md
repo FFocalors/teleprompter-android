@@ -1,34 +1,34 @@
-# Teleprompter Android 前端交接
+# Teleprompter Android 前端实现记录
 
 ## 1. 当前基线
 
 - 保持单模块 `app`，`applicationId` / `namespace` 均为 `com.zhy20.teleprompter`。
 - Gradle Wrapper 9.4.1、Android Gradle Plugin 9.2.1、Kotlin 2.2.10、Compose BOM 2026.02.01、Navigation Compose 2.9.6；未升级工具链、依赖仓库或模块结构。
-- `compileSdk` 36.1、`targetSdk` 36、`minSdk` 26、Java 11。
-- Git 历史保留；前端提交只在本地创建，不会自动 push。
+- `compileSdk` 36.1、`targetSdk` 36、`minSdk` 26；Gradle 运行时使用 JDK 21，源码兼容 Java 11。
+- 本文档保留前端实现中的设计决策和验证记录，公开仓库的当前状态以 `README.md` 和 `docs/PROJECT_STATUS.md` 为准。
 
-## 2. Figma 实际读取范围
+## 2. 页面与设计映射
 
-初始实现读取 Figma Make 文件“开始设计提示词”的根节点 `0:1`、最新可访问 Version 4 页面源码/样式，并逐页核对。
+实现以低饱和深色界面、橙色主操作和响应式手机/平板信息架构为视觉依据，页面映射如下：
 
-| Figma Make 页面 | 路由 | Compose 页面 |
+| 产品页面 | 路由 | Compose 页面 |
 | --- | --- | --- |
-| Dashboard / 台本库 | `/` | `LibraryScreen` |
-| Script Editor / 编辑 | `/editor/:id` | `EditorScreen` |
-| Style Setup / 样式与启动 | `/style/:id` | `SetupScreen` |
-| Prompter / 播放 | `/prompter/:id` | `PrompterScreen` |
-| Remote / 控制端 | `/remote` | `RemoteScreen` |
+| 台本库 | `library` | `LibraryScreen` |
+| 台本编辑 | `editor/{scriptId}` | `EditorScreen` / `PersistentEditorScreen` |
+| 样式与启动 | `setup/{scriptId}` | `SetupScreen` / `PersistentSetupScreen` |
+| 提词播放 | `prompter/{scriptId}` | `PrompterScreen` |
+| 控制端 | `remote` | `RemoteScreen` |
 
-该 Make 文件未暴露可枚举 Variables、独立 Component 集或完整原型连接元数据。全局设置、语言、暂停和控制端状态依产品说明补齐。后续定向优化不重新拉取或覆盖 Figma。
+全局设置和语言页面由产品需求补齐；控制端连接在当前版本仍是本地 Mock 状态。
 
 ## 3. 已实现页面
 
-- 台本库：全部/未分类/单层台本夹筛选、响应式卡片、新建、编辑、播放、控制端状态、设置和空状态。
-- 编辑页：轻量富文本、选区级粗体/斜体/下划线、撤回、纯图标自动保存、固定工具栏、IME 避让与短文本滚动余量。
+- 台本库：Room Flow 驱动的 Loading/Empty/Content/Error 状态，全部/未分类/单层台本夹筛选；真实新建、重命名、移动与永久删除台本，以及新建、重命名、删除台本夹。删除台本夹会在事务中将台本移至未分类。
+- 编辑页：按 `scriptId` 从 Repository 加载真实富文本，支持选区级粗体/斜体/下划线、撤回、700 ms 防抖自动保存、revision 防旧写回、失败重试、生命周期 flush、IME 避让与短文本滚动余量。
 - 样式/启动页：显示预设、真实比例实时预览、字号、文字对齐、方向、镜像、节奏/目标时间、倒计时、提词线和控制端状态。
 - 播放页：沉浸式显示、实际 Activity 方向锁定、模拟进度、紧凑时间信息、红色提词辅助、控制栏、暂停/恢复、完成和断线提示。
 - 控制端：连接、等待、准备、播放、暂停、完成及 Mock 联动；附近文字预览遵循台本对齐方式。
-- 全局设置与语言：新建台本默认样式、预设、文字对齐、方向、镜像及中英文会话切换。
+- 全局设置与语言：Preferences DataStore 持久化新建台本默认样式、预设、文字对齐、方向、镜像、节奏、倒计时、提词辅助及中英文选择；全局默认值只在新建时复制，不覆盖已有台本。
 
 ## 4. 冷灰橙黄 Design System
 
@@ -113,7 +113,7 @@
 
 - `PlaybackEngineState` 是播放单一状态源，包含 `layoutReady`、`requiresScrolling`、播放状态、有效已用时间、语义进度、像素偏移、总距离、速度、目标时间、实际时长及开始/结束偏移。
 - `PrompterLayoutMetrics` 统一记录完整视口、状态区高度、正文视口、正文上下边界、真实文本高度、Guide 位置和开始/结束偏移。`RichScriptText.onTextLayout` 返回真实排版高度；播放引擎只接收正文视口高度，不会将正文或 Guide 滚进顶部状态区。
-- 顶部状态区为运行时约 56 dp（大屏约 64 dp）并处理状态栏 Insets；左侧已用时长、右侧剩余时长和条件进度条固定在该区域。正文从其下方开始，文本高度不超过正文视口时不滚动、不自动完成，文本块在底部保留约 8% 安全余量。
+- 顶部状态区为运行时约 56 dp（大屏约 64 dp），系统栏采用沉浸式临时覆盖，不参与正文和控制栏重新测量；左侧已用时长、右侧剩余时长和条件进度条固定在该区域。正文从其下方开始，文本高度不超过正文视口时不滚动、不自动完成，文本块在底部保留约 8% 安全余量。
 - 播放开始偏移为 `viewportHeight * 0.82`，使第一行完整出现在正文区底部附近；结束偏移为 `viewportHeight * 0.67 - textHeight`，使最后一行停在正文下三分之一处。短台本也沿同一时间轴从底部向上移动。
 - `AppState.startPlaybackFromBeginning()` 是样式页与控制端共用的新播放入口，会重新创建 Engine Session；`PlaybackEngineState.isStartingFromBeginning` 显式标识首次播放，倒计时和第一移动帧均保持原点。恢复倒计时不会获得该标记，因此保留原位置。
 - 自动滚动由 `withFrameNanos` 提供单调时间，但位置按“时间差 / 实际总时长”计算，不按帧累加像素。因此刷新率、掉帧不会改变同一时间点的位置。
@@ -121,38 +121,47 @@
 - 暂停先结算当前帧再冻结；立即恢复或倒计时恢复从相同位置建立新锚点，倒计时不计入有效已用时间。滑块和纵向微调期间设置 `isManualAdjusting`，松手后从新位置继续。
 - 长台本到达末尾后进入 Finished、固定在结束偏移且不自动退出；播放页不显示完成弹窗，只保留非模态顶部任务栏供用户退出。短台本的零滚动距离不会触发 Finished。
 - 左上常驻显示已用时间，右上显示剩余时间。只有布局完成、长台本正在播放且未手动调整时，右上才显示有限宽度的橙色轨道进度条；暂停、倒计时、短台本和完成状态均隐藏。
-- 播放控制改为顶部居中的紧凑半透明卡片，无全屏强遮罩。播放态包含退出、暂停、减速、倍率、加速、带手柄进度和三态提词辅助；约 3 秒无操作自动隐藏。暂停态保持显示，并增加立即/倒计时恢复、进度、提词位置、提词模式和退出。
-- 播放中边缘触摸由最内层 `PointerInput` 消费，中央区域才支持点击、双击和纵向微调；暂停或显示控制栏后恢复完整 App 内容区操作。
+- 播放控制统一由 `PlaybackControlBar` 渲染，`ControlBarMode` 区分 `Hidden`、`Playing`、`Paused` 和 `Finished`；同一顶部半透明卡片使用固定槽位放置长按退出、速度组、播放/暂停和 3 秒倒计时开关，播放与暂停切换时不重排主要控件。播放态约 3 秒无操作自动隐藏；开启倒计时开关后点击播放键进入全屏倒计时，完成态保留位置调节和长按退出。
+- `controlsVisible` 与 `PlaybackState` 独立管理：进入暂停默认显示控制栏，暂停时不会自动隐藏；中央正文单击只切换暂停控制栏显隐，隐藏时仍保持暂停、进度、提词线和顶部已用/剩余时间不变。播放恢复后重新启用约 3 秒自动隐藏规则。
+- 播放中边缘触摸由最内层 `PointerInput` 消费，中央区域才支持点击、双击和纵向微调；暂停和完成态使用独立中央触控策略，单击显示/隐藏控制栏、上下滑动调整语义进度，边缘仍保持死区，暂停控制栏内部事件优先由控件消费，不穿透为正文单击。
 - 正文镜像位于独立 graphics layer；状态、提词辅助和浮层是平级渲染层，触摸语义保持正常。
 - `roundedClickable` 先按控件 Shape 裁剪再附着点击反馈；可点击卡片、选择项、预设卡和侧栏项目的鼠标 Hover/按压层与圆角外框一致，主/次/文字按钮同样在 Modifier 层裁剪反馈。
 
-## 8. 既有编辑交互
+## 8. 真实编辑与保存交互
 
 - 编辑器使用单一 `ScrollState`、IME/导航栏 Padding、尾部空间和 `BringIntoViewRequester`，短文本与键盘同时出现时仍可上滑并保持光标可见。
 - 编辑器可见文本使用与播放完全相同的 `ScriptAnnotatedStringMapper`；普通、粗体、斜体、下划线及组合样式可在同一正文中明确区分，工具栏状态不会把整个文档临时渲染为粗体。
 - 保存状态为纯图标：Initial 中性、Saving 不闪烁、Saved 绿色、Error 红色可重试；辅助功能文案在资源中提供。
+- `EditorViewModel` 首次加载 Room 后建立本地草稿，后续数据库回执不会无条件重建编辑器状态，因此不会覆盖正在输入的 dirty 内容。
+- 标题和 `ScriptDocument` 共用 `editRevision` / `savedRevision`。停止输入 700 ms 后保存；只有保存快照仍是最新 revision 时才显示绿色。返回、进入提词设置、Activity `ON_STOP`、Composable 释放和 ViewModel 清理均会尝试 flush。
+- 撤回栈属于单次编辑会话，最多保留 80 个文档与选区快照；可恢复文字、段落、样式和选区，不持久化重做历史。
 
-## 9. 工程结构、导航与 Mock 状态
+## 9. 工程结构、导航与持久化状态
 
 ```text
 com.zhy20.teleprompter
-├── app                 # TeleprompterApp、可替换 AppState
+├── app                 # TeleprompterApplication、AppContainer、导航与播放 Session
 ├── core/design          # Token、主题、通用组件、文字渲染
 ├── core/model           # 纯 Kotlin 模型、富文本与播放设置
 ├── core/navigation      # 路由
 ├── core/util            # 格式化、触控策略、预览尺寸规则
-├── data/fake            # 统一 Mock 数据
-├── feature              # library/editor/setup/prompter/remote/settings
+├── data/local           # Room Database、Entity、DAO
+├── data/repository      # Repository 接口、Room/DataStore 实现
+├── data/serialization   # 版本化 ScriptDocument / PlaybackSettings JSON
+├── data/fake            # 仅 Preview 与测试使用的 Mock 数据
+├── feature              # 页面及按功能拆分的 ViewModel
 └── preview              # Compose Preview
 ```
 
-路由：`library`、`editor/{scriptId}`、`setup/{scriptId}`、`prompter/{scriptId}`、`remote`、`settings`、`settings/language`。只传 `scriptId`；`AppState` 保存内存台本、播放设置、方向、对齐、进度、连接和保存状态，并在正文变更时刷新缓存的语速估算，后续可替换为 Repository/Session。
+路由：`library`、`editor/{scriptId}`、`setup/{scriptId}`、`prompter/{scriptId}`、`remote`、`settings`、`settings/language`。只传 `scriptId`；页面通过 `SavedStateHandle` 和 Repository 重建。`AppState` 只承担本地播放 Session、远控演示状态和当前已加载台本桥接，不再为生产首页提供 Fake 数据。
+
+Room 数据库版本为 1，schema 固定输出到 `app/schemas/com.zhy20.teleprompter.data.local.TeleprompterDatabase/1.json` 并进入版本控制。首次运行不插入示例台本，也没有 destructive migration。完整数据层说明见 `docs/DATA_AND_EDITOR_ARCHITECTURE.md`。
 
 ## 10. Preview、测试与验证
 
 - Preview 覆盖：四种显示预设的设置页、横屏/竖屏真实虚拟播放预览、局部格式编辑器、横屏/竖屏播放、顶部状态区、红线/红色提示条、控制端和设置页。
-- 单元测试覆盖：255 单位/分钟语速基准、850 字 3:20、标点/段落/英文/数字、富文本样式不影响时长、正文变更更新缓存、普通/粗体/斜体/下划线映射、状态区正文几何隔离，以及既有 GuideMode、播放引擎和触控策略。
-- Android Compose UI 测试覆盖播放中央点击、边缘事件消费、Off/Line/HighlightBar 切换无残留，以及状态区、正文和 Guide 的边界隔离。构建会编译 AndroidTest APK。
+- 单元测试增加版本化富文本/播放设置 JSON、无效 JSON 安全降级，以及编辑器 dirty、防抖、flush、失败重试、Room 回流保护和撤回状态测试；既有语速、富文本映射、GuideMode、播放引擎和触控策略继续保留。
+- AndroidTest 增加 Room 内存数据库端到端覆盖：新建/更新/删除台本、台本夹创建/重命名/冲突、台本移动、Flow 更新、全局默认复制、纯样式修改保持预计时长，以及删除台本夹事务。既有 Compose UI 测试继续覆盖播放交互和画面边界；构建会编译 AndroidTest APK。
 - Android 16 模拟器的触摸注入使用 Espresso 3.7.0；这是测试依赖的兼容性修正，未调整 Gradle、AGP、Kotlin 或 Compose 工具链。
 
 ## 11. 构建与运行
@@ -160,19 +169,18 @@ com.zhy20.teleprompter
 PowerShell：
 
 ```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
 .\gradlew.bat :app:assembleDebug
 .\gradlew.bat :app:testDebugUnitTest
 .\gradlew.bat :app:lintDebug
 .\gradlew.bat :app:assembleDebugAndroidTest
 ```
 
-Debug APK：`app/build/outputs/apk/debug/app-debug.apk`。Android Studio 直接打开仓库根目录、等待现有 Gradle Sync 后运行 `app`；不要仅因版本提示升级工具链。
+Debug APK 会生成在 `app/build/outputs/apk/debug/`，该目录不会进入 Git。Android Studio 直接打开仓库根目录、等待 Gradle Sync 后运行 `app`；不要仅因版本提示升级工具链。
 
 ## 12. 尚未实现、限制与建议下一阶段
 
-- 未实现 Room/DataStore、文件导入与解析、正式富文本控件、局域网发现/二维码/网络通信、语音、账号和云端。
-- 真实实现可用 Repository/Session 替换 `AppState`，并继续复用 `PlaybackEvent` 与 `ScriptContent` 的 block/span 结构。
+- 已实现 Room、DataStore、真实台本/台本夹 CRUD、富文本与播放设置持久化。仍未实现 TXT/DOCX/Markdown 导入、文件选择器、局域网发现/二维码/网络通信、语音、账号、云端、回收站和多级台本夹。
+- 当前富文本输入仍是基于 `BasicTextField` 的轻量实现；支持选择后加粗/斜体/下划线、粘贴、删除、替换和撤回，但没有完整富文本编辑器的输入法组合样式、重做或格式继承工具。
 - 当前播放引擎已按 Compose 文本布局和时间轴运行，但仍属于本地前端会话；后续业务层应持久化 Session 快照，并由真实播放服务/远控事件驱动同一 reducer。
 - `ChineseSpeechDurationEstimator` 是产品级启发式估算，不会替代未来逐词计时、语速训练或语音识别；导入富文本/多语种内容接入后应在同一模块扩展单位与停顿规则。
 - 预览为保持可读性允许末尾省略号和缩放后的虚拟画布；正式播放不截断正文。后续可补充截图回归，覆盖更多字体缩放和 OEM Insets 组合。

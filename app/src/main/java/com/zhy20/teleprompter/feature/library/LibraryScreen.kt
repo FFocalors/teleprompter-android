@@ -3,6 +3,7 @@ package com.zhy20.teleprompter.feature.library
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,30 +13,43 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as lazyColumnItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +57,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -62,9 +77,10 @@ import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
-import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
+import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.model.Script
+import com.zhy20.teleprompter.core.model.ScriptFolder
 import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.core.util.formatModifiedAt
@@ -73,41 +89,58 @@ import com.zhy20.teleprompter.core.util.formatModifiedAt
 @Composable
 fun LibraryScreen(
     appState: AppState,
-    onNewScript: () -> Unit,
+    onNewScript: (String?) -> Unit,
     onEdit: (String) -> Unit,
     onSetup: (String) -> Unit,
     onRemote: () -> Unit,
     onSettings: () -> Unit,
+    uiState: LibraryUiState? = null,
+    onCreateFolder: (String) -> Unit = {},
+    onRenameFolder: (String, String) -> Unit = { _, _ -> },
+    onDeleteFolder: (String) -> Unit = {},
+    onRenameScript: (String, String) -> Unit = { _, _ -> },
+    onMoveScript: (String, String?) -> Unit = { _, _ -> },
+    onDeleteScript: (String) -> Unit = {},
+    onClearError: () -> Unit = {},
 ) {
+    val state = uiState ?: LibraryUiState(
+        loadState = if (appState.scripts.isEmpty() && appState.folders.isEmpty()) LibraryLoadState.Empty else LibraryLoadState.Content,
+        scripts = appState.scripts,
+        folders = appState.folders,
+    )
     var selectedFolder by remember { mutableStateOf<String?>(null) }
-    var showFolderDialog by remember { mutableStateOf(false) }
+    var action by remember { mutableStateOf<LibraryAction?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val visibleScripts = when (selectedFolder) {
-        null -> appState.scripts
-        "uncategorized" -> appState.scripts.filter { it.folderId == null }
-        else -> appState.scripts.filter { it.folderId == selectedFolder }
+        null -> state.scripts
+        "uncategorized" -> state.scripts.filter { it.folderId == null }
+        else -> state.scripts.filter { it.folderId == selectedFolder }
     }
 
-    if (showFolderDialog) {
-        var folderName by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showFolderDialog = false },
-            title = { Text(stringResource(R.string.new_folder)) },
-            text = { TextField(folderName, { folderName = it }, label = { Text(stringResource(R.string.folder_name)) }) },
-            confirmButton = {
-                TextButton(
-                    onClick = { showFolderDialog = false },
-                    modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                    enabled = folderName.isNotBlank(),
-                ) { Text(stringResource(R.string.create)) }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showFolderDialog = false },
-                    modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                ) { Text(stringResource(R.string.cancel)) }
-            },
-        )
+    LaunchedEffect(state.folders, selectedFolder) {
+        if (selectedFolder != null && selectedFolder != "uncategorized" && state.folders.none { it.id == selectedFolder }) {
+            selectedFolder = null
+        }
     }
+    val errorText = state.operationError?.let { error -> libraryErrorText(error) }
+    LaunchedEffect(errorText) {
+        if (errorText != null) {
+            snackbarHostState.showSnackbar(errorText)
+            onClearError()
+        }
+    }
+
+    LibraryActionDialog(
+        action = action,
+        folders = state.folders,
+        onDismiss = { action = null },
+        onCreateFolder = onCreateFolder,
+        onRenameFolder = onRenameFolder,
+        onDeleteFolder = onDeleteFolder,
+        onRenameScript = onRenameScript,
+        onMoveScript = onMoveScript,
+        onDeleteScript = onDeleteScript,
+    )
 
     BoxWithConstraints(Modifier.fillMaxSize().background(AppColors.Background)) {
         val expanded = maxWidth >= 840.dp
@@ -115,43 +148,48 @@ fun LibraryScreen(
             Row(Modifier.fillMaxSize()) {
                 LibrarySidebar(
                     appState = appState,
+                    folders = state.folders,
                     selectedFolder = selectedFolder,
                     onFolder = { selectedFolder = it },
-                    onNewFolder = { showFolderDialog = true },
+                    onNewFolder = { action = LibraryAction.NewFolder },
+                    onFolderAction = { action = it },
                     onSettings = onSettings,
                     onRemote = onRemote,
                 )
                 LibraryContent(
                     scripts = visibleScripts,
+                    folders = state.folders,
+                    loading = state.loadState == LibraryLoadState.Loading,
+                    selectedFolder = selectedFolder,
                     onNewScript = onNewScript,
                     onEdit = onEdit,
                     onSetup = onSetup,
+                    onScriptAction = { action = it },
                     modifier = Modifier.weight(1f),
                 )
             }
         } else {
             Scaffold(
                 containerColor = AppColors.Background,
+                snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
                         title = { Text(stringResource(R.string.library_title), fontWeight = FontWeight.Bold) },
                         actions = {
-                            TextButton(
-                                onClick = onRemote,
-                                modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                            ) { Text(stringResource(R.string.remote_controller)) }
-                            TextButton(
-                                onClick = onSettings,
-                                modifier = Modifier.clip(MaterialTheme.shapes.medium),
-                            ) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
+                            TextButton(onClick = onRemote, modifier = Modifier.clip(MaterialTheme.shapes.medium)) {
+                                Text(stringResource(R.string.remote_controller))
+                            }
+                            IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.Surface),
                     )
                 },
                 floatingActionButton = {
-                    FloatingActionButton(onClick = onNewScript, containerColor = AppColors.Primary, contentColor = AppColors.OnPrimary) {
-                        Icon(Icons.Default.Add, stringResource(R.string.new_script))
-                    }
+                    FloatingActionButton(
+                        onClick = { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) },
+                        containerColor = AppColors.Primary,
+                        contentColor = AppColors.OnPrimary,
+                    ) { Icon(Icons.Default.Add, stringResource(R.string.new_script)) }
                 },
             ) { padding ->
                 Column(Modifier.fillMaxSize().padding(padding)) {
@@ -161,17 +199,32 @@ fun LibraryScreen(
                     ) {
                         item { FilterChipLabel(stringResource(R.string.all_scripts), selectedFolder == null) { selectedFolder = null } }
                         item { FilterChipLabel(stringResource(R.string.uncategorized), selectedFolder == "uncategorized") { selectedFolder = "uncategorized" } }
-                        items(appState.folders.size) { index ->
-                            val folder = appState.folders[index]
-                            FilterChipLabel(folder.name, selectedFolder == folder.id) { selectedFolder = folder.id }
+                        items(state.folders.size) { index ->
+                            val folder = state.folders[index]
+                            FolderFilterLabel(
+                                folder = folder,
+                                selected = selectedFolder == folder.id,
+                                onClick = { selectedFolder = folder.id },
+                                onRename = { action = LibraryAction.RenameFolder(folder) },
+                                onDelete = { action = LibraryAction.DeleteFolder(folder) },
+                            )
                         }
-                        item { FilterChipLabel(stringResource(R.string.new_folder), false) { showFolderDialog = true } }
+                        item { FilterChipLabel(stringResource(R.string.new_folder), false) { action = LibraryAction.NewFolder } }
                     }
                     RemoteStatusCard(appState.remoteConnectionState, onRemote, Modifier.padding(horizontal = AppSpacing.md))
-                    LibraryGrid(visibleScripts, onEdit, onSetup, Modifier.weight(1f))
+                    LibraryGrid(
+                        scripts = visibleScripts,
+                        folders = state.folders,
+                        loading = state.loadState == LibraryLoadState.Loading,
+                        onEdit = onEdit,
+                        onSetup = onSetup,
+                        onScriptAction = { action = it },
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
+        if (expanded) SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -189,16 +242,49 @@ private fun FilterChipLabel(label: String, selected: Boolean, onClick: () -> Uni
 }
 
 @Composable
+private fun FolderFilterLabel(
+    folder: ScriptFolder,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        FilterChipLabel(folder.name, selected, onClick)
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions))
+            }
+            DropdownMenu(menuOpen, { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.rename)) },
+                    onClick = { menuOpen = false; onRename() },
+                    leadingIcon = { Icon(Icons.Default.Edit, null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete)) },
+                    onClick = { menuOpen = false; onDelete() },
+                    leadingIcon = { Icon(Icons.Default.Delete, null) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibrarySidebar(
     appState: AppState,
+    folders: List<ScriptFolder>,
     selectedFolder: String?,
     onFolder: (String?) -> Unit,
     onNewFolder: () -> Unit,
+    onFolderAction: (LibraryAction) -> Unit,
     onSettings: () -> Unit,
     onRemote: () -> Unit,
 ) {
     Surface(color = AppColors.Surface, border = BorderStroke(1.dp, AppColors.Border)) {
-        Column(Modifier.width(268.dp).fillMaxHeight().padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        Column(Modifier.width(268.dp).fillMaxHeight().padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(Modifier.size(36.dp), shape = MaterialTheme.shapes.small, color = AppColors.Primary) {
                     Icon(Icons.Default.Description, null, Modifier.padding(7.dp), tint = AppColors.TextPrimary)
@@ -207,15 +293,62 @@ private fun LibrarySidebar(
                 Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
             }
             SidebarGroupTitle(stringResource(R.string.resources_group))
-            SidebarItem(stringResource(R.string.all_scripts), selectedFolder == null, Icons.Default.Description) { onFolder(null) }
-            SidebarItem(stringResource(R.string.uncategorized), selectedFolder == "uncategorized", Icons.Default.Folder) { onFolder("uncategorized") }
-            appState.folders.forEach { folder -> SidebarItem(folder.name, selectedFolder == folder.id, Icons.Default.Folder) { onFolder(folder.id) } }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = PaddingValues(bottom = AppSpacing.xs),
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+            ) {
+                item(key = "all_scripts") {
+                    SidebarItem(stringResource(R.string.all_scripts), selectedFolder == null, Icons.Default.Description) { onFolder(null) }
+                }
+                item(key = "uncategorized") {
+                    SidebarItem(stringResource(R.string.uncategorized), selectedFolder == "uncategorized", Icons.Default.Folder) { onFolder("uncategorized") }
+                }
+                lazyColumnItems(folders, key = { it.id }) { folder ->
+                    FolderSidebarItem(
+                        folder = folder,
+                        selected = selectedFolder == folder.id,
+                        onClick = { onFolder(folder.id) },
+                        onRename = { onFolderAction(LibraryAction.RenameFolder(folder)) },
+                        onDelete = { onFolderAction(LibraryAction.DeleteFolder(folder)) },
+                    )
+                }
+            }
             HorizontalDivider(color = AppColors.Border.copy(alpha = .7f))
             SidebarGroupTitle(stringResource(R.string.management_group))
             SidebarItem(stringResource(R.string.new_folder), false, Icons.Default.Add, onNewFolder)
             SidebarItem(stringResource(R.string.settings), false, Icons.Default.Settings, onSettings)
-            Spacer(Modifier.weight(1f))
             RemoteStatusCard(appState.remoteConnectionState, onRemote)
+        }
+    }
+}
+
+@Composable
+private fun FolderSidebarItem(
+    folder: ScriptFolder,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val shape = MaterialTheme.shapes.medium
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(48.dp).roundedClickable(shape = shape, onClick = onClick),
+        shape = shape,
+        color = if (selected) AppColors.Secondary.copy(alpha = .45f) else Color.Transparent,
+    ) {
+        Row(Modifier.padding(start = AppSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Folder, null, tint = if (selected) AppColors.Primary else AppColors.TextWeak)
+            Spacer(Modifier.width(AppSpacing.sm))
+            Text(folder.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Box {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
+                DropdownMenu(menuOpen, { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; onRename() }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menuOpen = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                }
+            }
         }
     }
 }
@@ -241,24 +374,37 @@ private fun SidebarItem(text: String, selected: Boolean, icon: androidx.compose.
 }
 
 @Composable
-private fun LibraryContent(scripts: List<Script>, onNewScript: () -> Unit, onEdit: (String) -> Unit, onSetup: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun LibraryContent(
+    scripts: List<Script>,
+    folders: List<ScriptFolder>,
+    loading: Boolean,
+    selectedFolder: String?,
+    onNewScript: (String?) -> Unit,
+    onEdit: (String) -> Unit,
+    onSetup: (String) -> Unit,
+    onScriptAction: (LibraryAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.fillMaxHeight().padding(AppSpacing.xl)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.library_title),
-                style = MaterialTheme.typography.headlineLarge,
-                color = AppColors.TextPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            PrimaryButton(stringResource(R.string.new_script), onNewScript) { Icon(Icons.Default.Add, null) }
+            Text(stringResource(R.string.library_title), style = MaterialTheme.typography.headlineLarge, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
+            PrimaryButton(stringResource(R.string.new_script), { onNewScript(selectedFolder.takeUnless { it == "uncategorized" }) }) { Icon(Icons.Default.Add, null) }
         }
         Spacer(Modifier.height(AppSpacing.lg))
-        LibraryGrid(scripts, onEdit, onSetup, Modifier.weight(1f))
+        LibraryGrid(scripts, folders, loading, onEdit, onSetup, onScriptAction, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun LibraryGrid(scripts: List<Script>, onEdit: (String) -> Unit, onSetup: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun LibraryGrid(
+    scripts: List<Script>,
+    folders: List<ScriptFolder>,
+    loading: Boolean,
+    onEdit: (String) -> Unit,
+    onSetup: (String) -> Unit,
+    onScriptAction: (LibraryAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(360.dp),
         modifier = modifier.fillMaxWidth(),
@@ -266,7 +412,11 @@ private fun LibraryGrid(scripts: List<Script>, onEdit: (String) -> Unit, onSetup
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
         verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
     ) {
-        if (scripts.isEmpty()) {
+        if (loading) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.fillMaxWidth().padding(AppSpacing.xxl), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            }
+        } else if (scripts.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(
                     Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxl),
@@ -279,23 +429,71 @@ private fun LibraryGrid(scripts: List<Script>, onEdit: (String) -> Unit, onSetup
                 }
             }
         }
-        items(scripts, key = { it.id }) { script -> ScriptCard(script, onEdit, onSetup) }
+        items(scripts, key = { it.id }) { script ->
+            ScriptCard(
+                script = script,
+                folderName = folders.firstOrNull { it.id == script.folderId }?.name,
+                onEdit = onEdit,
+                onSetup = onSetup,
+                onAction = onScriptAction,
+            )
+        }
     }
 }
 
 @Composable
-private fun ScriptCard(script: Script, onEdit: (String) -> Unit, onSetup: (String) -> Unit) {
-    AppCard(Modifier.fillMaxWidth()) {
+private fun ScriptCard(
+    script: Script,
+    folderName: String?,
+    onEdit: (String) -> Unit,
+    onSetup: (String) -> Unit,
+    onAction: (LibraryAction) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    AppCard(Modifier.fillMaxWidth().heightIn(min = AppSpacing.ScriptCardHeight)) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                Text(script.title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                script.folderId?.let { folder ->
-                    Surface(shape = CircleShape, color = AppColors.Secondary.copy(alpha = .35f), border = BorderStroke(1.dp, AppColors.Border)) {
-                        Text(folder, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = AppColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
+            Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    script.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                folderName?.let { folder ->
+                    Surface(
+                        modifier = Modifier.padding(start = AppSpacing.xs).widthIn(max = 120.dp),
+                        shape = CircleShape,
+                        color = AppColors.Secondary.copy(alpha = .35f),
+                        border = BorderStroke(1.dp, AppColors.Border),
+                    ) {
+                        Text(
+                            folder,
+                            Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = AppColors.TextSecondary,
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
+                    DropdownMenu(menuOpen, { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; onAction(LibraryAction.RenameScript(script)) }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.move_script)) }, onClick = { menuOpen = false; onAction(LibraryAction.MoveScript(script)) }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, null) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menuOpen = false; onAction(LibraryAction.DeleteScript(script)) }, leadingIcon = { Icon(Icons.Default.Delete, null) })
                     }
                 }
             }
-            Text(script.plainTextPreview, color = AppColors.TextSecondary, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                script.plainTextPreview,
+                modifier = Modifier.fillMaxWidth().height(42.dp),
+                color = AppColors.TextSecondary,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 listOf(
                     stringResource(R.string.words_format, script.wordCount),
@@ -305,6 +503,7 @@ private fun ScriptCard(script: Script, onEdit: (String) -> Unit, onSetup: (Strin
                 color = AppColors.TextWeak,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
+                modifier = Modifier.fillMaxWidth().height(42.dp),
             )
             HorizontalDivider(color = AppColors.Border)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {

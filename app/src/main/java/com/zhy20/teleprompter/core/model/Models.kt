@@ -227,6 +227,7 @@ sealed interface PlaybackEvent {
     data object PausePlayback : PlaybackEvent
     data object ResumeImmediately : PlaybackEvent
     data object ResumeWithCountdown : PlaybackEvent
+    data object CancelResumeCountdown : PlaybackEvent
     data object IncreaseSpeed : PlaybackEvent
     data object DecreaseSpeed : PlaybackEvent
     data object SeekForwardSmall : PlaybackEvent

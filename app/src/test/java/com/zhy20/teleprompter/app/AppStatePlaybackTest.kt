@@ -13,11 +13,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.zhy20.teleprompter.data.fake.FakeData
 
 class AppStatePlaybackTest {
     @Test
     fun contentChangeRefreshesTheCachedAndDisplayedNormalDuration() {
-        val state = AppState()
+        val state = testState()
         val content = ScriptContent(
             listOf(ScriptBlock.Paragraph("p", listOf(ScriptSpan("字".repeat(255))))),
         )
@@ -30,7 +31,7 @@ class AppStatePlaybackTest {
 
     @Test
     fun startPlayback_keepsTheSavedOrientationAndTextAlignment() {
-        val state = AppState()
+        val state = testState()
         state.selectScript("1")
         state.updatePlaybackSettings(
             state.playbackSettings.copy(
@@ -48,7 +49,7 @@ class AppStatePlaybackTest {
     @Test
     fun playbackStartsWithTheFirstLineAtTheBottomAndKeepsGuideAndOrientationSettings() {
         var now = 0L
-        val state = AppState { now }
+        val state = testState { now }
         state.selectScript("1")
         state.updatePlaybackSettings(
             state.playbackSettings.copy(
@@ -79,7 +80,7 @@ class AppStatePlaybackTest {
     @Test
     fun remoteStartAndFreshCountdownBothResetAnyPreviousPosition() {
         var now = 0L
-        val state = AppState { now }
+        val state = testState { now }
         state.selectScript("4")
         state.updatePlaybackSettings(
             state.playbackSettings.copy(countdown = CountdownOption.ThreeSeconds),
@@ -106,7 +107,7 @@ class AppStatePlaybackTest {
     @Test
     fun resumeCountdownKeepsThePausedPositionInsteadOfBecomingANewStart() {
         var now = 0L
-        val state = AppState { now }
+        val state = testState { now }
         state.selectScript("4")
         state.updatePlaybackSettings(state.playbackSettings.copy(countdown = CountdownOption.Off))
         state.beginPlayback("4")
@@ -123,4 +124,47 @@ class AppStatePlaybackTest {
         assertEquals(pausedProgress, state.progress, 0f)
         assertEquals(PlaybackState.Playing, state.playbackState)
     }
+
+    @Test
+    fun resumeCountdownCanBeCancelledWithoutMovingThePausedPosition() {
+        val state = testState()
+        state.selectScript("4")
+        state.updatePlaybackSettings(state.playbackSettings.copy(countdown = CountdownOption.Off))
+        state.beginPlayback("4")
+        state.updatePlaybackLayout(viewportHeightPx = 1_000f, textHeightPx = 4_000f)
+        state.onPlaybackEvent(PlaybackEvent.SeekTo(.6f))
+        state.onPlaybackEvent(PlaybackEvent.PausePlayback)
+        val pausedProgress = state.progress
+
+        state.onPlaybackEvent(PlaybackEvent.ResumeWithCountdown)
+        state.onPlaybackEvent(PlaybackEvent.CancelResumeCountdown)
+
+        assertEquals(PlaybackState.Paused, state.playbackState)
+        assertEquals(pausedProgress, state.progress, 0f)
+    }
+
+    @Test
+    fun finishedPlaybackCanBeMovedBackWithManualProgress() {
+        val state = testState()
+        state.selectScript("4")
+        state.updatePlaybackSettings(state.playbackSettings.copy(countdown = CountdownOption.Off))
+        state.beginPlayback("4")
+        state.updatePlaybackLayout(viewportHeightPx = 1_000f, textHeightPx = 4_000f)
+        state.onPlaybackEvent(PlaybackEvent.SeekTo(1f))
+        state.onPlaybackEvent(PlaybackEvent.EndPlayback)
+
+        state.beginManualProgressAdjustment()
+        state.onPlaybackEvent(PlaybackEvent.SeekTo(.72f))
+        state.endManualProgressAdjustment()
+
+        assertEquals(PlaybackState.Finished, state.playbackState)
+        assertEquals(.72f, state.progress, 0f)
+    }
 }
+
+private fun testState(clock: () -> Long = System::nanoTime): AppState = AppState(
+    clockNanos = clock,
+    initialScripts = FakeData.scripts,
+    initialFolders = FakeData.folders,
+    initialDefaults = FakeData.defaultPlaybackSettings,
+)

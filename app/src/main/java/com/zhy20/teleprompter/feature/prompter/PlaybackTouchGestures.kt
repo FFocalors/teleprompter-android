@@ -65,3 +65,67 @@ fun Modifier.playbackTouchGestures(
             }
         }
 }
+
+/** Handles a single tap in the central content area without enabling playback gestures. */
+fun Modifier.centralContentTap(
+    density: Float,
+    onTap: () -> Unit,
+): Modifier = pointerInput(density) {
+    detectTapGestures(
+        onTap = { offset ->
+            if (PlaybackTouchPolicy.allowsCentralContentTap(size.width.toFloat(), size.height.toFloat(), density, offset.x, offset.y)) {
+                onTap()
+            }
+        },
+    )
+}
+
+/**
+ * Content gestures used while paused or finished: central taps toggle controls and vertical
+ * drags adjust semantic progress. Edge touches remain consumed and inert.
+ */
+fun Modifier.centralContentTouchGestures(
+    density: Float,
+    onTap: () -> Unit,
+    onVerticalDragStart: () -> Unit = {},
+    onVerticalDrag: (Float) -> Unit,
+    onVerticalDragEnd: () -> Unit = {},
+): Modifier = this
+    .pointerInput(density) {
+        detectTapGestures(
+            onTap = { offset ->
+                if (PlaybackTouchPolicy.allowsCentralContentTap(size.width.toFloat(), size.height.toFloat(), density, offset.x, offset.y)) {
+                    onTap()
+                }
+            },
+        )
+    }
+    .pointerInput(density) {
+        var accepted = false
+        detectVerticalDragGestures(
+            onDragStart = { offset ->
+                accepted = PlaybackTouchPolicy.allowsCentralContentTap(size.width.toFloat(), size.height.toFloat(), density, offset.x, offset.y)
+                if (accepted) onVerticalDragStart()
+            },
+            onDragEnd = { if (accepted) onVerticalDragEnd() },
+            onDragCancel = { if (accepted) onVerticalDragEnd() },
+            onVerticalDrag = { change, dragAmount ->
+                if (accepted) {
+                    change.consume()
+                    onVerticalDrag((dragAmount / size.height * .24f).coerceIn(-.08f, .08f))
+                }
+            },
+        )
+    }
+    .pointerInput(density) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (!PlaybackTouchPolicy.centralRegion(size.width.toFloat(), size.height.toFloat(), density).contains(down.position.x, down.position.y)) {
+                down.consume()
+                do {
+                    val event = awaitPointerEvent()
+                    event.changes.forEach { it.consume() }
+                } while (event.changes.any { it.pressed })
+            }
+        }
+    }

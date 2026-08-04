@@ -1,0 +1,106 @@
+# Teleprompter Android
+
+Teleprompter Android 是一款面向 Android 手机和平板的开源提词器，采用 Kotlin 与 Jetpack Compose 开发，支持本地台本管理、轻量富文本编辑、播放样式配置和沉浸式提词播放。
+
+> An open-source Android teleprompter built with Kotlin and Jetpack Compose, designed for local script management, lightweight rich-text editing, customizable playback, and phone/tablet use.
+
+## 项目状态
+
+项目处于早期开发阶段，尚未发布正式稳定版本，当前适合开发测试和功能体验。台本管理、编辑、播放设置和本地播放主流程已经接入真实本地数据层；文件导入、网络远控和语音跟随仍未完成。
+
+## 当前功能
+
+- Android 手机和平板的响应式 Compose 界面，支持横屏和竖屏播放。
+- 本地台本库和单层台本夹：新建、编辑、重命名、移动、删除和筛选。
+- Room 本地持久化，台本正文使用版本化富文本 JSON 保存。
+- 轻量富文本编辑：选区级粗体、斜体、下划线、撤回和防抖自动保存。
+- 中文正常语速预计时长，播放设置与全局默认设置分离保存。
+- 播放预设、字号、文字对齐、方向、镜像、速度模式和目标时间模式。
+- 倒计时、提词线/提词条、暂停、立即恢复、进度微调和长按退出。
+- 播放预览与真实播放共用视口、排版和提词辅助规则。
+- Preferences DataStore 保存全局默认设置和语言选择，预留简体中文与 English 资源。
+- 控制端页面和连接状态目前为本地 Mock，用于演示 UI 状态和播放联动。
+
+## 开发计划
+
+- TXT、DOCX、Markdown 导入和系统文件选择器。
+- 一对一局域网连接、二维码配对和控制端同步。
+- 多设备控制、真实网络传输和更精确的位置同步。
+- 更完整的富文本编辑能力、重做和输入法组合样式。
+- 语音跟随、长时间稳定性测试和无障碍回归。
+
+## 技术栈
+
+- Kotlin 2.2.10、Gradle Kotlin DSL、Gradle Wrapper 9.4.1。
+- Android Gradle Plugin 9.2.1，Compose BOM 2026.02.01，Material 3。
+- Navigation Compose、Kotlin Coroutines/Flow、Room 2.8.4、Preferences DataStore 1.2.1。
+- JUnit、Compose UI Test、AndroidX Test 和 Room 测试数据库。
+
+## 构建要求
+
+- Android Studio 需要支持 AGP 9.2.1。
+- Gradle 运行时使用 JDK 21；项目 Java source/target compatibility 为 11。
+- Android SDK compileSdk 36.1，targetSdk 36，minSdk 26。
+- Windows、macOS 和 Linux 均可使用 Gradle Wrapper 构建；首次构建需要可访问依赖仓库。
+
+## 构建与验证
+
+```bash
+git clone https://github.com/FFocalors/teleprompter-android.git
+cd teleprompter-android
+```
+
+Windows PowerShell：
+
+```powershell
+.\gradlew.bat assembleDebug
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat lintDebug
+```
+
+macOS / Linux：
+
+```bash
+./gradlew assembleDebug
+./gradlew testDebugUnitTest
+./gradlew lintDebug
+```
+
+也可以使用 Android Studio 打开仓库根目录，等待 Gradle Sync 后运行 `app` 模块。Debug APK 输出在 `app/build/outputs/apk/debug/`，该目录不会进入 Git。
+
+## 项目结构
+
+```text
+app/
+├── src/main/java/com/zhy20/teleprompter/
+│   ├── app/                 # Application、AppContainer、导航与播放 Session
+│   ├── core/                # Design System、模型、导航、工具和文字渲染
+│   ├── data/                # Room、DataStore、Repository、序列化与 Mock 数据
+│   ├── feature/             # library、editor、setup、prompter、remote、settings
+│   └── preview/             # Compose Preview
+├── schemas/                 # Room 导出的版本化 schema
+└── src/test、src/androidTest # JVM 单元测试和 Android 测试
+docs/                        # 架构、状态、路线图和历史实现记录
+```
+
+## 数据与隐私
+
+台本正文、播放设置和编辑状态默认保存在本地设备。当前版本不要求登录、不上传台本正文，也不依赖云同步；项目没有内置账号、广告或遥测服务。控制端页面目前只使用本地 Mock 状态，后续网络远控将作为可选能力接入。
+
+## 文档
+
+- [架构说明](docs/ARCHITECTURE.md)
+- [项目状态](docs/PROJECT_STATUS.md)
+- [开发路线图](docs/ROADMAP.md)
+- [数据与编辑器架构](docs/DATA_AND_EDITOR_ARCHITECTURE.md)
+- [前端实现记录](docs/FRONTEND_HANDOFF.md)
+- [贡献指南](CONTRIBUTING.md)
+- [变更记录](CHANGELOG.md)
+
+## 许可证
+
+本项目采用 [Apache License 2.0](LICENSE)。
+
+## 截图
+
+正式产品截图将在后续补充；当前仓库不引用本机截图或开发工具窗口截图。

@@ -188,7 +188,7 @@ fun EditorScreen(
 }
 
 @Composable
-private fun EditorHeader(
+internal fun EditorHeader(
     title: String,
     onTitleChange: (String) -> Unit,
     saveState: SaveState,
