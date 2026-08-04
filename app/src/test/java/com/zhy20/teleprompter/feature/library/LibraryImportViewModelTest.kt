@@ -8,6 +8,7 @@ import com.zhy20.teleprompter.core.model.ScriptDocument
 import com.zhy20.teleprompter.core.model.ScriptFolder
 import com.zhy20.teleprompter.core.model.ScriptSpan
 import com.zhy20.teleprompter.data.importer.ImportFileMetadata
+import com.zhy20.teleprompter.data.importer.MarkdownScriptImporter
 import com.zhy20.teleprompter.data.importer.PlainTextScriptImporter
 import com.zhy20.teleprompter.data.importer.ScriptImportCoordinator
 import com.zhy20.teleprompter.data.importer.ScriptImportError
@@ -233,6 +234,68 @@ class LibraryImportViewModelTest {
         advanceUntilIdle()
         assertEquals(ScriptImportState.Error(ScriptImportError.Corrupt), viewModel.importState.value)
         assertTrue(repository.created.isEmpty())
+    }
+
+    @Test
+    fun startImport_markdown_successCreatesWithHeadingTitleAndNavigatesOnce() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        var navigations = 0
+        viewModel.startImport(
+            ImportFileMetadata("笔记.md", MarkdownScriptImporter.MimeTypeMarkdown, 20),
+            { ByteArrayInputStream("# 台本标题\n\n正文内容".toByteArray(StandardCharsets.UTF_8)) },
+            null,
+        ) { navigations += 1 }
+
+        advanceUntilIdle()
+        assertEquals(1, navigations)
+        assertEquals(1, repository.created.size)
+        assertEquals("台本标题", repository.created.single().title)
+        assertEquals(ScriptImportState.Idle, viewModel.importState.value)
+    }
+
+    @Test
+    fun startImport_markdown_unsupportedSyntax_doesNotCreateScript() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        viewModel.startImport(
+            ImportFileMetadata("list.md", MarkdownScriptImporter.MimeTypeMarkdown, 20),
+            { ByteArrayInputStream("- 列表项".toByteArray(StandardCharsets.UTF_8)) },
+            null,
+        ) {}
+
+        advanceUntilIdle()
+        assertEquals(ScriptImportState.Error(ScriptImportError.UnsupportedMarkdownSyntax), viewModel.importState.value)
+        assertTrue(repository.created.isEmpty())
+    }
+
+    @Test
+    fun startImport_markdown_titleOnly_doesNotCreateScript() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        viewModel.startImport(
+            ImportFileMetadata("title.md", MarkdownScriptImporter.MimeTypeMarkdown, 10),
+            { ByteArrayInputStream("# 只有标题".toByteArray(StandardCharsets.UTF_8)) },
+            null,
+        ) {}
+
+        advanceUntilIdle()
+        assertEquals(ScriptImportState.Error(ScriptImportError.Empty), viewModel.importState.value)
+        assertTrue(repository.created.isEmpty())
+    }
+
+    @Test
+    fun startImport_markdown_passesFolderId() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        viewModel.startImport(
+            ImportFileMetadata("笔记.md", MarkdownScriptImporter.MimeTypeMarkdown, 20),
+            { ByteArrayInputStream("# 标题\n\n正文".toByteArray(StandardCharsets.UTF_8)) },
+            "folder-1",
+        ) {}
+
+        advanceUntilIdle()
+        assertEquals("folder-1", repository.created.single().folderId)
     }
 
     private class FakeFolderRepository : ScriptFolderRepository {

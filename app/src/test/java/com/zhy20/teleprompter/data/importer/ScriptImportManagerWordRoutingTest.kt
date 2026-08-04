@@ -51,6 +51,53 @@ class ScriptImportManagerWordRoutingTest {
     }
 
     @Test
+    fun mdRoutesToMarkdownImporter() = runBlocking {
+        val bytes = "# 标题\n\nMarkdown 正文".toByteArray(Charsets.UTF_8)
+        val result = manager.import(
+            ImportFileMetadata("笔记.md", MarkdownScriptImporter.MimeTypeMarkdown, bytes.size.toLong()),
+        ) { ByteArrayInputStream(bytes) }
+        assertEquals("标题", result.suggestedTitle)
+        assertTrue(result.document.plainText().contains("Markdown 正文"))
+    }
+
+    @Test
+    fun markdownExtensionRoutesToMarkdownImporter() = runBlocking {
+        val bytes = "无标题正文".toByteArray(Charsets.UTF_8)
+        val result = manager.import(
+            ImportFileMetadata("speech.markdown", null, bytes.size.toLong()),
+        ) { ByteArrayInputStream(bytes) }
+        assertEquals("speech", result.suggestedTitle)
+    }
+
+    @Test
+    fun binaryFileDoesNotReachMarkdownTextParsing() = runBlocking {
+        // Binary bytes that decode cleanly only by luck must still be handled; here the payload is
+        // invalid UTF-8 so the Markdown importer reports unrecognized encoding rather than parsing.
+        val bytes = byteArrayOf(0x80.toByte(), 0x81.toByte(), 0x82.toByte())
+        try {
+            manager.import(
+                ImportFileMetadata("data.md", MarkdownScriptImporter.MimeTypeMarkdown, bytes.size.toLong()),
+            ) { ByteArrayInputStream(bytes) }
+            fail("Expected encoding error")
+        } catch (e: ScriptImportException) {
+            assertEquals(ScriptImportError.UnrecognizedEncoding, e.error)
+        }
+    }
+
+    @Test
+    fun markdownWithUnsupportedSyntax_rejectedByManager() = runBlocking {
+        val bytes = "- 列表项".toByteArray(Charsets.UTF_8)
+        try {
+            manager.import(
+                ImportFileMetadata("list.md", MarkdownScriptImporter.MimeTypeMarkdown, bytes.size.toLong()),
+            ) { ByteArrayInputStream(bytes) }
+            fail("Expected markdown syntax error")
+        } catch (e: ScriptImportException) {
+            assertEquals(ScriptImportError.UnsupportedMarkdownSyntax, e.error)
+        }
+    }
+
+    @Test
     fun docxWithWrongExtension_stillParsesByContent() = runBlocking {
         // A file named .txt but actually a docx zip should be rejected by the TXT importer's
         // strict encoding path — the manager must pick the DOCX importer only by real content.
@@ -102,9 +149,11 @@ class ScriptImportManagerWordRoutingTest {
         val txt = ImportFileMetadata("a.txt", "text/plain", 1)
         val docx = ImportFileMetadata("a.docx", DocxScriptImporter.MimeTypeWordOpenXml, 1)
         val doc = ImportFileMetadata("a.doc", DocScriptImporter.MimeTypeWordLegacy, 1)
+        val md = ImportFileMetadata("a.md", MarkdownScriptImporter.MimeTypeMarkdown, 1)
         assertEquals(1, manager.defaultSetCount(txt))
         assertEquals(1, manager.defaultSetCount(docx))
         assertEquals(1, manager.defaultSetCount(doc))
+        assertEquals(1, manager.defaultSetCount(md))
     }
 
     private fun minimalDocx(): ByteArray {
@@ -125,7 +174,12 @@ class ScriptImportManagerWordRoutingTest {
     }
 
     private fun ScriptImportManager.defaultSetCount(metadata: ImportFileMetadata): Int {
-        val importers = listOf(DocxScriptImporter(), DocScriptImporter(), PlainTextScriptImporter())
+        val importers = listOf(
+            DocxScriptImporter(),
+            DocScriptImporter(),
+            MarkdownScriptImporter(),
+            PlainTextScriptImporter(),
+        )
         return importers.count { it.supports(metadata) }
     }
 }

@@ -174,4 +174,5 @@
     <string name="import_cancelled">Import cancelled.</string>
     <string name="import_encrypted">The file is protected and cannot be imported.</string>
     <string name="import_too_complex">The document is too large or too complex to import.</string>
+    <string name="import_markdown_unsupported">This Markdown file uses a format that is not supported yet. Please convert it to plain text and try again.</string>
 </resources>

@@ -475,6 +475,7 @@ private fun scriptImportErrorText(error: ScriptImportError): String = when (erro
     ScriptImportError.Cancelled -> stringResource(R.string.import_cancelled)
     ScriptImportError.Encrypted -> stringResource(R.string.import_encrypted)
     ScriptImportError.TooComplex -> stringResource(R.string.import_too_complex)
+    ScriptImportError.UnsupportedMarkdownSyntax -> stringResource(R.string.import_markdown_unsupported)
 }
 
 @Composable

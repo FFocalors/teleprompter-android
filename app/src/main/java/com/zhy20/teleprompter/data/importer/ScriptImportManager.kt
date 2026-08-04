@@ -44,6 +44,7 @@ class ScriptImportManager(
             listOf(
                 DocxScriptImporter(),
                 DocScriptImporter(),
+                MarkdownScriptImporter(),
                 PlainTextScriptImporter(),
             )
     }

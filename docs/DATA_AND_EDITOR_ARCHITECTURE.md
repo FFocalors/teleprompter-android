@@ -135,7 +135,7 @@ Preferences DataStore 文件为 `teleprompter_settings`，键为 `playback_defau
 
 ## 11. 文件导入
 
-TXT、DOCX 与 DOC 导入已在 `data/importer/` 中实现，接入点如下：
+TXT、DOCX、DOC 与 Markdown 导入已在 `data/importer/` 中实现，接入点如下：
 
 ```text
 Compose（系统文件选择器）
@@ -146,11 +146,12 @@ Compose（系统文件选择器）
   -> Room 保存 -> 台本库刷新 -> 进入 editor/{scriptId}
 ```
 
-- `ScriptImportManager` 根据文件扩展名和 MIME 选择 importer，内容与扩展名冲突时以实际内容为准；统一异常映射（不支持格式/损坏/加密/过大/过于复杂/无法读取/保存失败）。未来 Markdown importer 只需实现 `ScriptImporter` 接口并注册，不影响导航或数据库。
+- `ScriptImportManager` 根据文件扩展名和 MIME 选择 importer，内容与扩展名冲突时以实际内容为准；统一异常映射（不支持格式/损坏/加密/过大/过于复杂/无法读取/保存失败/Markdown 特殊格式）。
 - `PlainTextScriptImporter`：`TextEncodingDetector` 支持 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030 回退，严格解码不产生替换字符；统一换行，按连续空行切分段落、保留段内单换行；5 MiB 上限。
 - `DocxScriptImporter`：把 DOCX 作为 ZIP，用 `XmlPullParser` 只读 `word/document.xml`（禁用外部实体/DTD）。段落 → `ScriptBlock.Paragraph`，Run 样式（粗体/斜体/下划线）→ `ScriptSpanStyle`，相邻同样式 span 合并；表格每行输出一个段落、单元格用制表符分隔；超链接只保留显示文字；Run 内 `w:br` 保留换行、`w:tab` 保留制表符。忽略图片、页眉页脚、批注、脚注尾注、文本框、公式、SmartArt、图表和页面布局。
 - `DocScriptImporter`：`Ole2CompoundFile` 最小 CFB 解析器读取 `WordDocument` 与 `0Table/1Table`，`DocFibParser` 解析 FIB（`csw`/`cslw` 为 2 字节计数）和 CLX 片段表，解码 16 位（UTF-16LE）与压缩 8 位片段（`fc` 为实际偏移的 2 倍）。`\r` 切分段落，`\x07` 转制表符分隔单元格；控制字符清理后写入正文。基础样式仅在可靠可用时保留，否则降级为纯文本。
 - Word 导入限制集中在 `WordImportLimits`：源文件 ≤ 20 MiB、DOCX 解压总量 ≤ 64 MiB、ZIP 条目 ≤ 4096、单条目 ≤ 16 MiB、段落 ≤ 50,000、Run ≤ 200,000、表格单元格 ≤ 100,000、最终字符 ≤ 2,000,000。加密文档、损坏文件、伪装文件均返回明确错误。
+- `MarkdownScriptImporter`：支持 `.md` / `.markdown`（扩展名忽略大小写），MIME 支持 `text/markdown` / `text/x-markdown`；读取与编码复用 TXT 能力（`TextEncodingDetector`、5 MiB 上限、元数据 + 流式二次限制）。`MarkdownSubsetParser` 为纯 JVM 逐行解析器：第一个一级标题（ATX `# ` 或 Setext `标题` + `===`）作为台本标题并从正文移除；二级至六级 ATX 标题、Setext 二级标题转为正文普通段落；空行分段、段内单换行保留。粗体/斜体/删除线/行内代码/围栏与缩进代码/无序有序任务列表/引用/链接/图片/自动链接/表格/HTML/YAML Front Matter/脚注/水平分隔线/数学公式等特殊格式抛出 `UnsupportedMarkdownSyntax`（仅携带安全行号，不携带正文），不部分解析、不创建台本；普通正文中的 `C#`、`1.0-beta`、`100_000`、`A * B`、`[1, 2, 3]`、`a | b` 等不会误判。
 - `ScriptRepository.createFromDocument()` 一次插入完整 `ScriptEntity`：校验 `folderId`、标题 trim 与默认标题回退、序列化正文、派生 plainText/wordCount、估算中文语速时长、复制全局默认播放设置、`createdAt`/`updatedAt` 同源。
 - 导入失败不会留下空台本或半成品；UI 通过 `ScriptImportState` 阻止重复提交并显示 Snackbar 错误。
 - 只读取用户主动选择的文件：不申请存储权限、不复制原文件、不调用 `takePersistableUriPermission()`，导入完成后与原文件无关联。
@@ -161,5 +162,5 @@ Compose（系统文件选择器）
 - JSON schema 与 Room schema 分别版本化；字段语义变化时先兼容读取旧 JSON，再通过迁移或后台重写升级。
 - 当前保存标题与正文是两个串行 DAO 更新，不是单 SQL 原子更新；失败会显示 Error，重试为幂等写入。后续可增加 `@Transaction` 的编辑快照更新。
 - 当前轻量富文本编辑器不含重做、输入样式继承、跨段格式工具栏或 IME composition 专项逻辑。
-- 文件导入已支持 TXT、DOCX 与 DOC；Markdown、批量导入、文件导出和原文件复制尚未实现。Word 导入不扩展富文本数据库结构（不新增样式字段），仅映射模型已支持的粗体/斜体/下划线。
+- 文件导入已支持 TXT、DOCX、DOC 与 Markdown 纯文字子集；更完整的 Markdown 语法（列表、粗体/斜体、代码等）、批量导入、文件导出和原文件复制尚未实现。Word/Markdown 导入不扩展富文本数据库结构（不新增样式字段），仅映射模型已支持的粗体/斜体/下划线或无样式段落。
 - 本阶段仍不包含回收站、多级文件夹、搜索、云同步或真实远控。

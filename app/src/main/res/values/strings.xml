@@ -174,4 +174,5 @@
     <string name="import_cancelled">已取消导入。</string>
     <string name="import_encrypted">文件已加密，无法导入。</string>
     <string name="import_too_complex">文档内容过多或结构过于复杂，暂不支持导入。</string>
+    <string name="import_markdown_unsupported">Markdown 文件包含暂不支持的格式，请转换为纯文字后再导入。</string>
 </resources>

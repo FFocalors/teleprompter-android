@@ -32,13 +32,22 @@ enum class ScriptImportError {
     Encrypted,
     /** The document's structure or content exceeds the supported complexity/size limits. */
     TooComplex,
+    /** The Markdown file uses a syntax construct outside the supported subset. */
+    UnsupportedMarkdownSyntax,
 }
 
 /**
  * Raised by importers to carry a user-facing reason to the import coordinator. The coordinator
  * converts it into [ScriptImportState.Error] without exposing exception internals to the UI.
+ *
+ * [lineNumber] is optional and only used for safe diagnostics (never rendered to the user): it
+ * points at the offending line when a Markdown construct is rejected, so a test or log can report
+ * the location without carrying any document text.
  */
-class ScriptImportException(val error: ScriptImportError) : Exception(error.name)
+class ScriptImportException(
+    val error: ScriptImportError,
+    val lineNumber: Int? = null,
+) : Exception(error.name)
 
 /**
  * Import flow state exposed to the screen. Guards against double submission (only [Idle] may
