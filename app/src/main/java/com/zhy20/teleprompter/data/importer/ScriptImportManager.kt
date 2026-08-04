@@ -21,7 +21,9 @@ class ScriptImportManager(
         metadata: ImportFileMetadata,
         inputStreamProvider: suspend () -> InputStream,
     ): ImportedScript {
-        if (metadata.sizeBytes != null && metadata.sizeBytes > PlainTextScriptImporter.MaxImportBytes) {
+        // Hard universal ceiling before any importer runs. Each importer enforces its own stricter
+        // limit (TXT: 5 MiB; DOC/DOCX: 20 MiB) inside its own read path.
+        if (metadata.sizeBytes != null && metadata.sizeBytes > WordImportLimits.MAX_SOURCE_FILE_BYTES) {
             throw ScriptImportException(ScriptImportError.TooLarge)
         }
         val importer = importers.firstOrNull { it.supports(metadata) }
@@ -38,6 +40,11 @@ class ScriptImportManager(
     }
 
     private companion object {
-        fun defaultImporters(): List<ScriptImporter> = listOf(PlainTextScriptImporter())
+        fun defaultImporters(): List<ScriptImporter> =
+            listOf(
+                DocxScriptImporter(),
+                DocScriptImporter(),
+                PlainTextScriptImporter(),
+            )
     }
 }

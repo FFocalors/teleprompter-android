@@ -172,4 +172,6 @@
     <string name="import_corrupt">文件内容损坏。</string>
     <string name="import_save_failed">台本保存失败，请重试。</string>
     <string name="import_cancelled">已取消导入。</string>
+    <string name="import_encrypted">文件已加密，无法导入。</string>
+    <string name="import_too_complex">文档内容过多或结构过于复杂，暂不支持导入。</string>
 </resources>

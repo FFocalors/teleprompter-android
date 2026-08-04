@@ -198,6 +198,43 @@ class LibraryImportViewModelTest {
         assertEquals(ScriptImportState.Idle, viewModel.importState.value)
     }
 
+    @Test
+    fun startImport_docx_realFixture_succeedsAndNavigatesOnce() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        val docxBytes = checkNotNull(javaClass.classLoader.getResourceAsStream("fixtures/real_sample.docx")) {
+            "missing docx fixture"
+        }.use { it.readBytes() }
+        var navigations = 0
+        viewModel.startImport(
+            ImportFileMetadata("心得.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docxBytes.size.toLong()),
+            { java.io.ByteArrayInputStream(docxBytes) },
+            null,
+        ) { navigations += 1 }
+
+        advanceUntilIdle()
+        assertEquals(1, navigations)
+        assertEquals(1, repository.created.size)
+        assertEquals("心得", repository.created.single().title)
+        assertEquals(ScriptImportState.Idle, viewModel.importState.value)
+    }
+
+    @Test
+    fun startImport_corruptDocx_mapsToCorruptAndDoesNotCreate() = runTest(dispatcher) {
+        val repository = FakeScriptRepository()
+        val viewModel = viewModel(repository)
+        val bad = byteArrayOf(0x50, 0x4B, 0x03, 0x04, 0x01, 0x02, 0x03)
+        viewModel.startImport(
+            ImportFileMetadata("bad.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bad.size.toLong()),
+            { java.io.ByteArrayInputStream(bad) },
+            null,
+        ) {}
+
+        advanceUntilIdle()
+        assertEquals(ScriptImportState.Error(ScriptImportError.Corrupt), viewModel.importState.value)
+        assertTrue(repository.created.isEmpty())
+    }
+
     private class FakeFolderRepository : ScriptFolderRepository {
         private val state = MutableStateFlow<List<ScriptFolder>>(emptyList())
         override fun observeAll(): Flow<List<ScriptFolder>> = state

@@ -473,6 +473,8 @@ private fun scriptImportErrorText(error: ScriptImportError): String = when (erro
     ScriptImportError.Corrupt -> stringResource(R.string.import_corrupt)
     ScriptImportError.SaveFailed -> stringResource(R.string.import_save_failed)
     ScriptImportError.Cancelled -> stringResource(R.string.import_cancelled)
+    ScriptImportError.Encrypted -> stringResource(R.string.import_encrypted)
+    ScriptImportError.TooComplex -> stringResource(R.string.import_too_complex)
 }
 
 @Composable

@@ -28,6 +28,10 @@ enum class ScriptImportError {
     Corrupt,
     SaveFailed,
     Cancelled,
+    /** The document is encrypted or otherwise protected and cannot be read. */
+    Encrypted,
+    /** The document's structure or content exceeds the supported complexity/size limits. */
+    TooComplex,
 }
 
 /**

@@ -70,9 +70,15 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 ## 文件导入
 
-TXT 导入走独立管道：Composable 仅启动系统文件选择器（`ActivityResultContracts.OpenDocument`，类型 `text/plain` / `application/octet-stream`）并把 `Uri` 交给 `LibraryViewModel`。ViewModel 通过 `UriFileMetadataReader` 读取 `OpenableColumns` 元信息和流，然后 `ScriptImportCoordinator` 调用 `ScriptImportManager` 选择 importer、校验大小、解析内容，最后 `ScriptRepository.createFromDocument()` 原子创建完整台本。
+文件导入走独立管道：Composable 仅启动系统文件选择器（`ActivityResultContracts.OpenDocument`，类型 `text/plain`、`application/octet-stream`、`application/msword`、Word OpenXML MIME）并把 `Uri` 交给 `LibraryViewModel`。ViewModel 通过 `UriFileMetadataReader` 读取 `OpenableColumns` 元信息和流，然后 `ScriptImportCoordinator` 调用 `ScriptImportManager` 选择 importer、校验大小、解析内容，最后 `ScriptRepository.createFromDocument()` 原子创建完整台本。
 
-`PlainTextScriptImporter` 检测 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030，统一换行，按连续空行切分段落并保留段内单换行。所有 importer 都是纯 JVM 可测的；`TextEncodingDetector` 严格解码，不产生替换字符。文件上限 5 MiB，读取前后双重限制。导入失败映射为 `ScriptImportState.Error`，通过 Snackbar 提示；用户取消系统选择器不显示错误。导入成功后沿用现有导航进入 `editor/{scriptId}`。
+`ScriptImportManager` 默认注册三个 importer，按文件扩展名和 MIME 匹配，内容与扩展名冲突时以实际内容为准：
+
+- `PlainTextScriptImporter`：检测 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030，统一换行，按连续空行切分段落并保留段内单换行。文件上限 5 MiB。
+- `DocxScriptImporter`：把 DOCX 作为 ZIP 读取，只解析 `word/document.xml`（XML 拉取解析，禁用外部实体/DTD）。映射正文段落、Run 内换行与制表符、粗体/斜体/下划线、表格（行内制表符分隔单元格）、超链接显示文字和列表文字；忽略图片、页眉页脚、批注、脚注尾注、文本框、公式和页面布局。源文件 ≤ 20 MiB，解压总量 ≤ 64 MiB。
+- `DocScriptImporter`：用最小 OLE2/CFB 解析器读取 `.doc`，按 FIB 定位 `WordDocument` 与 `0Table/1Table` 中的 CLX 片段表，解码 16 位（UTF-16LE）与压缩 8 位片段；按 `\r` 切分段落、`\x07` 处理表格单元格。格式不可恢复时降级为纯文本，正文可用优先于格式完整。
+
+所有 importer 都是纯 JVM 可测的；`TextEncodingDetector` 严格解码，不产生替换字符。导入失败映射为 `ScriptImportState.Error`（区分不支持格式、损坏、加密、过大、过于复杂、无法读取、保存失败），通过 Snackbar 提示；用户取消系统选择器不显示错误。导入成功后沿用现有导航进入 `editor/{scriptId}`，任何失败都不创建台本。
 
 ## 测试
 
@@ -82,4 +88,4 @@ TXT 导入走独立管道：Composable 仅启动系统文件选择器（`Activit
 
 ## 当前边界
 
-TXT 文件导入已完成；DOCX 和 Markdown 导入尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。
+TXT、DOCX 与 DOC 文件导入已完成；Markdown 导入尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。

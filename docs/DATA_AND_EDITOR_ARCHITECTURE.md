@@ -135,20 +135,22 @@ Preferences DataStore 文件为 `teleprompter_settings`，键为 `playback_defau
 
 ## 11. 文件导入
 
-TXT 导入已在 `data/importer/` 中实现，接入点如下：
+TXT、DOCX 与 DOC 导入已在 `data/importer/` 中实现，接入点如下：
 
 ```text
 Compose（系统文件选择器）
   -> LibraryViewModel（UriFileMetadataReader 读元信息/流）
   -> ScriptImportCoordinator -> ScriptImportManager
-  -> PlainTextScriptImporter（编码检测 + 解析为 ScriptDocument）
+  -> 具体 Importer（解析为 ScriptDocument）
   -> ScriptRepository.createFromDocument()（原子创建完整台本）
   -> Room 保存 -> 台本库刷新 -> 进入 editor/{scriptId}
 ```
 
-- `ScriptImportManager` 根据文件信息选择 importer，统一 5 MiB 大小限制和异常映射；未来 DOCX/Markdown importer 只需实现 `ScriptImporter` 接口并注册，不影响导航或数据库。
-- `TextEncodingDetector` 支持 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030 回退，严格解码不产生替换字符。
-- `PlainTextScriptImporter` 统一换行，按连续空行切分段落、保留段内单换行，生成的每个段落含至少一个无内联样式的 `ScriptSpan`。
+- `ScriptImportManager` 根据文件扩展名和 MIME 选择 importer，内容与扩展名冲突时以实际内容为准；统一异常映射（不支持格式/损坏/加密/过大/过于复杂/无法读取/保存失败）。未来 Markdown importer 只需实现 `ScriptImporter` 接口并注册，不影响导航或数据库。
+- `PlainTextScriptImporter`：`TextEncodingDetector` 支持 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030 回退，严格解码不产生替换字符；统一换行，按连续空行切分段落、保留段内单换行；5 MiB 上限。
+- `DocxScriptImporter`：把 DOCX 作为 ZIP，用 `XmlPullParser` 只读 `word/document.xml`（禁用外部实体/DTD）。段落 → `ScriptBlock.Paragraph`，Run 样式（粗体/斜体/下划线）→ `ScriptSpanStyle`，相邻同样式 span 合并；表格每行输出一个段落、单元格用制表符分隔；超链接只保留显示文字；Run 内 `w:br` 保留换行、`w:tab` 保留制表符。忽略图片、页眉页脚、批注、脚注尾注、文本框、公式、SmartArt、图表和页面布局。
+- `DocScriptImporter`：`Ole2CompoundFile` 最小 CFB 解析器读取 `WordDocument` 与 `0Table/1Table`，`DocFibParser` 解析 FIB（`csw`/`cslw` 为 2 字节计数）和 CLX 片段表，解码 16 位（UTF-16LE）与压缩 8 位片段（`fc` 为实际偏移的 2 倍）。`\r` 切分段落，`\x07` 转制表符分隔单元格；控制字符清理后写入正文。基础样式仅在可靠可用时保留，否则降级为纯文本。
+- Word 导入限制集中在 `WordImportLimits`：源文件 ≤ 20 MiB、DOCX 解压总量 ≤ 64 MiB、ZIP 条目 ≤ 4096、单条目 ≤ 16 MiB、段落 ≤ 50,000、Run ≤ 200,000、表格单元格 ≤ 100,000、最终字符 ≤ 2,000,000。加密文档、损坏文件、伪装文件均返回明确错误。
 - `ScriptRepository.createFromDocument()` 一次插入完整 `ScriptEntity`：校验 `folderId`、标题 trim 与默认标题回退、序列化正文、派生 plainText/wordCount、估算中文语速时长、复制全局默认播放设置、`createdAt`/`updatedAt` 同源。
 - 导入失败不会留下空台本或半成品；UI 通过 `ScriptImportState` 阻止重复提交并显示 Snackbar 错误。
 - 只读取用户主动选择的文件：不申请存储权限、不复制原文件、不调用 `takePersistableUriPermission()`，导入完成后与原文件无关联。
@@ -159,5 +161,5 @@ Compose（系统文件选择器）
 - JSON schema 与 Room schema 分别版本化；字段语义变化时先兼容读取旧 JSON，再通过迁移或后台重写升级。
 - 当前保存标题与正文是两个串行 DAO 更新，不是单 SQL 原子更新；失败会显示 Error，重试为幂等写入。后续可增加 `@Transaction` 的编辑快照更新。
 - 当前轻量富文本编辑器不含重做、输入样式继承、跨段格式工具栏或 IME composition 专项逻辑。
-- 文件导入已支持 TXT；DOCX、Markdown、批量导入、文件导出和原文件复制尚未实现。
+- 文件导入已支持 TXT、DOCX 与 DOC；Markdown、批量导入、文件导出和原文件复制尚未实现。Word 导入不扩展富文本数据库结构（不新增样式字段），仅映射模型已支持的粗体/斜体/下划线。
 - 本阶段仍不包含回收站、多级文件夹、搜索、云同步或真实远控。
