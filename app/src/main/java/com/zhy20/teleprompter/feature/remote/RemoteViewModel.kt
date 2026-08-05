@@ -6,10 +6,13 @@ import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayload
+import com.zhy20.teleprompter.remote.pairing.RemotePairingPayloadCodec
 import com.zhy20.teleprompter.remote.protocol.RemoteCommand
 import com.zhy20.teleprompter.remote.session.RemoteSessionRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -24,6 +27,13 @@ data class RemoteUiState(
     val reconnecting: Boolean = false,
     val lastCommandError: String? = null,
 )
+
+/** Structured error after a failed QR scan or camera permission denial; the UI maps to strings. */
+enum class RemoteScanError {
+    InvalidPairing,
+    ExpiredPairing,
+    CameraDenied,
+}
 
 /** Actions the remote screen emits; the ViewModel turns them into commands/effects. */
 sealed interface RemoteUiAction {
@@ -44,18 +54,24 @@ sealed interface RemoteUiAction {
     data object DecreaseSpeed : RemoteUiAction
     data object IncreaseSpeed : RemoteUiAction
     data object EndPlayback : RemoteUiAction
-    data object DismissCommandError : RemoteUiAction
 }
 
 /**
  * Bridges the remote screen to [RemoteSessionRepository]. It never touches [AppState], never
  * talks to the transport directly, and only maps UI actions into commands or lifecycle calls.
+ *
+ * QR scanning results arrive here via [onScannedContents]/[onCameraDenied], which are fed by
+ * the app-level launchers created above the NavHost (a NavHost destination cannot create its
+ * own ActivityResult launchers).
  */
 class RemoteViewModel(
     private val repository: RemoteSessionRepository,
 ) : ViewModel() {
 
     private var commandCounter = 0L
+
+    private val _scanError = MutableStateFlow<RemoteScanError?>(null)
+    val scanError: StateFlow<RemoteScanError?> = _scanError.asStateFlow()
 
     val uiState: StateFlow<RemoteUiState> = combine(
         repository.sessionState,
@@ -109,8 +125,31 @@ class RemoteViewModel(
             RemoteUiAction.DecreaseSpeed -> sendCommand(RemoteCommand.ChangeSpeed(nextCommandId(), delta = -0.1f))
             RemoteUiAction.IncreaseSpeed -> sendCommand(RemoteCommand.ChangeSpeed(nextCommandId(), delta = 0.1f))
             RemoteUiAction.EndPlayback -> sendCommand(RemoteCommand.EndPlayback(nextCommandId()))
-            RemoteUiAction.DismissCommandError -> Unit // handled by UI state reset below
         }
+    }
+
+    /** Called by the app-level scan launcher when a QR was scanned. */
+    fun onScannedContents(contents: String) {
+        val parsed = RemotePairingPayloadCodec.parse(contents).getOrNull()
+        if (parsed == null) {
+            _scanError.value = RemoteScanError.InvalidPairing
+            return
+        }
+        if (RemotePairingPayloadCodec.validateExpiry(parsed, System.currentTimeMillis()).isFailure) {
+            _scanError.value = RemoteScanError.ExpiredPairing
+            return
+        }
+        _scanError.value = null
+        viewModelScope.launch { repository.connectToPrompter(parsed) }
+    }
+
+    /** Called by the app-level camera-permission launcher when the user denied. */
+    fun onCameraDenied() {
+        _scanError.value = RemoteScanError.CameraDenied
+    }
+
+    fun dismissScanError() {
+        _scanError.value = null
     }
 
     private fun sendCommand(command: RemoteCommand) {

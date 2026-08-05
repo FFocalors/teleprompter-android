@@ -107,7 +107,7 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 ### 配对与握手
 
 - 提词端 `startWaiting`：生成安全随机的 `sessionId` 与至少 128 bit 的 `pairingToken`（仅存内存），启动 WebSocket Server，把 `host + port + session + token + 过期时间` 编码成 `teleprompter://pair?...` 二维码（默认 5 分钟有效）。
-- 控制端扫码：`RemotePairingPayloadCodec` 校验 scheme、IPv4、端口、token、session、版本与过期时间；相机权限被拒绝时可手动输入。
+- 控制端扫码：二维码扫描与相机权限的 ActivityResult launcher 创建在 NavHost 之上（与文件导入选择器一致，因为 NavHost 目的地不提供 `LocalActivityResultRegistryOwner`），扫码字符串经应用层待处理状态交给 `RemoteViewModel.onScannedContents`，由 `RemotePairingPayloadCodec` 校验 scheme、IPv4、端口、token、session、版本与过期时间；相机权限被拒绝时可手动输入。
 - 提词端校验 `ClientHello`：协议版本 → session → token → 过期 → 单控制端 → 设备信息；失败返回 `ServerRejected` 并关闭该连接，不改变当前会话。
 - 握手成功：提词端返回 `ServerAccepted`（唯一 `connectionId` + 内存 `resumeToken` + 当前快照），并立即消费配对 token（旧二维码失效）；控制端收到接受前不允许发送命令。
 - 单控制端：已有控制端时新连接返回 `AlreadyConnected` 拒绝。

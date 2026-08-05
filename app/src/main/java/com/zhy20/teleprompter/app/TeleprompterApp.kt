@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppTheme
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.CountdownOption
@@ -55,7 +56,8 @@ import com.zhy20.teleprompter.feature.settings.SettingsViewModel
 import com.zhy20.teleprompter.feature.setup.SetupScreen
 import com.zhy20.teleprompter.feature.setup.SetupViewModel
 import com.zhy20.teleprompter.feature.setup.PersistentSetupScreen
-import com.zhy20.teleprompter.remote.session.RemoteNavigationEffect
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import java.util.Locale
 
 @Composable
@@ -161,6 +163,27 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) pendingImportUri = uri
+    }
+
+    // The remote-control QR scan needs the same hoisting rule: the controller "scan to
+    // connect" launchers live here (above NavHost), and the scanned string travels through a
+    // pending state that the Remote destination's RemoteViewModel consumes.
+    var pendingScannedUri by remember { mutableStateOf<String?>(null) }
+    var pendingCameraDenied by remember { mutableStateOf(false) }
+    val scanPrompt = stringResource(R.string.scan_pairing_prompt)
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) pendingScannedUri = result.contents
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val options = ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                setPrompt(scanPrompt)
+            }
+            scanLauncher.launch(options)
+        } else {
+            pendingCameraDenied = true
+        }
     }
 
     val baseConfiguration = LocalConfiguration.current
@@ -332,10 +355,25 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                 }
                 val remoteViewModel: RemoteViewModel = viewModel(viewModelStoreOwner = entry, factory = factory)
                 val remoteState by remoteViewModel.uiState.collectAsStateWithLifecycle()
+                val remoteScanError by remoteViewModel.scanError.collectAsStateWithLifecycle()
+                LaunchedEffect(pendingScannedUri) {
+                    val contents = pendingScannedUri ?: return@LaunchedEffect
+                    pendingScannedUri = null
+                    remoteViewModel.onScannedContents(contents)
+                }
+                LaunchedEffect(pendingCameraDenied) {
+                    if (pendingCameraDenied) {
+                        pendingCameraDenied = false
+                        remoteViewModel.onCameraDenied()
+                    }
+                }
                 RemoteScreen(
                     state = remoteState,
                     onAction = remoteViewModel::handle,
                     onBack = { navController.popBackStack() },
+                    scanError = remoteScanError,
+                    onScanRequested = { cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA) },
+                    onScanErrorDismiss = remoteViewModel::dismissScanError,
                 )
             }
             composable(AppRoutes.Settings) {

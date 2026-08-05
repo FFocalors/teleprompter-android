@@ -1,7 +1,5 @@
 package com.zhy20.teleprompter.feature.remote
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
@@ -37,7 +35,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,8 +48,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
@@ -78,6 +73,9 @@ fun RemoteScreen(
     state: RemoteUiState,
     onAction: (RemoteUiAction) -> Unit,
     onBack: () -> Unit,
+    scanError: RemoteScanError? = null,
+    onScanRequested: () -> Unit = {},
+    onScanErrorDismiss: () -> Unit = {},
 ) {
     val snapshot = state.snapshot
     val section = RemoteUiMapper.sectionOf(state.status, snapshot, state.role, state.reconnecting)
@@ -102,7 +100,12 @@ fun RemoteScreen(
                     RemoteUiSection.RoleSelection -> RoleSelectionPanel(onAction)
                     RemoteUiSection.PrompterReady -> PrompterReadyPanel(onAction)
                     RemoteUiSection.PrompterWaiting -> PrompterWaitingPanel(state.pairingPayload, onAction)
-                    RemoteUiSection.ControllerReady -> ControllerReadyPanel(state, onAction)
+                    RemoteUiSection.ControllerReady -> ControllerReadyPanel(
+                        scanError = scanError,
+                        onScanRequested = onScanRequested,
+                        onScanErrorDismiss = onScanErrorDismiss,
+                        onAction = onAction,
+                    )
                     RemoteUiSection.Connecting -> ConnectingPanel()
                     RemoteUiSection.ConnectionFailed -> FailedPanel(
                         (state.status as RemoteConnectionStatus.Failed).reason,
@@ -167,51 +170,37 @@ private fun PrompterWaitingPanel(payload: RemotePairingPayload?, onAction: (Remo
 }
 
 @Composable
-private fun ControllerReadyPanel(state: RemoteUiState, onAction: (RemoteUiAction) -> Unit) {
+private fun ControllerReadyPanel(
+    scanError: RemoteScanError?,
+    onScanRequested: () -> Unit,
+    onScanErrorDismiss: () -> Unit,
+    onAction: (RemoteUiAction) -> Unit,
+) {
     var manualOpen by remember { mutableStateOf(false) }
     var manualError by remember { mutableStateOf<String?>(null) }
     var manualHost by remember { mutableStateOf("") }
     var manualPort by remember { mutableStateOf("8765") }
     var manualToken by remember { mutableStateOf("") }
 
-    val invalidPairingText = stringResource(R.string.pairing_invalid)
-    val expiredPairingText = stringResource(R.string.pairing_expired)
-    val scanPromptText = stringResource(R.string.scan_pairing_prompt)
-    val cameraDeniedText = stringResource(R.string.camera_permission_denied)
     val manualInvalidText = stringResource(R.string.manual_invalid)
-
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        val contents = result.contents ?: return@rememberLauncherForActivityResult
-        val parsed = RemotePairingPayloadCodec.parse(contents).getOrNull()
-        if (parsed == null) {
-            manualError = invalidPairingText
-        } else if (RemotePairingPayloadCodec.validateExpiry(parsed, System.currentTimeMillis()).isFailure) {
-            manualError = expiredPairingText
-        } else {
-            onAction(RemoteUiAction.ConnectToPrompter(parsed))
-        }
-    }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            val options = ScanOptions().apply {
-                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                setPrompt(scanPromptText)
-            }
-            scanLauncher.launch(options)
-        } else {
-            manualError = cameraDeniedText
-            manualOpen = true
-        }
+    val scanErrorText = when (scanError) {
+        RemoteScanError.InvalidPairing -> stringResource(R.string.pairing_invalid)
+        RemoteScanError.ExpiredPairing -> stringResource(R.string.pairing_expired)
+        RemoteScanError.CameraDenied -> stringResource(R.string.camera_permission_denied)
+        null -> null
     }
 
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.controller_role_title), style = MaterialTheme.typography.headlineMedium)
             Text(stringResource(R.string.controller_role_description), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
-            PrimaryButton(stringResource(R.string.scan_qr_code), {
-                cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-            }, Modifier.fillMaxWidth()) { Icon(Icons.Default.QrCode2, null) }
+            PrimaryButton(stringResource(R.string.scan_qr_code), onScanRequested, Modifier.fillMaxWidth()) { Icon(Icons.Default.QrCode2, null) }
             SecondaryButton(stringResource(R.string.manual_connect), { manualOpen = true }, Modifier.fillMaxWidth())
+
+            scanErrorText?.let { error ->
+                Text(error, color = AppColors.Danger)
+                SecondaryButton(stringResource(R.string.close), onScanErrorDismiss, Modifier.fillMaxWidth())
+            }
 
             if (manualOpen) {
                 OutlinedTextField(

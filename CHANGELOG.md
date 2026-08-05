@@ -35,6 +35,7 @@
 
 ### 修复
 
+- 修复控制端扫码崩溃：把二维码扫描与相机权限的 ActivityResult launcher 提升到 NavHost 之上（与文件导入选择器一致），扫码结果经应用层待处理状态交给 RemoteViewModel 解析，避免在 NavHost 目的地内调用 `rememberLauncherForActivityResult`。
 - 修复长正文预览从中部开始显示、播放起止位置不一致和正文排版被默认加粗的问题。
 - 修复播放控制栏圆角反馈、暂停/完成状态触控和系统栏显隐导致的布局位移。
 - 修复台本夹过多时首页侧栏管理区域被挤占的问题。
