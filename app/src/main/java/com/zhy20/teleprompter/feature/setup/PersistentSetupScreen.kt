@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
+import com.zhy20.teleprompter.app.RemoteStartPlaybackHandler
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 
 @Composable
@@ -28,6 +29,7 @@ fun PersistentSetupScreen(
     remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
     onBack: () -> Unit,
     onStart: (String) -> Unit,
+    startPlaybackHandler: RemoteStartPlaybackHandler? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -41,6 +43,28 @@ fun PersistentSetupScreen(
     }
     LaunchedEffect(state.script, state.settings) {
         state.script?.let { script -> appState.setActiveScript(script.copy(playbackSettings = state.settings)) }
+    }
+
+    // While this Setup page is visible, service controller-issued start-playback requests:
+    // flush settings, and only on success navigate; then complete the request with the result.
+    LaunchedEffect(startPlaybackHandler, state.script?.id) {
+        val scriptId = state.script?.id
+        if (startPlaybackHandler == null || scriptId == null) return@LaunchedEffect
+        while (true) {
+            val request = startPlaybackHandler.awaitRequest()
+            if (request.scriptId != scriptId) {
+                startPlaybackHandler.complete(request, false)
+                continue
+            }
+            val saved = viewModel.flushNow()
+            if (saved) {
+                val latest = viewModel.uiState.value
+                appState.setActiveScript(latest.script!!.copy(playbackSettings = latest.settings))
+                appState.beginPlayback(scriptId)
+                onStart(scriptId)
+            }
+            startPlaybackHandler.complete(request, saved)
+        }
     }
 
     when {

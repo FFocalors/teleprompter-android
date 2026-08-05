@@ -21,41 +21,55 @@ class RemoteUiMapperTest {
     )
 
     @Test
-    fun disabledShowsDisconnectedSection() {
+    fun noRoleShowsRoleSelection() {
         assertEquals(
-            RemoteUiSection.Disconnected,
-            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Disabled, null),
+            RemoteUiSection.RoleSelection,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Disabled, null, null, false),
         )
     }
 
     @Test
-    fun waitingShowsWaitingSection() {
+    fun prompterReadyShowsPrompterReady() {
         assertEquals(
-            RemoteUiSection.Waiting,
-            RemoteUiMapper.sectionOf(RemoteConnectionStatus.WaitingForController, null),
-        )
-        assertEquals(
-            RemoteUiSection.Waiting,
-            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connecting, null),
+            RemoteUiSection.PrompterReady,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Ready, null, RemoteRole.Prompter, false),
         )
     }
 
     @Test
-    fun failedShowsConnectionFailedSection() {
+    fun controllerReadyShowsControllerReady() {
+        assertEquals(
+            RemoteUiSection.ControllerReady,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Ready, null, RemoteRole.Controller, false),
+        )
+    }
+
+    @Test
+    fun waitingShowsPrompterWaiting() {
+        assertEquals(
+            RemoteUiSection.PrompterWaiting,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.WaitingForController, null, RemoteRole.Prompter, false),
+        )
+    }
+
+    @Test
+    fun failedShowsConnectionFailed() {
         assertEquals(
             RemoteUiSection.ConnectionFailed,
             RemoteUiMapper.sectionOf(
                 RemoteConnectionStatus.Failed(RemoteFailureReason.ProtocolMismatch),
                 null,
+                RemoteRole.Controller,
+                false,
             ),
         )
     }
 
     @Test
-    fun reconnectingShowsConnectionLostSection() {
+    fun reconnectingShowsConnectionLost() {
         assertEquals(
             RemoteUiSection.ConnectionLost,
-            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Reconnecting(device), null),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Reconnecting(device), null, RemoteRole.Controller, true),
         )
     }
 
@@ -63,17 +77,11 @@ class RemoteUiMapperTest {
     fun librarySurfaceDoesNotShowPlaybackControls() {
         assertEquals(
             RemoteUiSection.ConnectedWaiting,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Library),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Library), RemoteRole.Controller, false),
         )
         assertEquals(
             RemoteUiSection.ConnectedWaiting,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Editor),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Editor), RemoteRole.Controller, false),
         )
     }
 
@@ -81,10 +89,7 @@ class RemoteUiMapperTest {
     fun setupSurfaceShowsReady() {
         assertEquals(
             RemoteUiSection.Ready,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Setup),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Setup), RemoteRole.Controller, false),
         )
     }
 
@@ -92,10 +97,7 @@ class RemoteUiMapperTest {
     fun countdownSurfaceShowsCountdown() {
         assertEquals(
             RemoteUiSection.Countdown,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Countdown),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Countdown), RemoteRole.Controller, false),
         )
     }
 
@@ -103,10 +105,7 @@ class RemoteUiMapperTest {
     fun playingSurfaceShowsPlaying() {
         assertEquals(
             RemoteUiSection.Playing,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Playing),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Playing), RemoteRole.Controller, false),
         )
     }
 
@@ -114,10 +113,7 @@ class RemoteUiMapperTest {
     fun pausedSurfaceShowsPaused() {
         assertEquals(
             RemoteUiSection.Paused,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Paused),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Paused), RemoteRole.Controller, false),
         )
     }
 
@@ -125,10 +121,7 @@ class RemoteUiMapperTest {
     fun finishedSurfaceShowsFinished() {
         assertEquals(
             RemoteUiSection.Finished,
-            RemoteUiMapper.sectionOf(
-                RemoteConnectionStatus.Connected(device),
-                snapshot(RemotePrompterSurface.Finished),
-            ),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), snapshot(RemotePrompterSurface.Finished), RemoteRole.Controller, false),
         )
     }
 
@@ -136,7 +129,7 @@ class RemoteUiMapperTest {
     fun connectedWithoutSnapshotShowsWaiting() {
         assertEquals(
             RemoteUiSection.ConnectedWaiting,
-            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), null),
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Connected(device), null, RemoteRole.Controller, false),
         )
     }
 }

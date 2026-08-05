@@ -180,23 +180,13 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
         AppTheme {
         val navController = rememberNavController()
         val coordinatorScope = rememberCoroutineScope()
+        val startPlaybackHandler = remember { RemoteStartPlaybackHandler() }
         val remoteCoordinator = remember(container, appState) {
             RemoteAppCoordinator(
                 appState = appState,
                 repository = container.remoteSessionRepository,
                 scope = coordinatorScope,
-                navigator = { effect ->
-                    when (effect) {
-                        is RemoteNavigationEffect.StartPrompter -> {
-                            // Real navigation path for a controller-issued start. The next
-                            // phase should verify the setup page for this scriptId is on top
-                            // and flush SetupViewModel before beginPlayback; until then the
-                            // command is applied through the existing playback engine.
-                            appState.beginPlayback(effect.scriptId)
-                            navController.navigate(AppRoutes.prompter(effect.scriptId))
-                        }
-                    }
-                },
+                startPlaybackHandler = startPlaybackHandler,
             )
         }
         // Publish a fresh snapshot whenever the real app state changes while a controller is
@@ -304,6 +294,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     remoteConnectionStatus = remoteSessionState.status,
                     onBack = { navController.popBackStack() },
                     onStart = { scriptId -> navController.navigate(AppRoutes.prompter(scriptId)) },
+                    startPlaybackHandler = startPlaybackHandler,
                 )
             }
             composable(AppRoutes.Prompter) { entry ->

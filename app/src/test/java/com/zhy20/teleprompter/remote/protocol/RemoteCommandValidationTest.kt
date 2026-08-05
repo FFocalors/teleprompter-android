@@ -8,8 +8,8 @@ import org.junit.Test
 class RemoteCommandValidationTest {
 
     @Test
-    fun protocolVersionIsOne() {
-        assertEquals(1, RemoteProtocol.VERSION)
+    fun protocolVersionIsTwo() {
+        assertEquals(2, RemoteProtocol.VERSION)
     }
 
     @Test

@@ -3,17 +3,27 @@ package com.zhy20.teleprompter.feature.remote
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
 import com.zhy20.teleprompter.remote.model.RemotePrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteRole
 
 /**
  * Which top-level panel the remote screen shows. Kept as a pure, Compose-free mapping so the
  * UI-state rules are unit-testable on the JVM.
  */
 enum class RemoteUiSection {
-    /** No session active — show the "start waiting" panel. */
-    Disconnected,
+    /** No role chosen yet — show the prompter/controller role chooser. */
+    RoleSelection,
 
-    /** Waiting/connecting — show the waiting panel. */
-    Waiting,
+    /** Prompter role ready — show the "start waiting" panel. */
+    PrompterReady,
+
+    /** Prompter waiting for a controller — show the pairing QR. */
+    PrompterWaiting,
+
+    /** Controller role ready — show the scan/manual-connect panel. */
+    ControllerReady,
+
+    /** Handshake in progress. */
+    Connecting,
 
     /** Connection failed with a structured reason. */
     ConnectionFailed,
@@ -38,30 +48,34 @@ object RemoteUiMapper {
     fun sectionOf(
         status: RemoteConnectionStatus,
         snapshot: RemotePrompterSnapshot?,
-    ): RemoteUiSection = when (status) {
-        RemoteConnectionStatus.Disabled,
-        RemoteConnectionStatus.Ready,
-        -> RemoteUiSection.Disconnected
+        role: RemoteRole?,
+        reconnecting: Boolean,
+    ): RemoteUiSection = when {
+        reconnecting && status is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
+        role == null -> RemoteUiSection.RoleSelection
+        else -> when (status) {
+            RemoteConnectionStatus.Ready -> when (role) {
+                RemoteRole.Prompter -> RemoteUiSection.PrompterReady
+                RemoteRole.Controller -> RemoteUiSection.ControllerReady
+            }
+            RemoteConnectionStatus.WaitingForController -> RemoteUiSection.PrompterWaiting
+            RemoteConnectionStatus.Connecting -> RemoteUiSection.Connecting
+            RemoteConnectionStatus.Disabled -> RemoteUiSection.RoleSelection
+            is RemoteConnectionStatus.Failed -> RemoteUiSection.ConnectionFailed
+            is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
+            is RemoteConnectionStatus.Connected -> {
+                val snap = snapshot ?: return RemoteUiSection.ConnectedWaiting
+                when (snap.surface) {
+                    RemotePrompterSurface.Library,
+                    RemotePrompterSurface.Editor,
+                    -> RemoteUiSection.ConnectedWaiting
 
-        RemoteConnectionStatus.WaitingForController,
-        RemoteConnectionStatus.Connecting,
-        -> RemoteUiSection.Waiting
-
-        is RemoteConnectionStatus.Failed -> RemoteUiSection.ConnectionFailed
-        is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
-
-        is RemoteConnectionStatus.Connected -> {
-            val snap = snapshot ?: return RemoteUiSection.ConnectedWaiting
-            when (snap.surface) {
-                RemotePrompterSurface.Library,
-                RemotePrompterSurface.Editor,
-                -> RemoteUiSection.ConnectedWaiting
-
-                RemotePrompterSurface.Setup -> RemoteUiSection.Ready
-                RemotePrompterSurface.Countdown -> RemoteUiSection.Countdown
-                RemotePrompterSurface.Playing -> RemoteUiSection.Playing
-                RemotePrompterSurface.Paused -> RemoteUiSection.Paused
-                RemotePrompterSurface.Finished -> RemoteUiSection.Finished
+                    RemotePrompterSurface.Setup -> RemoteUiSection.Ready
+                    RemotePrompterSurface.Countdown -> RemoteUiSection.Countdown
+                    RemotePrompterSurface.Playing -> RemoteUiSection.Playing
+                    RemotePrompterSurface.Paused -> RemoteUiSection.Paused
+                    RemotePrompterSurface.Finished -> RemoteUiSection.Finished
+                }
             }
         }
     }

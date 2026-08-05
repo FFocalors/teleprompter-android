@@ -12,6 +12,10 @@
 - 支持播放预设、字号、对齐、方向、镜像、速度/目标时间、倒计时和提词辅助。
 - 支持沉浸式播放、暂停恢复、进度调整、完成状态和本地 Mock 控制端页面。
 - 手机远控基础架构：提词端/控制端角色、密封连接状态、协议消息、命令校验与去重、Session Repository 和可注入的 Fake Transport；控制端命令经完整链路驱动真实播放（控制端 UI 与业务状态解耦，提词端状态快照与命令协调层就绪）。
+- 真实一对一局域网远控：提词端 WebSocket Server + 控制端 Client（Java-WebSocket）、一次性二维码配对与握手（`teleprompter://pair` URI + ZXing 生成/扫码）、单控制端限制、心跳与断线自动重连（有限指数退避）、状态快照同步（250 ms 节流 + revision 乱序过滤）、真实播放命令（状态校验 + CommandResult），并接入 Setup 保存后启动（`SetupViewModel.flushNow` 门控）。
+- 远控协议 v2：ClientHello/ServerAccepted/ServerRejected/CommandRequest/CommandResult/SnapshotUpdate/HeartbeatPing/Pong/DisconnectNotice/ProtocolError，`RemoteJsonCodec` 用 org.json 显式编解码并对缺失字段、非法数字、超长字符串、未知类型做结构化校验。
+- 局域网地址解析：`LocalNetworkAddressProvider` 基于 ConnectivityManager 获取当前局域网 IPv4，避免 loopback/link-local，支持多候选地址。
+- 远控测试：新增 JSON Codec、配对载荷、握手校验、Repository 会话、命令去重与结果、UI 状态映射、Setup 保存门控和真实 localhost WebSocket 集成测试。
 - 支持 TXT 文件导入：系统文件选择器、UTF-8/UTF-16/GB18030 编码识别、5 MiB 大小限制，导入后转换为 `ScriptDocument` 并进入编辑页。
 - 支持 DOCX 文件导入：OOXML 直接解析，只提取主文档中的普通正文段落，段落内换行与制表符转换为换行与空格；文字样式、表格、图片、目录、字段、超链接等结构全部跳过。
 - 支持 DOC 文件导入：OLE2 二进制解析，只提取普通正文段落；含表格标记（`\x07`）的段落整体丢弃，字段（TOC/PAGE/DATE/HYPERLINK 等）通过控制字符状态机跳过。
@@ -27,6 +31,7 @@
 - 使用 Preferences DataStore 保存全局默认播放设置和语言选择。
 - 台本库主操作区同时显示”导入文件”与”新建台本”，手机改为底部双按钮操作栏，平板保持标题区右侧按钮。
 - 控制端页面改用远控 ViewModel 与 Session 状态，移除演示状态选择器和直接修改 `AppState` 的逻辑；样式设置页远控卡片改为只读状态卡片，连接状态由 Session Repository 提供。
+- 远控页新增角色选择（提词端/控制端）、二维码等待/扫码、手动连接输入和断线重连界面；开始播放改为”保存设置后启动”（本机与远控共用同一保存门控）。
 
 ### 修复
 

@@ -13,4 +13,14 @@ enum class RemoteFailureReason {
     TransportUnavailable,
     /** The peer rejected the connection. */
     Rejected,
+    /** No usable local network address; the prompter cannot start waiting. */
+    NoNetworkAddress,
+    /** The pairing QR was invalid or has expired. */
+    InvalidPairing,
+    /** The controller timed out waiting for the prompter to accept. */
+    ConnectionTimeout,
+    /** The peer already has a connected controller. */
+    AlreadyConnected,
+    /** The server port could not be bound. */
+    PortUnavailable,
 }

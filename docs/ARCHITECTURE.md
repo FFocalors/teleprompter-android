@@ -68,53 +68,82 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 播放页根据设置请求 Activity 方向，进入播放时隐藏系统栏并使用临时覆盖行为；状态区和控制栏使用固定布局，不因系统栏短暂出现而重新排版。正文镜像只作用于脚本文本，状态信息、控制浮层、提词辅助和触摸语义保持正常方向。
 
-## 手机远控基础架构
+## 手机远控（一对一同局域网）
 
-远控层位于 `remote/` 和 `feature/remote/`，本阶段只实现基础架构，不接入真实局域网、扫码和 WebSocket。
+远控层位于 `remote/` 和 `feature/remote/`。本阶段已经实现真实的一对一局域网 WebSocket 通信、二维码配对、握手、心跳、断线重连、状态快照同步和播放控制。
 
 ### 职责边界
 
 - 提词端是唯一真实状态源：脚本、页面、播放设置和播放引擎都由提词端持有；控制端只发送命令请求，提词端校验、执行并返回最新快照。
 - 远控模块不复制播放逻辑：控制命令经 `RemoteAppCoordinator` 转换为现有 `PlaybackEvent`/业务方法，快照从 `AppState` 与 `PlaybackEngineState` 派生。
 - 页面与业务解耦：`RemoteScreen` 只接收 `RemoteUiState` 并发送 `RemoteUiAction`，不再直接修改 `AppState`。
-- 网络层通过接口预留：`RemoteTransport` 不引用 WebSocket/HTTP/TCP 类型，`FakeRemoteTransport` 可在 JVM 单元测试中运行。
+- 网络层通过接口隔离：`RemoteTransport` 接口不暴露 WebSocket 类型；`WebSocketRemoteTransport` 是唯一接触 Java-WebSocket 的地方；`FakeRemoteTransport` 仅用于 JVM 单元测试和 Preview，不进入生产路径。
 
 ### 目录与数据流
 
 ```text
-remote/model/     角色、连接状态（密封）、设备、会话状态、提词端快照
-remote/protocol/  协议版本、消息（Hello/Command/Snapshot/CommandResult/Heartbeat/ProtocolError）、命令校验
-remote/transport/ RemoteTransport 接口 + FakeRemoteTransport
-remote/session/   RemoteSessionRepository + DefaultRemoteSessionRepository + 快照工厂
-feature/remote/   RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper
-app/              RemoteAppCoordinator（命令→业务方法→导航）、AppContainer 注入
+remote/model/      角色、连接状态（密封）、设备、会话状态、提词端快照
+remote/protocol/   协议版本、消息（ClientHello/ServerAccepted/ServerRejected/CommandRequest/
+                   CommandResult/SnapshotUpdate/HeartbeatPing/Pong/DisconnectNotice/ProtocolError）、
+                   命令校验、RemoteJsonCodec（org.json 显式编解码）
+remote/pairing/    配对载荷模型 + URI 编解码 + 安全随机凭据生成
+remote/network/    LocalNetworkAddressProvider（ConnectivityManager 取当前局域网 IPv4）
+remote/transport/  RemoteTransport 接口 + WebSocketRemoteTransport（Server/Client）+ FakeRemoteTransport
+remote/session/    RemoteSessionRepository + DefaultRemoteSessionRepository + 快照工厂 + 会话凭据
+feature/remote/    RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper、RemoteQrGenerator
+app/               RemoteAppCoordinator（命令→业务方法→结果）、RemoteStartPlaybackHandler、
+                   AppContainer 注入（生产用真实 WebSocket Transport）
 ```
 
 控制端命令的完整链路：
 
 ```text
-RemoteScreen → RemoteViewModel → RemoteSessionRepository → FakeRemoteTransport
-  → 协议消息 → Repository incoming command → RemoteAppCoordinator → AppState / 导航
-  → 新状态快照 → Repository → RemoteScreen
+RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemoteTransport
+  → JSON 编解码 → Repository incoming command → RemoteAppCoordinator
+  → 状态校验 → AppState / Setup 保存门控 / 导航
+  → CommandResult + 新快照 → Repository → RemoteScreen
 ```
 
-### 关键模型
+### 配对与握手
 
-- `RemoteConnectionStatus` 是密封类型，表达 `Disabled/Ready/WaitingForController/Connecting/Connected/Reconnecting/Failed(结构化原因)`，UI 不再猜测状态。
-- `RemotePrompterSnapshot` 是不可变快照，`progress` 限制在 `0f..1f`，`nearbyText` 只传输有限长度纯文本摘要，revision 单调递增。
-- `RemoteCommand` 每条都有唯一 `commandId`，Repository 去重，`SeekBy`/`ChangeSpeed` 做范围校验；网络协议与应用内部 `PlaybackEvent` 之间有明确转换层。
+- 提词端 `startWaiting`：生成安全随机的 `sessionId` 与至少 128 bit 的 `pairingToken`（仅存内存），启动 WebSocket Server，把 `host + port + session + token + 过期时间` 编码成 `teleprompter://pair?...` 二维码（默认 5 分钟有效）。
+- 控制端扫码：`RemotePairingPayloadCodec` 校验 scheme、IPv4、端口、token、session、版本与过期时间；相机权限被拒绝时可手动输入。
+- 提词端校验 `ClientHello`：协议版本 → session → token → 过期 → 单控制端 → 设备信息；失败返回 `ServerRejected` 并关闭该连接，不改变当前会话。
+- 握手成功：提词端返回 `ServerAccepted`（唯一 `connectionId` + 内存 `resumeToken` + 当前快照），并立即消费配对 token（旧二维码失效）；控制端收到接受前不允许发送命令。
+- 单控制端：已有控制端时新连接返回 `AlreadyConnected` 拒绝。
+
+### 心跳、断线与重连
+
+- 应用层心跳 5 秒一次；连续 15 秒未收到对端有效消息判定连接丢失。心跳不进入命令执行层，随连接生命周期取消。
+- 提词端断线：本机播放不暂停、不退出、不返回台本库，仅更新连接状态；宽限期内保留原控制端身份与恢复凭据。
+- 控制端断线：使用 `sessionId + resumeToken` 以 1s/2s/4s/8s 指数退避自动重连，总窗口不超过 30 秒；用户主动断开不自动重连；重连成功立即收到完整快照。
+
+### 状态快照与命令执行
+
+- 每次页面/台本/播放状态/倒计时/速度变化立即发布快照；播放中逐帧更新限制为每 250 ms 一次。`revision` 单调递增，控制端忽略小于或等于当前 revision 的快照。
+- 每条命令都有唯一 `commandId`，提词端去重（重复命令返回上次结果，缓存上限 256 条）。
+- 命令按当前播放状态校验（如 `PausePlayback` 仅在 Playing 时执行），非法状态返回结构化 `CommandResult`，不强行改页面。
+- 开始播放接入 Setup 保存门控：控制端 `StartPlayback` → 协调器校验位于对应 Setup 页 → `RemoteStartPlaybackHandler` 转发给可见的 `PersistentSetupScreen` → `SetupViewModel.flushNow()` 保存成功后才 `beginPlayback` + 导航；保存失败不导航并返回 `SetupSaveFailed`。
 
 ### 连接入口
 
 - 首页/台本库保留进入远控页面的入口（`RemoteStatusEntryCard`）。
-- 样式设置页只显示只读连接状态卡片（`RemoteStatusReadOnlyCard`），不再点击进入配对页。
-- 播放页在断线/重连时显示“本机继续播放”提示。
+- 远控页首屏选择角色：本机作为提词端（显示二维码等待）或本机作为控制端（扫码/手动输入）。
+- 样式设置页只显示只读连接状态卡片（`RemoteStatusReadOnlyCard`）。
+- 播放页在断线/重连时显示"本机继续播放"提示。
 
-### 下一阶段接入点
+### 安全与边界
 
-- `RemoteTransport` 用真实网络实现替换 `FakeRemoteTransport`（局域网发现、二维码配对、WebSocket）。
-- `RemoteAppCoordinator` 的导航回调接入 SetupViewModel 的保存流程，确保控制端发起播放前设置已保存。
-- 快照节流/差量、乱序消息处理（revision 已预留）、心跳超时断线检测。
+- 局域网 WebSocket 当前明文传输，UI 和文档提示仅在可信 Wi-Fi 或个人热点使用；不把台本全文传输给控制端。
+- 配对 token、resume token、connection id 都只保存在内存，不写入 Room/DataStore，不记录到日志。
+- 控制端不支持多控制端、公网、云端、后台常驻；本阶段不新增前台服务。
+- 未来升级 `targetSdk 37` 时需要重新适配局域网运行时权限。
+
+### 当前边界
+
+- 仅支持一对一、仅 IPv4、不支持 mDNS 自动发现、不支持公网/云端。
+- 应用退到后台不承诺长期保持连接；回到前台后按当前状态尝试恢复。
+- 双设备人工实测尚未在本仓库完成（需要两台 Android 设备）；真实 localhost WebSocket 集成测试已通过。
 
 ## 文件导入
 
@@ -132,9 +161,10 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → FakeRemoteTrans
 ## 测试
 
 - JVM 测试覆盖模型、中文语速、富文本映射、序列化、编辑器保存、播放引擎、播放布局和触控策略。
+- 远控 JVM 测试覆盖 JSON Codec、配对载荷、握手校验、Repository 会话、命令去重与结果、UI 状态映射、Setup 保存门控，以及**真实 localhost WebSocket 集成**（Server/Client 经真实 Socket 完成握手、命令、快照和断开）。
 - AndroidTest 覆盖 Room 内存数据库、Compose 视口、提词辅助和播放触控。
 - Preview 使用 `data/fake` 中的统一 Mock 数据，不访问真实数据库或网络。
 
 ## 当前边界
 
-TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。手机远控已完成基础架构层（领域模型、协议、Session Repository、Fake Transport 与控制端 UI 解耦），控制端命令可经完整链路驱动真实播放；但真实局域网发现、二维码配对、WebSocket/TCP/UDP 传输和双设备远控同步尚未接入，控制端与提词端当前只能在同一台设备上通过 Fake Transport 的 loopback 演示。
+TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。手机远控已实现一对一局域网 WebSocket、二维码配对、握手、心跳、断线重连、单控制端限制、状态快照同步和真实播放命令，并接入 Setup 保存后启动；仅支持 IPv4 与单控制端，不支持公网/云端/mDNS 自动发现，局域网 WebSocket 当前不加密，双设备人工实测尚未在本仓库完成。
