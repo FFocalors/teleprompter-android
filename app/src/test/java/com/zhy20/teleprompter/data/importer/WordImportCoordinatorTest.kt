@@ -142,6 +142,36 @@ class WordImportCoordinatorTest {
         assertTrue(repository.created.isEmpty())
     }
 
+    @Test
+    fun docxWithOnlyTable_doesNotCreateScript() = runTest {
+        val repository = RecordingWordRepository()
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>" +
+            "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>表格</w:t></w:r></w:p></w:tc></w:tr></w:tbl>" +
+            "</w:body></w:document>"
+        val bos = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(bos).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("[Content_Types].xml"))
+            zip.write("<Types/>".toByteArray())
+            zip.closeEntry()
+            zip.putNextEntry(java.util.zip.ZipEntry("word/document.xml"))
+            zip.write(xml.toByteArray())
+            zip.closeEntry()
+        }
+        val tableOnly = bos.toByteArray()
+        try {
+            coordinator(repository).importFile(
+                ImportFileMetadata("table.docx", DocxScriptImporter.MimeTypeWordOpenXml, tableOnly.size.toLong()),
+                { ByteArrayInputStream(tableOnly) },
+                null,
+            )
+            fail("Expected empty-body error")
+        } catch (e: ScriptImportException) {
+            assertEquals(ScriptImportError.Empty, e.error)
+        }
+        assertTrue(repository.created.isEmpty())
+    }
+
     private class RecordingWordRepository(
         private val throwOnFolder: String? = null,
     ) : ScriptRepository {

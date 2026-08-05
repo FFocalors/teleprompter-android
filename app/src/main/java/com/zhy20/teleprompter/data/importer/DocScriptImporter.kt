@@ -4,7 +4,6 @@ import com.zhy20.teleprompter.core.model.ScriptBlock
 import com.zhy20.teleprompter.core.model.ScriptContent
 import com.zhy20.teleprompter.core.model.ScriptDocument
 import com.zhy20.teleprompter.core.model.ScriptSpan
-import com.zhy20.teleprompter.core.model.ScriptSpanStyle
 import java.io.InputStream
 
 /**
@@ -12,13 +11,13 @@ import java.io.InputStream
  *
  * A `.doc` is an OLE2 Compound File. This importer reads the `WordDocument` stream's File
  * Information Block (FIB) to find the piece table (CLX) in the `0Table`/`1Table` stream, then
- * decodes each piece (16-bit UTF-16LE, or 8-bit ANSI when compressed). Paragraph breaks (`\r`)
- * become paragraph boundaries; the legacy `\x07` cell/row markers become cell separators.
+ * decodes each piece (16-bit UTF-16LE, or 8-bit ANSI when compressed).
  *
- * The parser targets plain-text fidelity ("usable body over complete formatting"): bold/italic/
- * underline are mapped only when the FIB exposes per-character properties, and the importer never
- * loses the whole body over a local formatting quirk. Encrypted documents are detected via the
- * FIB and rejected. It never writes to the database, navigates or touches the UI.
+ * Only ordinary body paragraphs are kept as plain text: paragraphs carrying the legacy `\x07`
+ * table cell/row mark are dropped whole, and every field (TOC, PAGE, DATE, HYPERLINK, REF, ...)
+ * is skipped via a small control-character state machine. No styles are preserved. Encrypted
+ * documents are detected via the FIB and rejected. It never writes to the database, navigates or
+ * touches the UI.
  */
 class DocScriptImporter(
     private val defaultTitle: String = "未命名台本",
@@ -204,67 +203,88 @@ internal class DocFibParser(
             }
         }
 
-        // Split the decoded text into paragraphs on \r (paragraph mark) and \x07 (cell mark).
-        val normalized = text.toString().replace('\r', '\n')
-        splitParagraphs(normalized, paragraphs)
+        // Clean the fully-concatenated text first (field skip + control chars) so a field
+        // spanning multiple pieces or paragraphs is dropped as one unit, then split into
+        // paragraphs on \r and drop any that carry a \x07 table mark.
+        val cleaned = cleanControlCharacters(text.toString())
+        splitParagraphs(cleaned, paragraphs)
 
         if (paragraphs.isEmpty()) throw ScriptImportException(ScriptImportError.Empty)
         return ScriptContent(paragraphs)
     }
 
-    private fun splitParagraphs(text: String, out: MutableList<ScriptBlock.Paragraph>) {
-        val parts = text.split('\n')
-        var current = StringBuilder()
-        var currentStyles = emptySet<ScriptSpanStyle>()
-        for (part in parts) {
-            if (part.isBlank()) {
-                if (current.isNotEmpty()) {
-                    flushParagraph(current, currentStyles, out)
-                    current = StringBuilder()
-                    currentStyles = emptySet()
-                }
-            } else {
-                if (current.isEmpty()) {
-                    current.append(part)
-                } else {
-                    // A single newline inside a piece marks a line break within the paragraph.
-                    current.append('\n').append(part)
-                }
-            }
+    /**
+     * Splits [text] into paragraphs on `\r` (the paragraph mark). Table content is dropped: a chunk
+     * carrying the `\x07` cell/row mark is dropped entirely, and so is a chunk immediately before a
+     * `\x07`-marked chunk — Word encodes a table cell holding N paragraphs as `p1\rp2\r...\rpn\x07`
+     * where only the last chunk carries `\x07`, so the intermediate chunks must also be discarded.
+     * `\x07` is never converted to a tab. Body paragraphs after a table row still import.
+     */
+    internal fun splitParagraphs(text: String, out: MutableList<ScriptBlock.Paragraph>) {
+        val chunks = text.split('\r')
+        for (i in chunks.indices) {
+            val chunk = chunks[i]
+            val hasMark = chunk.contains(CELL_ROW_MARK)
+            val nextHasMark = i + 1 < chunks.size && chunks[i + 1].contains(CELL_ROW_MARK)
+            if (hasMark || nextHasMark) continue // table chunk or its preceding cell paragraph
+            flushParagraph(chunk, out)
         }
-        if (current.isNotEmpty()) flushParagraph(current, currentStyles, out)
     }
 
-    private fun flushParagraph(text: StringBuilder, styles: Set<ScriptSpanStyle>, out: MutableList<ScriptBlock.Paragraph>) {
-        val cleaned = cleanControlCharacters(text.toString()).trimEnd()
-        if (cleaned.isEmpty()) return
+    private fun flushParagraph(
+        raw: String,
+        out: MutableList<ScriptBlock.Paragraph>,
+    ) {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return
         if (out.size >= WordImportLimits.MAX_PARAGRAPHS) {
             throw ScriptImportException(ScriptImportError.TooComplex)
         }
         out.add(
             ScriptBlock.Paragraph(
                 id = "doc-${paragraphCounter.getAndIncrement()}",
-                spans = listOf(ScriptSpan(cleaned, styles)),
+                spans = listOf(ScriptSpan(trimmed)),
             ),
         )
     }
 
-    /** Removes legacy control characters that have no place in a script's body. */
-    private fun cleanControlCharacters(text: String): String {
+    /**
+     * Removes control characters and skips every field. Runs on the fully concatenated text so a
+     * field spanning multiple pieces is handled correctly.
+     *
+     * Field state machine: `0x13` enters a field (instructions AND results dropped), `0x14` is the
+     * field separator (stays in field), `0x15` exits. Fields nest and are bounded by
+     * [WordImportLimits.MAX_FIELD_NESTING]. This uniformly skips TOC, PAGE, NUMPAGES, DATE,
+     * HYPERLINK, REF and any other automatic field.
+     */
+    internal fun cleanControlCharacters(text: String): String {
         val sb = StringBuilder(text.length)
+        var fieldDepth = 0
         for (ch in text) {
             val code = ch.code
             when {
-                // 0x07 cell/row marks become tabs so a table's columns stay separated.
-                code == 0x07 -> sb.append('\t')
-                // Field code markers and paragraph separators inside fields are dropped.
-                code == 0x01 || code in 0x13..0x15 || code == 0x1E -> Unit
+                code == FIELD_BEGIN -> {
+                    fieldDepth += 1
+                    if (fieldDepth > WordImportLimits.MAX_FIELD_NESTING) {
+                        throw ScriptImportException(ScriptImportError.TooComplex)
+                    }
+                }
+                code == FIELD_SEPARATOR -> Unit // stay in field; the char itself is dropped
+                code == FIELD_END -> if (fieldDepth > 0) fieldDepth -= 1
+                fieldDepth > 0 -> Unit // inside a field: drop instructions and results
+                code == MANUAL_LINE_BREAK -> sb.append('\n') // Shift+Enter inside a paragraph
+                code == CELL_ROW_MARK_CODE -> sb.append(ch) // keep \x07 so the split step can drop the whole paragraph
                 code == 0x00 -> Unit
-                code in 0x01..0x1F -> Unit // other legacy control characters
+                code in 0x01..0x1F && code != '\n'.code && code != '\r'.code && code != '\t'.code -> Unit
+                code == 0x7F -> Unit
+                code in 0xFFF0..0xFFFF -> Unit // object placeholder fills
                 else -> sb.append(ch)
             }
         }
-        return sb.toString()
+        // An unclosed field would silently swallow the rest of the document; treat it as corrupt
+        // rather than losing the body (Word normally writes balanced 0x13/0x15 pairs).
+        if (fieldDepth > 0) throw ScriptImportException(ScriptImportError.Corrupt)
+        return sb.toString().trim()
     }
 
     /** Scans the Table stream for the last valid Pcdt when the FIB CLX pointer is unusable. */
@@ -306,6 +326,13 @@ internal class DocFibParser(
         private const val MAX_RGFC_ENTRIES = 512
         private const val MAX_PIECES = 10_000
         private const val MAX_PIECE_TABLE_BYTES = 512 * 1024
+
+        private const val CELL_ROW_MARK = ''
+        private const val CELL_ROW_MARK_CODE = 0x07
+        private const val MANUAL_LINE_BREAK = 0x0B
+        private const val FIELD_BEGIN = 0x13
+        private const val FIELD_SEPARATOR = 0x14
+        private const val FIELD_END = 0x15
 
         private fun u16At(data: ByteArray, offset: Int): Int =
             (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)

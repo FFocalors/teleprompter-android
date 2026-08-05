@@ -121,7 +121,7 @@ class DocxScriptImporterTest {
     fun zipBomb_fails() = runBlocking {
         // A true zip bomb: a highly compressible payload that exceeds the entry size budget.
         val bombXml = ("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
-            + "A".repeat(WordImportLimits.MAX_ENTRY_BYTES.toInt() + 1024)
+            + "A".repeat(WordImportLimits.MAX_SINGLE_ENTRY_BYTES.toInt() + 1024)
             + "</w:body></w:document>")
         val bytes = buildDocx(mapOf("word/document.xml" to bombXml.toByteArray()))
         try {
@@ -148,6 +148,205 @@ class DocxScriptImporterTest {
         } catch (e: ScriptImportException) {
             assertEquals(ScriptImportError.TooComplex, e.error)
         }
+    }
+
+    // --- New product rule: only plain body paragraphs import; everything else is skipped. ---
+
+    private suspend fun importBodyXml(bodyXml: String, name: String = "doc.docx"): ImportedScript {
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
+            "<w:body>$bodyXml</w:body></w:document>"
+        val bytes = buildDocx(mapOf("word/document.xml" to xml.toByteArray()))
+        return DocxScriptImporter().import(
+            ImportFileMetadata(name, DocxScriptImporter.MimeTypeWordOpenXml, bytes.size.toLong()),
+        ) { ByteArrayInputStream(bytes) }
+    }
+
+    private suspend fun assertEmptyBody(bodyXml: String, name: String = "doc.docx") {
+        try {
+            importBodyXml(bodyXml, name)
+            fail("Expected empty-body exception")
+        } catch (e: ScriptImportException) {
+            assertEquals(ScriptImportError.Empty, e.error)
+        }
+    }
+
+    @Test
+    fun plainParagraphs_importAsSingleUnstyledSpans() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:t>第一段。</w:t></w:r></w:p>" +
+            "<w:p><w:r><w:t>第二段。</w:t></w:r></w:p>")
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(2, paragraphs.size)
+        paragraphs.forEach { p ->
+            assertEquals(1, p.spans.size)
+            assertTrue(p.spans.single().styles.isEmpty())
+        }
+        assertEquals("第一段。\n\n第二段。", textOf(result.document))
+    }
+
+    @Test
+    fun boldText_importsAsPlainTextWithoutStyle() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>粗体文字</w:t></w:r></w:p>")
+        val span = paragraphsOf(result.document).single().spans.single()
+        assertEquals("粗体文字", span.text)
+        assertTrue(span.styles.isEmpty())
+    }
+
+    @Test
+    fun italicText_importsAsPlainTextWithoutStyle() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:rPr><w:i/></w:rPr><w:t>斜体文字</w:t></w:r></w:p>")
+        val span = paragraphsOf(result.document).single().spans.single()
+        assertEquals("斜体文字", span.text)
+        assertTrue(span.styles.isEmpty())
+    }
+
+    @Test
+    fun underlineText_importsAsPlainTextWithoutStyle() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:rPr><w:u w:val=\"single\"/></w:rPr><w:t>下划线文字</w:t></w:r></w:p>")
+        val span = paragraphsOf(result.document).single().spans.single()
+        assertEquals("下划线文字", span.text)
+        assertTrue(span.styles.isEmpty())
+    }
+
+    @Test
+    fun tableOnly_document_failsEmpty() = runBlocking {
+        assertEmptyBody("<w:tbl><w:tr><w:tc><w:p><w:r><w:t>单元格</w:t></w:r></w:p></w:tc></w:tr></w:tbl>")
+    }
+
+    @Test
+    fun imageOnly_document_failsEmpty() = runBlocking {
+        assertEmptyBody("<w:p><w:r><w:drawing><w:inline/></w:drawing></w:r></w:p>")
+    }
+
+    @Test
+    fun drawingTextBox_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\"><v:textbox>" +
+                "<w:txbxContent><w:p><w:r><w:t>文本框内容</w:t></w:r></w:p></w:txbxContent>" +
+                "</v:textbox></v:shape></w:pict></w:r></w:p>",
+        )
+    }
+
+    @Test
+    fun simpleField_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>" +
+                "<w:r><w:instrText>PAGE</w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+        )
+    }
+
+    @Test
+    fun complexFieldWithResult_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>" +
+                "<w:r><w:instrText>NUMPAGES</w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" +
+                "<w:r><w:t>42</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+        )
+    }
+
+    @Test
+    fun autoToc_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>" +
+                "<w:r><w:instrText>TOC \\o \"1-3\"</w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" +
+                "<w:r><w:t>目录内容</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+        )
+    }
+
+    @Test
+    fun bodyAfterToc_imports() = runBlocking {
+        val result = importBodyXml(
+            "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>" +
+                "<w:r><w:instrText>TOC</w:instrText></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r>" +
+                "<w:r><w:t>目录</w:t></w:r>" +
+                "<w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>" +
+                "<w:p><w:r><w:t>正文在目录之后。</w:t></w:r></w:p>",
+        )
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(1, paragraphs.size)
+        assertEquals("正文在目录之后。", paragraphs.single().spans.single().text)
+    }
+
+    @Test
+    fun hyperlinkField_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:p><w:hyperlink><w:r><w:t>点击链接</w:t></w:r></w:hyperlink></w:p>",
+        )
+    }
+
+    @Test
+    fun lineBreak_insideParagraph_becomesNewline() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:t>第一行</w:t><w:br/><w:t>第二行</w:t></w:r></w:p>")
+        assertEquals("第一行\n第二行", textOf(result.document))
+    }
+
+    @Test
+    fun tab_insideRun_becomesSpace() = runBlocking {
+        val result = importBodyXml("<w:p><w:r><w:t>左</w:t><w:tab/><w:t>右</w:t></w:r></w:p>")
+        assertEquals("左 右", textOf(result.document))
+    }
+
+    @Test
+    fun mixedTableImageAndBody_importsOnlyBody() = runBlocking {
+        val result = importBodyXml(
+            "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>表格文字</w:t></w:r></w:p></w:tc></w:tr></w:tbl>" +
+                "<w:p><w:r><w:drawing><w:inline/></w:drawing></w:r></w:p>" +
+                "<w:p><w:r><w:t>唯一正文。</w:t></w:r></w:p>",
+        )
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(1, paragraphs.size)
+        assertEquals("唯一正文。", paragraphs.single().spans.single().text)
+    }
+
+    @Test
+    fun contentControl_sdt_skipped() = runBlocking {
+        assertEmptyBody(
+            "<w:sdt><w:sdtContent><w:p><w:r><w:t>控件内容</w:t></w:r></w:p></w:sdtContent></w:sdt>",
+        )
+    }
+
+    @Test
+    fun headingStyledParagraph_importsAsPlainBodyText() = runBlocking {
+        val result = importBodyXml(
+            "<w:p><w:pPr><w:pStyle w:val=\"Heading1\"/></w:pPr><w:r><w:t>标题一</w:t></w:r></w:p>" +
+                "<w:p><w:r><w:t>正文。</w:t></w:r></w:p>",
+        )
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(2, paragraphs.size)
+        assertEquals("标题一", paragraphs[0].spans.single().text)
+        assertTrue(paragraphs[0].spans.single().styles.isEmpty())
+        assertEquals("正文。", paragraphs[1].spans.single().text)
+    }
+
+    @Test
+    fun trackedInsertionText_importsAsPlainText() = runBlocking {
+        val result = importBodyXml(
+            "<w:p><w:r><w:t>原有</w:t></w:r>" +
+                "<w:ins w:id=\"1\"><w:r><w:t>修订插入</w:t></w:r></w:ins>" +
+                "<w:r><w:t>结尾。</w:t></w:r></w:p>",
+        )
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(1, paragraphs.size)
+        assertEquals("原有修订插入结尾。", paragraphs.single().spans.single().text)
+    }
+
+    @Test
+    fun nestedTable_skippedEntirely() = runBlocking {
+        val result = importBodyXml(
+            "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>外层单元格</w:t></w:r></w:p>" +
+                "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>嵌套单元格</w:t></w:r></w:p></w:tc></w:tr></w:tbl>" +
+                "</w:tc></w:tr></w:tbl>" +
+                "<w:p><w:r><w:t>表格后正文。</w:t></w:r></w:p>",
+        )
+        val paragraphs = paragraphsOf(result.document)
+        assertEquals(1, paragraphs.size)
+        assertEquals("表格后正文。", paragraphs.single().spans.single().text)
     }
 
     private fun buildDocx(

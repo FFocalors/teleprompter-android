@@ -75,8 +75,8 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 `ScriptImportManager` 默认注册四个 importer，按文件扩展名和 MIME 匹配，内容与扩展名冲突时以实际内容为准：
 
 - `PlainTextScriptImporter`：检测 UTF-8（含 BOM）、UTF-16 LE/BE（含 BOM）和 GB18030，统一换行，按连续空行切分段落并保留段内单换行。文件上限 5 MiB。
-- `DocxScriptImporter`：把 DOCX 作为 ZIP 读取，只解析 `word/document.xml`（XML 拉取解析，禁用外部实体/DTD）。映射正文段落、Run 内换行与制表符、粗体/斜体/下划线、表格（行内制表符分隔单元格）、超链接显示文字和列表文字；忽略图片、页眉页脚、批注、脚注尾注、文本框、公式和页面布局。源文件 ≤ 20 MiB，解压总量 ≤ 64 MiB。
-- `DocScriptImporter`：用最小 OLE2/CFB 解析器读取 `.doc`，按 FIB 定位 `WordDocument` 与 `0Table/1Table` 中的 CLX 片段表，解码 16 位（UTF-16LE）与压缩 8 位片段；按 `\r` 切分段落、`\x07` 处理表格单元格。格式不可恢复时降级为纯文本，正文可用优先于格式完整。
+- `DocxScriptImporter`：把 DOCX 作为 ZIP 读取，只解析 `word/document.xml`（XML 拉取解析，禁用外部实体/DTD）。通过一组简单深度计数器跳过表格、内容控件、字段（`fldSimple`/`fldChar`/超链接）、绘图、图片、对象和文本框；只把主文档中直接的普通 `w:p` 提取为单个无样式 `ScriptSpan`，`w:br` 转换行、`w:tab` 转空格。源文件 ≤ 20 MiB，解压总量 ≤ 64 MiB。
+- `DocScriptImporter`：用最小 OLE2/CFB 解析器读取 `.doc`，按 FIB 定位 `WordDocument` 与 `0Table/1Table` 中的 CLX 片段表，解码 16 位（UTF-16LE）与压缩 8 位片段。先在完整文本上运行字段状态机（`0x13` 进字段、`0x15` 出、支持嵌套）跳过所有自动字段，再按 `\r` 切分段落并丢弃含 `\x07` 表格标记的整个段落；每个普通段落输出一个无样式 `ScriptSpan`。
 - `MarkdownScriptImporter`：复用 TXT 的读取与编码识别（UTF-8/UTF-16/GB18030、BOM 去除、5 MiB 限制），解析交给纯 JVM 的 `MarkdownSubsetParser`。第一个一级标题（ATX `#` 或 Setext `===`）作为台本标题并从正文移除；二级至六级标题与 Setext 二级标题转为正文普通段落；空行分段、段内单换行保留。粗体、斜体、删除线、代码、列表、引用、链接、图片、表格、HTML、YAML Front Matter、脚注、水平分隔线和数学公式等特殊格式直接拒绝（`UnsupportedMarkdownSyntax`），不做部分降级解析。
 
 所有 importer 都是纯 JVM 可测的；`TextEncodingDetector` 严格解码，不产生替换字符。导入失败映射为 `ScriptImportState.Error`（区分不支持格式、损坏、加密、过大、过于复杂、无法读取、保存失败、Markdown 特殊格式），通过 Snackbar 提示；用户取消系统选择器不显示错误。导入成功后沿用现有导航进入 `editor/{scriptId}`，任何失败都不创建台本。
@@ -89,4 +89,4 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 ## 当前边界
 
-TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成；更完整的 Markdown 语法支持尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。
+TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。

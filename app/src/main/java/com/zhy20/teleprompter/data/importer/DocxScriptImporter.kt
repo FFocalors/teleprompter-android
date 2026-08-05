@@ -9,9 +9,9 @@ import java.util.zip.ZipInputStream
  * Imports Word OpenXML (.docx) documents into a [ScriptDocument].
  *
  * A .docx is a ZIP package; this importer reads only `word/document.xml` and walks it with the
- * platform pull parser, so it needs no third-party dependency. It deliberately ignores images,
- * headers/footers, comments, footnotes, text boxes, math, SmartArt and page layout, and it maps
- * only bold/italic/underline run styles to the shared model.
+ * platform pull parser, so it needs no third-party dependency. Only ordinary body paragraphs are
+ * extracted as plain text; tables, images, drawings, text boxes, fields, TOC entries, hyperlinks,
+ * headers/footers, comments, footnotes and page layout are all skipped, and no run styles are kept.
  *
  * Security: the ZIP is read streaming with an uncompressed-size budget ([WordImportLimits]), the
  * XML parser disables external entities and DTDs, and every structural counter is capped. The
@@ -55,7 +55,7 @@ class DocxScriptImporter(
                     throw ScriptImportException(ScriptImportError.TooComplex)
                 }
                 val size = entry.size
-                if (size > WordImportLimits.MAX_ENTRY_BYTES) {
+                if (size > WordImportLimits.MAX_SINGLE_ENTRY_BYTES) {
                     throw ScriptImportException(ScriptImportError.TooComplex)
                 }
                 if (nameIsMainDocument(entry.name)) {
@@ -85,7 +85,7 @@ class DocxScriptImporter(
 
     /** Reads one ZIP entry with a byte cap; returns null when the entry is too large. */
     private fun readEntryLimited(zip: ZipInputStream, entry: ZipEntry): ByteArray? {
-        if (entry.size > WordImportLimits.MAX_ENTRY_BYTES) {
+        if (entry.size > WordImportLimits.MAX_SINGLE_ENTRY_BYTES) {
             throw ScriptImportException(ScriptImportError.TooComplex)
         }
         val buffer = java.io.ByteArrayOutputStream()
@@ -95,7 +95,7 @@ class DocxScriptImporter(
             val count = zip.read(chunk)
             if (count == -1) break
             total += count
-            if (total > WordImportLimits.MAX_ENTRY_BYTES) {
+            if (total > WordImportLimits.MAX_SINGLE_ENTRY_BYTES) {
                 throw ScriptImportException(ScriptImportError.TooComplex)
             }
             buffer.write(chunk, 0, count)

@@ -18,20 +18,20 @@ object WordImportLimits {
     const val MAX_ZIP_ENTRIES = 4096
 
     /** Maximum bytes for a single ZIP entry we actually read (document.xml etc.). */
-    const val MAX_ENTRY_BYTES = 16L * 1024 * 1024
+    const val MAX_SINGLE_ENTRY_BYTES = 16L * 1024 * 1024
 
     /** Maximum number of body paragraphs extracted across the whole document. */
     const val MAX_PARAGRAPHS = 50_000
 
-    /** Maximum number of text runs across the whole document. */
-    const val MAX_RUNS = 200_000
-
-    /** Maximum number of table cells visited while walking the document. */
-    const val MAX_TABLE_CELLS = 100_000
-
     /** Maximum number of characters in the final extracted text (word/char budget). */
     const val MAX_TEXT_CHARACTERS = 2_000_000
 
-    /** Maximum characters accepted from one OLE text piece or one DOCX XML text node. */
+    /** Maximum characters accepted from one OLE text piece. */
     const val MAX_PIECE_CHARACTERS = 500_000
+
+    /** Total XmlPullParser events the DOCX walker may consume (guards runaway subtrees). */
+    const val MAX_XML_EVENTS = 5_000_000
+
+    /** Maximum nested field depth accepted by the DOC field skip state machine. */
+    const val MAX_FIELD_NESTING = 16
 }
