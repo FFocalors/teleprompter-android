@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,8 +16,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -49,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -201,7 +206,11 @@ internal fun EditorHeader(
     onSetup: () -> Unit,
 ) {
     Surface(color = AppColors.Surface, border = BorderStroke(1.dp, AppColors.Border)) {
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(AppSpacing.sm)) {
+        BoxWithConstraints(
+            Modifier.fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                .padding(AppSpacing.sm),
+        ) {
             val expanded = maxWidth >= 700.dp
             if (expanded) {
                 Row(
@@ -209,7 +218,10 @@ internal fun EditorHeader(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                 ) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.testTag(EditorHeaderBackTag),
+                    ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                     TitleField(title, onTitleChange, Modifier.weight(1f))
                     EditorTools(saveState, savedAfterEdit, editorState, onToggleStyle, onUndo, onRetrySave)
                     PrimaryButton(stringResource(R.string.enter_prompt_settings), onSetup) { Icon(Icons.Default.PlayArrow, null) }
@@ -217,7 +229,10 @@ internal fun EditorHeader(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.testTag(EditorHeaderBackTag),
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                         TitleField(title, onTitleChange, Modifier.weight(1f))
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -230,6 +245,9 @@ internal fun EditorHeader(
         }
     }
 }
+
+/** Semantic test tag for the editor header's back button (shared by EditorScreen variants). */
+internal const val EditorHeaderBackTag = "editorHeaderBack"
 
 @Composable
 private fun TitleField(value: String, onValueChange: (String) -> Unit, modifier: Modifier) {

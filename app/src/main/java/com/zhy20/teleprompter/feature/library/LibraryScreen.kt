@@ -122,6 +122,12 @@ fun LibraryScreen(
         "uncategorized" -> state.scripts.filter { it.folderId == null }
         else -> state.scripts.filter { it.folderId == selectedFolder }
     }
+    // Header title is derived from the current folder selection; both the phone top bar and the
+    // wide-screen content header share the same rule (LibraryTitle).
+    val currentFolderTitle = when (val title = libraryTitle(selectedFolder, state.folders)) {
+        is LibraryTitle.Resource -> stringResource(title.id)
+        is LibraryTitle.Folder -> title.name
+    }
 
     LaunchedEffect(state.folders, selectedFolder) {
         if (selectedFolder != null && selectedFolder != "uncategorized" && state.folders.none { it.id == selectedFolder }) {
@@ -170,6 +176,7 @@ fun LibraryScreen(
                     onRemote = onRemote,
                 )
                 LibraryContent(
+                    title = currentFolderTitle,
                     scripts = visibleScripts,
                     folders = state.folders,
                     loading = state.loadState == LibraryLoadState.Loading,
@@ -189,7 +196,7 @@ fun LibraryScreen(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
                 topBar = {
                     TopAppBar(
-                        title = { Text(stringResource(R.string.library_title), fontWeight = FontWeight.Bold) },
+                        title = { Text(currentFolderTitle, fontWeight = FontWeight.Bold) },
                         actions = {
                             TextButton(onClick = onRemote, modifier = Modifier.clip(MaterialTheme.shapes.medium)) {
                                 Text(stringResource(R.string.remote_controller))
@@ -389,6 +396,7 @@ private fun SidebarItem(text: String, selected: Boolean, icon: androidx.compose.
 
 @Composable
 private fun LibraryContent(
+    title: String,
     scripts: List<Script>,
     folders: List<ScriptFolder>,
     loading: Boolean,
@@ -403,7 +411,7 @@ private fun LibraryContent(
 ) {
     Column(modifier.fillMaxHeight().padding(AppSpacing.xl)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.library_title), style = MaterialTheme.typography.headlineLarge, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
+            Text(title, style = MaterialTheme.typography.headlineLarge, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
             SecondaryButton(
                 stringResource(if (importInProgress) R.string.import_in_progress else R.string.import_file),
                 { onImportFile(selectedFolder.takeUnless { it == "uncategorized" }) },
