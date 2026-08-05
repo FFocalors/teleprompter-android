@@ -19,13 +19,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.app.AppState
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 
 @Composable
 fun PersistentSetupScreen(
     viewModel: SetupViewModel,
     appState: AppState,
+    remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
     onBack: () -> Unit,
-    onRemote: () -> Unit,
     onStart: (String) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -54,7 +55,6 @@ fun PersistentSetupScreen(
             scriptId = state.script!!.id,
             appState = appState,
             onBack = { viewModel.flush { saved -> if (saved) onBack() } },
-            onRemote = onRemote,
             onStart = { id ->
                 viewModel.flush { saved ->
                     if (saved) {
@@ -67,6 +67,7 @@ fun PersistentSetupScreen(
             scriptOverride = state.script,
             settingsOverride = state.settings,
             onSettingsChange = viewModel::updateSettings,
+            remoteConnectionStatus = remoteConnectionStatus,
         )
     }
 }

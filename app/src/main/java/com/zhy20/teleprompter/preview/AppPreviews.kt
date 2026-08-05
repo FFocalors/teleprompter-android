@@ -8,8 +8,6 @@ import com.zhy20.teleprompter.core.design.AppTheme
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackTextAlignment
-import com.zhy20.teleprompter.core.model.PrompterSurface
-import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.DisplayPresets
 import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.applyDisplayPreset
@@ -18,9 +16,17 @@ import com.zhy20.teleprompter.feature.editor.EditorScreen
 import com.zhy20.teleprompter.feature.library.LibraryScreen
 import com.zhy20.teleprompter.feature.prompter.PrompterScreen
 import com.zhy20.teleprompter.feature.remote.RemoteScreen
+import com.zhy20.teleprompter.feature.remote.RemoteUiAction
+import com.zhy20.teleprompter.feature.remote.RemoteUiState
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.setup.SetupScreen
 import com.zhy20.teleprompter.data.fake.FakeData
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
+import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
+import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
+import com.zhy20.teleprompter.remote.model.RemotePrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteRole
+import com.zhy20.teleprompter.remote.model.remotePrompterSnapshot
 
 @Composable
 private fun PreviewState(
@@ -63,42 +69,42 @@ private fun PreviewState(
 @Composable private fun ErrorSavePreview() = PreviewState { EditorScreen("1", it, {}, {}, previewSaveState = SaveState.Error) }
 
 @Preview(name = "提词设置：黑底白字", widthDp = 390, heightDp = 844, showBackground = true)
-@Composable private fun DarkSetupPreview() = PreviewState { SetupScreen("1", it, {}, {}, {}) }
+@Composable private fun DarkSetupPreview() = PreviewState { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "提词设置：竖屏真实预览", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun PortraitSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.copy(orientation = PlaybackOrientation.Portrait) },
-) { SetupScreen("5", it, {}, {}, {}) }
+) { SetupScreen("5", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "提词设置：白底黑字", widthDp = 390, heightDp = 844, showBackground = true)
 @Composable private fun LightSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.WhiteOnBlack) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "提词设置：深蓝底白字", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun BlueSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.BlueOnWhite) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "提词设置：深绿底白字", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun GreenSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.applyDisplayPreset(DisplayPresets.GreenOnWhite) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "预览：左对齐", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun StartAlignedSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.Start) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "预览：居中对齐", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun CenterAlignedSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.Center) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "预览：右对齐", widthDp = 1280, heightDp = 800, showBackground = true)
 @Composable private fun EndAlignedSetupPreview() = PreviewState(
     initialize = { playbackSettings = playbackSettings.copy(textAlignment = PlaybackTextAlignment.End) },
-) { SetupScreen("1", it, {}, {}, {}) }
+) { SetupScreen("1", it, onBack = {}, onStart = {}) }
 
 @Preview(name = "横屏播放", widthDp = 1280, heightDp = 720, showBackground = true)
 @Composable private fun LandscapePlayingPreview() = PreviewState(
@@ -159,13 +165,32 @@ private fun PreviewState(
 ) { PrompterScreen("1", it, {}) }
 
 @Preview(name = "控制端播放中", widthDp = 480, heightDp = 900, showBackground = true)
-@Composable private fun RemotePlayingPreview() = PreviewState(
-    initialize = {
-        remoteConnectionState = RemoteConnectionState.Connected
-        setSurface(PrompterSurface.Prompter)
-        playbackState = PlaybackState.Playing
-    },
-) { RemoteScreen(it, {}) }
+@Composable
+private fun RemotePlayingPreview() {
+    val device = RemoteDeviceInfo("demo-controller", "shooting-phone", RemoteRole.Controller)
+    val snapshot = remotePrompterSnapshot(
+        revision = 1,
+        surface = RemotePrompterSurface.Playing,
+        scriptId = "1",
+        scriptTitle = "校长采访开场",
+        estimatedDurationSeconds = 200,
+        progress = 0.4f,
+        elapsedTimeMillis = 80_000L,
+        remainingTimeMillis = 120_000L,
+        speedMultiplier = 1.0f,
+        nearbyText = "接下来，我们会介绍三个重点项目，并分享它们给师生带来的变化。",
+    )
+    AppTheme {
+        RemoteScreen(
+            state = RemoteUiState(
+                status = RemoteConnectionStatus.Connected(device),
+                snapshot = snapshot,
+            ),
+            onAction = { _: RemoteUiAction -> },
+            onBack = {},
+        )
+    }
+}
 
 @Preview(name = "设置页", widthDp = 900, heightDp = 800, showBackground = true)
 @Composable private fun SettingsPreview() = PreviewState { SettingsScreen(it, {}, {}) }

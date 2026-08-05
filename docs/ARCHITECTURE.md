@@ -68,6 +68,54 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 播放页根据设置请求 Activity 方向，进入播放时隐藏系统栏并使用临时覆盖行为；状态区和控制栏使用固定布局，不因系统栏短暂出现而重新排版。正文镜像只作用于脚本文本，状态信息、控制浮层、提词辅助和触摸语义保持正常方向。
 
+## 手机远控基础架构
+
+远控层位于 `remote/` 和 `feature/remote/`，本阶段只实现基础架构，不接入真实局域网、扫码和 WebSocket。
+
+### 职责边界
+
+- 提词端是唯一真实状态源：脚本、页面、播放设置和播放引擎都由提词端持有；控制端只发送命令请求，提词端校验、执行并返回最新快照。
+- 远控模块不复制播放逻辑：控制命令经 `RemoteAppCoordinator` 转换为现有 `PlaybackEvent`/业务方法，快照从 `AppState` 与 `PlaybackEngineState` 派生。
+- 页面与业务解耦：`RemoteScreen` 只接收 `RemoteUiState` 并发送 `RemoteUiAction`，不再直接修改 `AppState`。
+- 网络层通过接口预留：`RemoteTransport` 不引用 WebSocket/HTTP/TCP 类型，`FakeRemoteTransport` 可在 JVM 单元测试中运行。
+
+### 目录与数据流
+
+```text
+remote/model/     角色、连接状态（密封）、设备、会话状态、提词端快照
+remote/protocol/  协议版本、消息（Hello/Command/Snapshot/CommandResult/Heartbeat/ProtocolError）、命令校验
+remote/transport/ RemoteTransport 接口 + FakeRemoteTransport
+remote/session/   RemoteSessionRepository + DefaultRemoteSessionRepository + 快照工厂
+feature/remote/   RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper
+app/              RemoteAppCoordinator（命令→业务方法→导航）、AppContainer 注入
+```
+
+控制端命令的完整链路：
+
+```text
+RemoteScreen → RemoteViewModel → RemoteSessionRepository → FakeRemoteTransport
+  → 协议消息 → Repository incoming command → RemoteAppCoordinator → AppState / 导航
+  → 新状态快照 → Repository → RemoteScreen
+```
+
+### 关键模型
+
+- `RemoteConnectionStatus` 是密封类型，表达 `Disabled/Ready/WaitingForController/Connecting/Connected/Reconnecting/Failed(结构化原因)`，UI 不再猜测状态。
+- `RemotePrompterSnapshot` 是不可变快照，`progress` 限制在 `0f..1f`，`nearbyText` 只传输有限长度纯文本摘要，revision 单调递增。
+- `RemoteCommand` 每条都有唯一 `commandId`，Repository 去重，`SeekBy`/`ChangeSpeed` 做范围校验；网络协议与应用内部 `PlaybackEvent` 之间有明确转换层。
+
+### 连接入口
+
+- 首页/台本库保留进入远控页面的入口（`RemoteStatusEntryCard`）。
+- 样式设置页只显示只读连接状态卡片（`RemoteStatusReadOnlyCard`），不再点击进入配对页。
+- 播放页在断线/重连时显示“本机继续播放”提示。
+
+### 下一阶段接入点
+
+- `RemoteTransport` 用真实网络实现替换 `FakeRemoteTransport`（局域网发现、二维码配对、WebSocket）。
+- `RemoteAppCoordinator` 的导航回调接入 SetupViewModel 的保存流程，确保控制端发起播放前设置已保存。
+- 快照节流/差量、乱序消息处理（revision 已预留）、心跳超时断线检测。
+
 ## 文件导入
 
 文件导入走独立管道：Composable 仅启动系统文件选择器（`ActivityResultContracts.OpenDocument`，类型 `text/plain`、`application/octet-stream`、`application/msword`、Word OpenXML MIME、`text/markdown`、`text/x-markdown`）并把 `Uri` 交给 `LibraryViewModel`。ViewModel 通过 `UriFileMetadataReader` 读取 `OpenableColumns` 元信息和流，然后 `ScriptImportCoordinator` 调用 `ScriptImportManager` 选择 importer、校验大小、解析内容，最后 `ScriptRepository.createFromDocument()` 原子创建完整台本。
@@ -89,4 +137,4 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 ## 当前边界
 
-TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。
+TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。手机远控已完成基础架构层（领域模型、协议、Session Repository、Fake Transport 与控制端 UI 解耦），控制端命令可经完整链路驱动真实播放；但真实局域网发现、二维码配对、WebSocket/TCP/UDP 传输和双设备远控同步尚未接入，控制端与提词端当前只能在同一台设备上通过 Fake Transport 的 loopback 演示。

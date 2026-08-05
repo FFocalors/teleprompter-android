@@ -98,6 +98,14 @@
     <string name="remote_status">控制端状态</string>
     <string name="remote_can_start">控制端也可发起播放</string>
     <string name="device_connected">已连接：拍摄手机</string>
+    <string name="connected_device_name">已连接：%1$s</string>
+    <string name="remote_disabled">远控未启用</string>
+    <string name="remote_connecting">正在连接</string>
+    <string name="remote_reconnecting">正在重新连接</string>
+    <string name="remote_handshake_failed">连接失败：握手失败</string>
+    <string name="remote_protocol_mismatch">连接失败：协议版本不兼容</string>
+    <string name="remote_transport_unavailable">连接失败：传输不可用</string>
+    <string name="remote_rejected">连接失败：已拒绝</string>
     <string name="disconnected">未连接</string>
     <string name="waiting_connection">等待连接</string>
     <string name="connected">已连接</string>
@@ -134,6 +142,7 @@
     <string name="current_script">当前台本</string>
     <string name="ready">准备就绪</string>
     <string name="nearby_text">提词线附近文字</string>
+    <string name="empty_nearby_text">（暂无正文摘要）</string>
     <string name="speed">速度</string>
     <string name="speed_down">−0.1×</string>
     <string name="speed_up">+0.1×</string>

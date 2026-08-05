@@ -14,6 +14,11 @@ import com.zhy20.teleprompter.data.repository.RoomScriptRepository
 import com.zhy20.teleprompter.data.repository.ScriptFolderRepository
 import com.zhy20.teleprompter.data.repository.ScriptRepository
 import com.zhy20.teleprompter.data.repository.SettingsRepository
+import com.zhy20.teleprompter.remote.session.DefaultRemoteSessionRepository
+import com.zhy20.teleprompter.remote.session.RemoteSessionRepository
+import com.zhy20.teleprompter.remote.transport.FakeRemoteTransport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 
 private val Context.settingsDataStore by preferencesDataStore(name = "teleprompter_settings")
 
@@ -24,6 +29,7 @@ interface AppContainer {
     val settingsRepository: SettingsRepository
     val scriptImportCoordinator: ScriptImportCoordinator
     val uriFileMetadataReader: UriFileMetadataReader
+    val remoteSessionRepository: RemoteSessionRepository
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -49,4 +55,18 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
     }
     override val uriFileMetadataReader: UriFileMetadataReader by lazy { UriFileMetadataReader(context.contentResolver) }
+
+    /**
+     * This phase ships an in-memory fake transport so the demo works on a single device and
+     * the unit tests can run on the JVM. Loopback echoes every sent message back as an
+     * incoming message, letting the same app instance act as both the controller and the
+     * prompter. A real network transport (WebSocket/TCP) will be swapped in here in a later
+     * phase without changing the UI.
+     */
+    override val remoteSessionRepository: RemoteSessionRepository by lazy {
+        DefaultRemoteSessionRepository(
+            transport = FakeRemoteTransport(autoConnectDelayMillis = 1_200, loopback = true),
+            scope = CoroutineScope(SupervisorJob()),
+        )
+    }
 }

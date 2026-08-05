@@ -10,7 +10,6 @@ import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.RichTextEditorState
-import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.SaveState
 import com.zhy20.teleprompter.core.model.Script
 import com.zhy20.teleprompter.core.model.ScriptBlock
@@ -46,7 +45,6 @@ class AppState(
         set(value) {
             playbackSession = PlaybackEngine.setPlaybackState(playbackSession, value, clockNanos())
         }
-    var remoteConnectionState by mutableStateOf(RemoteConnectionState.Disconnected)
     var prompterSurface by mutableStateOf(PrompterSurface.Library)
     var progress: Float
         get() = playbackSession.currentSemanticProgress

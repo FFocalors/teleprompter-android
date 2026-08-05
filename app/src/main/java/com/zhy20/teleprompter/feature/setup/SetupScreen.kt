@@ -54,9 +54,10 @@ import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.PrompterViewport
 import com.zhy20.teleprompter.core.design.components.PrompterViewportMode
 import com.zhy20.teleprompter.core.design.components.PrompterPreviewTarget
-import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
+import com.zhy20.teleprompter.core.design.components.RemoteStatusReadOnlyCard
 import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.design.components.SettingsCard
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
@@ -78,11 +79,11 @@ fun SetupScreen(
     scriptId: String,
     appState: AppState,
     onBack: () -> Unit,
-    onRemote: () -> Unit,
     onStart: (String) -> Unit,
     scriptOverride: Script? = null,
     settingsOverride: PlaybackSettings? = null,
     onSettingsChange: ((PlaybackSettings) -> Unit)? = null,
+    remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
 ) {
     val script = scriptOverride ?: appState.script(scriptId)
     val settings = settingsOverride ?: appState.playbackSettings
@@ -104,7 +105,7 @@ fun SetupScreen(
                             onSettings = updateSettings,
                             normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                             appState = appState,
-                            onRemote = onRemote,
+                            remoteConnectionStatus = remoteConnectionStatus,
                             modifier = Modifier.weight(1f),
                         )
                         StartBar(onStart = { onStart(scriptId) })
@@ -124,7 +125,7 @@ fun SetupScreen(
                         onSettings = updateSettings,
                         normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                         appState = appState,
-                        onRemote = onRemote,
+                        remoteConnectionStatus = remoteConnectionStatus,
                         modifier = Modifier.weight(1f),
                     )
                     StartBar(onStart = { onStart(scriptId) })
@@ -232,7 +233,7 @@ private fun SettingsPanel(
     onSettings: (PlaybackSettings) -> Unit,
     normalSeconds: Int,
     appState: AppState,
-    onRemote: () -> Unit,
+    remoteConnectionStatus: RemoteConnectionStatus,
     modifier: Modifier,
 ) {
     Column(
@@ -273,7 +274,9 @@ private fun SettingsPanel(
             SettingLabel(stringResource(R.string.guide_position), "${(settings.guideLinePosition * 100).toInt()}%")
             Slider(settings.guideLinePosition, { onSettings(settings.copy(guideLinePosition = it)) }, valueRange = .15f..0.75f)
         }
-        RemoteStatusCard(appState.remoteConnectionState, onRemote)
+        SettingsCard(stringResource(R.string.remote_status)) {
+            RemoteStatusReadOnlyCard(remoteConnectionStatus)
+        }
         Spacer(Modifier.height(AppSpacing.xl))
     }
 }

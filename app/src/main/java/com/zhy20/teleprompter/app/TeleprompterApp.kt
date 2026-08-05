@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +48,14 @@ import com.zhy20.teleprompter.feature.library.LibraryScreen
 import com.zhy20.teleprompter.feature.library.LibraryViewModel
 import com.zhy20.teleprompter.feature.prompter.PrompterScreen
 import com.zhy20.teleprompter.feature.remote.RemoteScreen
+import com.zhy20.teleprompter.feature.remote.RemoteViewModel
 import com.zhy20.teleprompter.feature.settings.LanguageScreen
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.settings.SettingsViewModel
 import com.zhy20.teleprompter.feature.setup.SetupScreen
 import com.zhy20.teleprompter.feature.setup.SetupViewModel
 import com.zhy20.teleprompter.feature.setup.PersistentSetupScreen
+import com.zhy20.teleprompter.remote.session.RemoteNavigationEffect
 import java.util.Locale
 
 @Composable
@@ -176,6 +179,41 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
     ) {
         AppTheme {
         val navController = rememberNavController()
+        val coordinatorScope = rememberCoroutineScope()
+        val remoteCoordinator = remember(container, appState) {
+            RemoteAppCoordinator(
+                appState = appState,
+                repository = container.remoteSessionRepository,
+                scope = coordinatorScope,
+                navigator = { effect ->
+                    when (effect) {
+                        is RemoteNavigationEffect.StartPrompter -> {
+                            // Real navigation path for a controller-issued start. The next
+                            // phase should verify the setup page for this scriptId is on top
+                            // and flush SetupViewModel before beginPlayback; until then the
+                            // command is applied through the existing playback engine.
+                            appState.beginPlayback(effect.scriptId)
+                            navController.navigate(AppRoutes.prompter(effect.scriptId))
+                        }
+                    }
+                },
+            )
+        }
+        // Publish a fresh snapshot whenever the real app state changes while a controller is
+        // connected, so the remote page always reflects the true prompter state.
+        val remoteSessionState by container.remoteSessionRepository.sessionState.collectAsStateWithLifecycle()
+        val isRemoteConnected = remoteSessionState.isConnected
+        LaunchedEffect(
+            isRemoteConnected,
+            appState.prompterSurface,
+            appState.selectedScriptId,
+            appState.playbackState,
+            appState.playbackSession.currentSemanticProgress,
+            appState.playbackSession.elapsedTimeMillis,
+            appState.playbackSettings.speedMultiplier,
+        ) {
+            if (isRemoteConnected) remoteCoordinator.publishSnapshot()
+        }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             NavHost(navController = navController, startDestination = AppRoutes.Library) {
             composable(AppRoutes.Library) { entry ->
@@ -225,6 +263,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     onSetup = { id -> appState.selectScript(id); navController.navigate(AppRoutes.setup(id)) },
                     onRemote = { navController.navigate(AppRoutes.Remote) },
                     onSettings = { navController.navigate(AppRoutes.Settings) },
+                    remoteConnectionStatus = remoteSessionState.status,
                     uiState = libraryState,
                     importState = importState,
                     onImportErrorDismiss = libraryViewModel::clearImportError,
@@ -262,8 +301,8 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                 PersistentSetupScreen(
                     viewModel = setupViewModel,
                     appState = appState,
+                    remoteConnectionStatus = remoteSessionState.status,
                     onBack = { navController.popBackStack() },
-                    onRemote = { navController.navigate(AppRoutes.Remote) },
                     onStart = { scriptId -> navController.navigate(AppRoutes.prompter(scriptId)) },
                 )
             }
@@ -284,6 +323,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                         appState,
                         onExit = { navController.popBackStack() },
                         scriptOverride = scriptState.script,
+                        remoteConnectionStatus = remoteSessionState.status,
                     )
                 } else if (!scriptState.isLoading) {
                     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -291,7 +331,22 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     }
                 }
             }
-            composable(AppRoutes.Remote) { RemoteScreen(appState, onBack = { navController.popBackStack() }) }
+            composable(AppRoutes.Remote) { entry ->
+                val factory = remember(entry, container) {
+                    viewModelFactory {
+                        initializer {
+                            RemoteViewModel(container.remoteSessionRepository)
+                        }
+                    }
+                }
+                val remoteViewModel: RemoteViewModel = viewModel(viewModelStoreOwner = entry, factory = factory)
+                val remoteState by remoteViewModel.uiState.collectAsStateWithLifecycle()
+                RemoteScreen(
+                    state = remoteState,
+                    onAction = remoteViewModel::handle,
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(AppRoutes.Settings) {
                 SettingsScreen(
                     appState,

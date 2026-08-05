@@ -98,6 +98,14 @@
     <string name="remote_status">Remote status</string>
     <string name="remote_can_start">The remote can also start playback</string>
     <string name="device_connected">Connected: shooting phone</string>
+    <string name="connected_device_name">Connected: %1$s</string>
+    <string name="remote_disabled">Remote disabled</string>
+    <string name="remote_connecting">Connecting</string>
+    <string name="remote_reconnecting">Reconnecting</string>
+    <string name="remote_handshake_failed">Connection failed: handshake</string>
+    <string name="remote_protocol_mismatch">Connection failed: protocol version mismatch</string>
+    <string name="remote_transport_unavailable">Connection failed: transport unavailable</string>
+    <string name="remote_rejected">Connection failed: rejected</string>
     <string name="disconnected">Disconnected</string>
     <string name="waiting_connection">Waiting</string>
     <string name="connected">Connected</string>
@@ -134,6 +142,7 @@
     <string name="current_script">Current script</string>
     <string name="ready">Ready</string>
     <string name="nearby_text">Text near guide line</string>
+    <string name="empty_nearby_text">(No text summary)</string>
     <string name="speed">Speed</string>
     <string name="speed_down">−0.1×</string>
     <string name="speed_up">+0.1×</string>

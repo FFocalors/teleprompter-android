@@ -70,7 +70,7 @@
 
 ## 部分完成
 
-- 控制端页面和连接状态是本地 Mock，尚未使用网络传输。
+- 控制端页面已从本地 Mock 状态改造为远控基础架构：领域模型（角色、连接状态、设备、会话、快照）、协议消息与命令校验、Session Repository、可注入的 Fake Transport，以及提词端状态快照与控制命令协调层。控制端命令经 `RemoteScreen → RemoteViewModel → Repository → Transport → 协议消息 → 应用协调层 → AppState/导航 → 新快照` 的完整链路驱动真实播放；但真实局域网连接、二维码配对、WebSocket 和双设备通信仍未实现，当前通过同一设备上的 Fake Transport loopback 演示。
 - 轻量富文本编辑器没有重做、格式继承和完整 IME 组合样式。
 - 播放引擎已使用真实布局和时间轴，但仍是应用内会话，未提供独立播放服务。
 - Android 设备兼容性、TalkBack、大字体和长时间播放压力测试还需要更多矩阵验证。

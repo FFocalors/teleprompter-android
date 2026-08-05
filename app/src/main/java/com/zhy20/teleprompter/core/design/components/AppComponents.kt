@@ -40,7 +40,7 @@ import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppElevation
 import com.zhy20.teleprompter.core.design.AppSpacing
-import com.zhy20.teleprompter.core.model.RemoteConnectionState
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 
 @Composable
 fun AppCard(
@@ -163,13 +163,24 @@ fun ChoiceRow(
     }
 }
 
+/**
+ * Renders the sealed [RemoteConnectionStatus] lifecycle as a dot + label. The UI never has
+ * to guess which state a connection is in.
+ */
 @Composable
-fun ConnectionStatusLabel(state: RemoteConnectionState) {
+fun ConnectionStatusLabel(state: RemoteConnectionStatus) {
     val (label, color) = when (state) {
-        RemoteConnectionState.Disconnected -> stringResource(R.string.disconnected) to AppColors.TextWeak
-        RemoteConnectionState.Waiting -> stringResource(R.string.waiting_connection) to AppColors.Warning
-        RemoteConnectionState.Connected -> stringResource(R.string.connected) to AppColors.Success
-        RemoteConnectionState.ConnectionLost -> stringResource(R.string.connection_lost) to AppColors.Danger
+        RemoteConnectionStatus.Disabled,
+        RemoteConnectionStatus.Ready,
+        -> stringResource(R.string.disconnected) to AppColors.TextWeak
+
+        RemoteConnectionStatus.WaitingForController,
+        RemoteConnectionStatus.Connecting,
+        -> stringResource(R.string.waiting_connection) to AppColors.Warning
+
+        is RemoteConnectionStatus.Connected -> stringResource(R.string.connected) to AppColors.Success
+        is RemoteConnectionStatus.Reconnecting -> stringResource(R.string.connection_lost) to AppColors.Danger
+        is RemoteConnectionStatus.Failed -> stringResource(R.string.connection_lost) to AppColors.Danger
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = color) {}
@@ -178,9 +189,13 @@ fun ConnectionStatusLabel(state: RemoteConnectionState) {
     }
 }
 
+/**
+ * Clickable entry card used on the library/home page. Shows the connection status and
+ * navigates to the remote page.
+ */
 @Composable
-fun RemoteStatusCard(
-    state: RemoteConnectionState,
+fun RemoteStatusEntryCard(
+    state: RemoteConnectionStatus,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -209,7 +224,53 @@ fun RemoteStatusCard(
                 }
             }
             Text(
-                if (state == RemoteConnectionState.Connected) stringResource(R.string.device_connected) else stringResource(R.string.connect_remote),
+                stringResource(
+                    if (state is RemoteConnectionStatus.Connected) R.string.device_connected else R.string.connect_remote,
+                ),
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+/**
+ * Read-only status card used on the setup page. It never navigates and only reflects the
+ * current connection state and connected device name.
+ */
+@Composable
+fun RemoteStatusReadOnlyCard(
+    state: RemoteConnectionStatus,
+    modifier: Modifier = Modifier,
+) {
+    val deviceLabel = (state as? RemoteConnectionStatus.Connected)?.device?.displayName
+    AppCard(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+        ) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth < 230.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PhoneAndroid, null, tint = AppColors.Primary)
+                            Spacer(Modifier.width(AppSpacing.xs))
+                            Text(stringResource(R.string.remote_controller), fontWeight = FontWeight.Bold, maxLines = 2)
+                        }
+                        ConnectionStatusLabel(state)
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PhoneAndroid, null, tint = AppColors.Primary)
+                        Spacer(Modifier.width(AppSpacing.xs))
+                        Text(stringResource(R.string.remote_controller), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        ConnectionStatusLabel(state)
+                    }
+                }
+            }
+            Text(
+                deviceLabel?.let { stringResource(R.string.connected_device_name, it) }
+                    ?: stringResource(if (state is RemoteConnectionStatus.Connected) R.string.device_connected else R.string.connect_remote),
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )
