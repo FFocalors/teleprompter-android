@@ -13,23 +13,72 @@ data class PlaybackLayoutMetrics(
     val totalScrollDistancePx: Float,
 )
 
+/**
+ * How the playback layout calculator positions the first line. Preview keeps the classic
+ * "enter from the lower edge" rule so the setup page is unchanged; live playback uses the
+ * reading anchor captured when playback started (guide line, or top-quarter when off).
+ */
+enum class PlaybackLayoutMode {
+    Preview,
+    LivePlayback,
+}
+
+/**
+ * Immutable logical reading anchor captured when a live playback session starts. Pixel
+ * offsets are re-derived on every layout measurement, but the logical anchor never changes
+ * while the session is alive — moving or toggling the visual guide line afterwards has no
+ * effect on text position or nearby-text selection.
+ */
+data class PlaybackReadingAnchor(
+    /** Fraction of the content viewport the first text baseline starts at. */
+    val viewportFraction: Float,
+    /** Extra visual lines below the anchor before the first text line (guide-on only). */
+    val initialTextOffsetLines: Float,
+    /** Total duration in millis captured at session start (drives progress scaling). */
+    val durationMillis: Long,
+    /** The script's normal (speed-mode) duration in seconds, captured at session start. */
+    val normalDurationSeconds: Int,
+)
+
 object PlaybackLayoutCalculator {
     /** Places the top of the first line near the bottom while keeping that line readable. */
     private const val InitialTextTopFraction = 0.82f
     private const val FinalTextBottomFraction = 0.67f
 
-    fun calculate(viewportHeightPx: Float, textHeightPx: Float): PlaybackLayoutMetrics {
+    /** Legacy preview/playback entry point; behaves exactly as before (bottom entry). */
+    fun calculate(viewportHeightPx: Float, textHeightPx: Float): PlaybackLayoutMetrics =
+        calculate(viewportHeightPx, textHeightPx, mode = PlaybackLayoutMode.Preview, readingAnchor = null, lineHeightPx = 0f)
+
+    /**
+     * Layout calculation with an explicit mode. [PlaybackLayoutMode.Preview] keeps the
+     * original bottom-entry rule; [PlaybackLayoutMode.LivePlayback] uses the captured
+     * [PlaybackReadingAnchor]:
+     *  - guide on: first line sits [PlaybackReadingAnchor.initialTextOffsetLines] visual
+     *    lines below the anchor Y;
+     *  - guide off: first line baseline at viewport × 0.25 from the top.
+     */
+    fun calculate(
+        viewportHeightPx: Float,
+        textHeightPx: Float,
+        mode: PlaybackLayoutMode,
+        readingAnchor: PlaybackReadingAnchor?,
+        lineHeightPx: Float,
+    ): PlaybackLayoutMetrics {
         val viewport = viewportHeightPx.takeIf { it.isFinite() && it > 0f } ?: 0f
         val text = textHeightPx.takeIf { it.isFinite() && it >= 0f } ?: 0f
         if (viewport == 0f) return PlaybackLayoutMetrics(0f, text, false, 0f, 0f, 0f)
+        if (text <= 0.5f) return PlaybackLayoutMetrics(viewport, text, false, 0f, 0f, 0f)
 
-        if (text <= 0.5f) {
-            return PlaybackLayoutMetrics(viewport, text, false, 0f, 0f, 0f)
+        val start = if (mode == PlaybackLayoutMode.Preview || readingAnchor == null) {
+            // Classic rule: the first line enters from the lower edge of the playback viewport.
+            viewport * InitialTextTopFraction
+        } else {
+            // Live playback: anchor Y from the captured fraction, plus the requested visual
+            // lines below it (guide-on case), scaled by the real measured line height.
+            val line = lineHeightPx.takeIf { it.isFinite() && it > 0f } ?: 0f
+            val anchorY = viewport * readingAnchor.viewportFraction.coerceIn(0f, 1f)
+            anchorY + readingAnchor.initialTextOffsetLines.coerceAtLeast(0f) * line
         }
-
-        // The document still begins with its first paragraph, but that paragraph enters from
-        // the lower edge of the playback viewport before moving upward.
-        val start = viewport * InitialTextTopFraction
         val end = viewport * FinalTextBottomFraction - text
         val distance = (start - end).coerceAtLeast(0f)
         return PlaybackLayoutMetrics(viewport, text, distance > 0.5f, start, end, distance)
@@ -52,6 +101,11 @@ data class PlaybackEngineState(
     val isManualAdjusting: Boolean = false,
     /** True only for a newly-created playback, never for pause/resume countdowns. */
     val isStartingFromBeginning: Boolean = false,
+    /**
+     * Logical reading anchor captured when this session started. Immutable for the life of
+     * the session: later guide-line moves/toggles never re-anchor the text.
+     */
+    val readingAnchor: PlaybackReadingAnchor? = null,
     internal val segmentStartedAtNanos: Long? = null,
     internal val segmentStartProgress: Float = 0f,
     internal val segmentStartElapsedMillis: Long = 0L,
@@ -70,12 +124,21 @@ data class PlaybackEngineState(
 
 object PlaybackEngine {
     fun prepare(settings: PlaybackSettings, normalDurationSeconds: Int): PlaybackEngineState =
+        prepare(settings, normalDurationSeconds, readingAnchor = null)
+
+    /** Prepares a fresh session; [readingAnchor] is captured once and never changes. */
+    fun prepare(
+        settings: PlaybackSettings,
+        normalDurationSeconds: Int,
+        readingAnchor: PlaybackReadingAnchor?,
+    ): PlaybackEngineState =
         PlaybackEngineState(
             playbackState = PlaybackState.Preparing,
             isStartingFromBeginning = true,
             currentSpeedMultiplier = settings.speedMultiplier,
             configuredTargetDurationMillis = settings.targetDurationSeconds.coerceAtLeast(1) * 1_000L,
             actualScrollDurationMillis = durationMillis(settings, normalDurationSeconds),
+            readingAnchor = readingAnchor,
         )
 
     fun updateLayout(
@@ -85,9 +148,21 @@ object PlaybackEngine {
         settings: PlaybackSettings,
         normalDurationSeconds: Int,
         nowNanos: Long,
+        lineHeightPx: Float = 0f,
     ): PlaybackEngineState {
         val current = tick(state, nowNanos)
-        val layout = PlaybackLayoutCalculator.calculate(viewportHeightPx, textHeightPx)
+        val layout = if (state.readingAnchor != null) {
+            PlaybackLayoutCalculator.calculate(
+                viewportHeightPx = viewportHeightPx,
+                textHeightPx = textHeightPx,
+                mode = PlaybackLayoutMode.LivePlayback,
+                readingAnchor = state.readingAnchor,
+                lineHeightPx = lineHeightPx,
+            )
+        } else {
+            // No anchor (preview path / legacy callers): keep the classic bottom-entry rule.
+            PlaybackLayoutCalculator.calculate(viewportHeightPx, textHeightPx)
+        }
         val progress = current.currentSemanticProgress.safeProgress()
         return current.copy(
             layoutReady = viewportHeightPx > 0f && textHeightPx >= 0f,

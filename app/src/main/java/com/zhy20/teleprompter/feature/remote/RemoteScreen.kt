@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -450,15 +451,28 @@ private fun NearbyTextCard(snapshot: RemotePrompterSnapshot, modifier: Modifier 
     AppCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.nearby_text), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
-            Surface(color = AppColors.Secondary.copy(alpha = .25f), shape = MaterialTheme.shapes.medium) {
-                Text(
-                    snapshot.nearbyText.orEmpty().ifBlank { stringResource(R.string.empty_nearby_text) },
-                    modifier = Modifier.fillMaxWidth().padding(AppSpacing.md).semantics { testTag = NearbyTextTestTag },
-                    color = AppColors.TextPrimary,
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 5,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            // Fixed-height text area: derived from the real line height so fontScale and
+            // screen width never change the card height. The progress bar and time rows stay
+            // at a stable Y regardless of the nearby text length.
+            val density = LocalDensity.current
+            val lineHeightPx = with(density) { MaterialTheme.typography.bodyLarge.lineHeight.toPx() }
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val narrowRows = if (maxWidth < 360.dp || lineHeightPx > 28f * density.density) 4 else 5
+                val textAreaHeight = with(density) { (lineHeightPx * narrowRows).toDp() }
+                Surface(
+                    color = AppColors.Secondary.copy(alpha = .25f),
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().height(textAreaHeight),
+                ) {
+                    Text(
+                        snapshot.nearbyText.orEmpty().ifBlank { stringResource(R.string.empty_nearby_text) },
+                        modifier = Modifier.fillMaxWidth().padding(AppSpacing.md).semantics { testTag = NearbyTextTestTag },
+                        color = AppColors.TextPrimary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = narrowRows,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             LinearProgressIndicator(
                 progress = { snapshot.progress.coerceIn(0f, 1f) },

@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.ChineseSpeechDurationEstimator
+import com.zhy20.teleprompter.core.model.GuideMode
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackSettings
 import com.zhy20.teleprompter.core.model.PlaybackState
@@ -20,6 +21,8 @@ import com.zhy20.teleprompter.core.model.currentNormalEstimatedDurationSeconds
 import com.zhy20.teleprompter.core.model.normalizedToDisplayPreset
 import com.zhy20.teleprompter.core.util.PlaybackEngine
 import com.zhy20.teleprompter.core.util.PlaybackEngineState
+import com.zhy20.teleprompter.core.util.PlaybackReadingAnchor
+import com.zhy20.teleprompter.core.util.PlaybackTiming
 
 class AppState(
     private val clockNanos: () -> Long = System::nanoTime,
@@ -140,15 +143,46 @@ class AppState(
     /**
      * Starts a new session for the selected script. This is deliberately separate from resume:
      * the setup page and remote-control entry point must never inherit a prior session position.
+     * The reading anchor is captured once from the guide state at this moment and never changes
+     * afterwards, so moving/toggling the visual guide line during playback has no effect on the
+     * text geometry.
      */
     private fun startPlaybackFromBeginning() {
-        playbackSession = PlaybackEngine.prepare(playbackSettings, normalEstimatedDurationSeconds(selectedScriptId))
+        val guideOn = playbackSettings.guideMode != GuideMode.Off
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = if (guideOn) playbackSettings.guideLinePosition else 0.25f,
+            initialTextOffsetLines = if (guideOn) 1.5f else 0f,
+            durationMillis = PlaybackTiming.playbackDurationSeconds(playbackSettings, normalEstimatedDurationSeconds(selectedScriptId)) * 1_000L,
+            normalDurationSeconds = normalEstimatedDurationSeconds(selectedScriptId),
+        )
+        playbackSession = PlaybackEngine.prepare(playbackSettings, normalEstimatedDurationSeconds(selectedScriptId), readingAnchor = anchor)
         val initialState = if (playbackSettings.countdown == CountdownOption.Off) {
             PlaybackState.Playing
         } else {
             PlaybackState.Countdown(playbackSettings.countdown.seconds)
         }
         playbackSession = PlaybackEngine.setPlaybackState(playbackSession, initialState, clockNanos())
+    }
+
+    /**
+     * Updates only the visual guide overlay (mode/position) and persists it to the current
+     * script settings. Unlike [updatePlaybackSettings], this never reconfigures the
+     * PlaybackEngine: the text start, progress, elapsed/remaining and scroll distance are
+     * untouched, so the reading position cannot jump when the user moves or toggles the line.
+     */
+    fun updateGuideOverlay(
+        mode: GuideMode = playbackSettings.guideMode,
+        position: Float = playbackSettings.guideLinePosition,
+    ) {
+        val updated = playbackSettings.copy(
+            guideMode = mode,
+            guideLinePosition = position.coerceIn(0.15f, 0.75f),
+        )
+        playbackSettings = updated.normalizedToDisplayPreset()
+        val id = selectedScriptId
+        val old = script(id)
+        val persisted = old.copy(playbackSettings = playbackSettings, lastModifiedAt = System.currentTimeMillis())
+        if (id == "new") draftScript = persisted else scripts = scripts.map { if (it.id == id) persisted else it }
     }
 
     fun finishCountdown() {
@@ -161,7 +195,7 @@ class AppState(
         }
     }
 
-    fun updatePlaybackLayout(viewportHeightPx: Float, textHeightPx: Float) {
+    fun updatePlaybackLayout(viewportHeightPx: Float, textHeightPx: Float, lineHeightPx: Float = 0f) {
         playbackSession = PlaybackEngine.updateLayout(
             playbackSession,
             viewportHeightPx,
@@ -169,6 +203,7 @@ class AppState(
             playbackSettings,
             normalEstimatedDurationSeconds(selectedScriptId),
             clockNanos(),
+            lineHeightPx = lineHeightPx,
         )
     }
 
@@ -185,7 +220,7 @@ class AppState(
     }
 
     fun updateGuidePosition(position: Float) {
-        updatePlaybackSettings(playbackSettings.copy(guideLinePosition = position.coerceIn(0.15f, 0.75f)))
+        updateGuideOverlay(position = position)
     }
 
     fun onPlaybackEvent(event: PlaybackEvent) {
@@ -201,7 +236,7 @@ class AppState(
             PlaybackEvent.SeekBackwardSmall -> progress = (progress - 0.03f).coerceAtLeast(0f)
             is PlaybackEvent.SeekTo -> progress = event.progress.coerceIn(0f, 1f)
             PlaybackEvent.EndPlayback -> playbackState = PlaybackState.Finished
-            is PlaybackEvent.ChangeGuideMode -> updatePlaybackSettings(playbackSettings.copy(guideMode = event.mode))
+            is PlaybackEvent.ChangeGuideMode -> updateGuideOverlay(mode = event.mode)
         }
     }
 

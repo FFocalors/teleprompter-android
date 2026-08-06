@@ -139,10 +139,17 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 
 ### 提词线附近文字（真实定位）
 
-- `nearbyText` 不再来自静态 `plainTextPreview`。正式播放页的 `PrompterViewport` 持有真实 `TextLayoutResult`，按 `viewportHeight × guideLinePosition` 得到提词线视口 Y，再减去当前滚动偏移（`contentOffset`）换算成正文本地 Y，用 `getLineForVerticalPosition` 找到穿越的视觉行。
-- 取前/当前/后最多 3 个视觉行（首尾自动夹取），合并为带换行的纯文本（上限 220 字符），空文档返回 null；不传输完整富文本。
-- 更新节流：`anchorLineIndex` 或提取文本变化才上报（`PrompterScreen` 写入 `AppState.playbackNearbyText`，`RemoteAppCoordinator.publishSnapshot` 读取）；播放进度仍沿用 250 ms 快照节流，附近文字变化可立即发布。离开播放页清空，避免旧文字残留。
-- 镜像只影响横向 `scaleX`，纵向行定位不受影响；`GuideMode.Off` 时仍用 `guideLinePosition` 作为阅读锚点。
+- `nearbyText` 不再来自静态 `plainTextPreview`。正式播放页的 `PrompterViewport` 持有真实 `TextLayoutResult`，按**开始播放时捕获的稳定阅读锚点**（`PlaybackReadingAnchor`）定位阅读行：提词线开启时锚点为当时的 `guideLinePosition`，关闭时为视口顶部 25%。锚点 Y 减当前滚动偏移得到正文本地 Y，用 `getLineForVerticalPosition` 找到穿越的视觉行。
+- 取前/当前/后最多 3 个视觉行，但**返回的文本是从原始文本按字符范围截取的连续切片**——视觉折行边界不会变成 `\n`，只有源文本中真实存在的段落/手动换行保留；控制端按自身宽度重新自然排版。
+- 更新节流：`anchorLineIndex` 或提取文本变化才上报（`PrompterScreen` 写入 `AppState.playbackNearbyText`，`RemoteAppCoordinator.publishSnapshot` 读取）；播放进度沿用 250 ms 快照节流，附近文字变化可立即发布。离开播放页清空。
+- 视觉提词线在播放开始后可以自由移动/开关（`AppState.updateGuideOverlay`），**不会**改变阅读锚点或正文几何；nearbyText 也不会因拖线而跳段。
+
+### 播放初始位置（正式播放 vs 预览）
+
+- `PlaybackLayoutCalculator` 显式区分 `PlaybackLayoutMode.Preview`（经典底部进入，`0.82` 起始）与 `PlaybackLayoutMode.LivePlayback`（使用捕获的 `PlaybackReadingAnchor`）。
+- 正式播放开始：提词线开启 → 第一行位于锚点线下约 1.5 个真实行高处（按实测 `lineHeight` 计算）；提词线关闭 → 第一行位于正文视口顶部约四分之一处。
+- 锚点在 Session 中不可变：后续移动/开关提词线只更新视觉辅助层与台本设置，不调用 `PlaybackEngine.reconfigure`，正文 progress/elapsed/remaining/scrollDistance 全部保持不变。
+- 样式设置页实时预览仍走 Preview 路径，第一行位置、提词线逻辑、横竖屏画布均与修改前一致。
 
 ### 连接入口
 

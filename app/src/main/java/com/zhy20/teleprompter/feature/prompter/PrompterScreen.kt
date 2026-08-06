@@ -187,7 +187,11 @@ fun PrompterScreen(
                 modifier = Modifier.fillMaxSize(),
                 scriptTestTag = PlaybackScriptTestTag,
                 onLayoutMeasured = { metrics ->
-                    appState.updatePlaybackLayout(metrics.contentViewportHeightPx, metrics.textMeasuredHeightPx)
+                    appState.updatePlaybackLayout(
+                        metrics.contentViewportHeightPx,
+                        metrics.textMeasuredHeightPx,
+                        lineHeightPx = metrics.lineHeightPx,
+                    )
                 },
                 statusContent = { _, viewportScale ->
                     PlaybackStatus(

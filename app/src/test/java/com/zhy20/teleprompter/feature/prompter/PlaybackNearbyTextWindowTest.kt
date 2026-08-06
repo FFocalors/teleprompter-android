@@ -124,24 +124,35 @@ class PlaybackNearbyTextWindowTest {
     @Test
     fun englishLongParagraphWrappingIsHandledByVisualLines() {
         // A single paragraph wrapped into 4 visual lines: the window follows the visual
-        // lines, not paragraph boundaries. Ranges are derived from the real text so the
-        // expected window cannot drift from hand-counted offsets.
+        // lines for the anchor, but the returned text is a CONTIGUOUS slice of the source —
+        // the visual line boundaries are not inserted as newlines.
         val text = "one two three four five six seven eight nine ten"
-        val lineTexts = listOf(
-            "one two thr",    // wraps mid-word
-            "ee four five",
-            " six seven ei",
-            "ght nine ten",
+        val ranges = listOf(
+            VisualLineRange(0, 11),           // "one two thr"
+            VisualLineRange(11, 22),          // "ee four five"
+            VisualLineRange(22, 34),          // " six seven e"
+            VisualLineRange(34, text.length), // "ight nine ten"
         )
-        val ranges = buildList {
-            var cursor = 0
-            lineTexts.forEach { line ->
-                add(VisualLineRange(cursor, cursor + line.length))
-                cursor += line.length
-            }
-        }
         val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 1, windowLines = 3)
         assertEquals(1, state!!.anchorLineIndex)
-        assertEquals("one two thr\nee four five\n six seven ei", state.text)
+        // No newline between the three visual lines — only the source text, contiguous.
+        assertEquals("one two three four five six seven", state.text)
+    }
+
+    @Test
+    fun paragraphNewlinesArePreservedButAutoWrapBoundariesAreNot() {
+        val text = "第一段涵盖了标点、数字等内容。" + "\n" + "第二段开始。"
+        // The first paragraph auto-wraps into 3 visual lines at the tablet width; the
+        // paragraph boundary (the real '\n') stays between paragraphs.
+        val ranges = listOf(
+            VisualLineRange(0, 6),   // "第一段涵盖了"
+            VisualLineRange(6, 12),  // "标点、数字等内"
+            VisualLineRange(12, 17), // "容。"
+            VisualLineRange(18, 23), // "第二段开始。"
+        )
+        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 1, windowLines = 4)
+        assertEquals(1, state!!.anchorLineIndex)
+        // Visual boundaries dropped; the real paragraph newline preserved.
+        assertEquals("第一段涵盖了标点、数字等内容。\n第二段开始。", state.text)
     }
 }

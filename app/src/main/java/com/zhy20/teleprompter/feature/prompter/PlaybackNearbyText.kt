@@ -10,7 +10,11 @@ import androidx.compose.ui.text.TextLayoutResult
 data class PlaybackNearbyTextState(
     /** Index of the visual line the guide line crosses. */
     val anchorLineIndex: Int,
-    /** Plain text of up to [windowLines] visual lines (previous/current/next), newline-joined. */
+    /**
+     * Plain text of the window. The character range is taken from the ORIGINAL text so
+     * visual line boundaries (auto-wraps) are not inserted as newlines; only newlines that
+     * actually exist in the source survive. The controller re-flows the text at its own width.
+     */
     val text: String,
 )
 
@@ -25,8 +29,11 @@ data class VisualLineRange(
 
 /**
  * Pure selection of the nearby-text window around [anchorLineIndex] over a list of visual
- * line ranges. Works on any [List]<[VisualLineRange]> so JVM tests can feed synthetic line
- * layouts; [extractNearbyTextWindow] builds the ranges from a real [TextLayoutResult].
+ * line ranges. The returned text is a CONTIGUOUS slice of [fullText] from the first selected
+ * line's start to the last selected line's end — visual line boundaries are never turned
+ * into newline characters, so the controller never sees "line1\nline2\nline3" from
+ * auto-wrapping. Only newlines already present in [fullText] (paragraph breaks and explicit
+ * user line breaks) survive.
  *
  * @param windowLines how many lines to include around the anchor (default 3: prev/current/next).
  * @param maxChars hard cap on the returned text length.
@@ -58,15 +65,12 @@ fun selectNearbyTextWindow(
         end = last
     }
 
-    val builder = StringBuilder()
-    for (line in start..end) {
-        if (builder.isNotEmpty()) builder.append('\n')
-        val range = lines[line]
-        if (range.endExclusive > range.start) {
-            builder.append(fullText.substring(range.start, range.endExclusive))
-        }
-    }
-    val raw = builder.toString().trim()
+    val sliceStart = lines[start].start.coerceAtLeast(0)
+    val sliceEnd = lines[end].endExclusive.coerceAtMost(fullText.length)
+    if (sliceEnd <= sliceStart) return null
+
+    // Contiguous slice: preserves only the source's own newlines.
+    val raw = fullText.substring(sliceStart, sliceEnd).trim()
     if (raw.isEmpty()) return null
 
     val truncated = if (raw.length > maxChars) raw.substring(0, maxChars) else raw

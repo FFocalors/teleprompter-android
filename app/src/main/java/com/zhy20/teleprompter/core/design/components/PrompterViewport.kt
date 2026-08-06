@@ -114,6 +114,8 @@ fun PrompterViewport(
             statusBandHeightPx = statusHeightPx.toFloat(),
             textMeasuredHeightPx = fullTextHeightPx.toFloat(),
             guidePosition = settings.guideLinePosition,
+            readingAnchor = session?.readingAnchor,
+            lineHeightPx = with(density) { textStyle.lineHeight.toPx() },
         )
         val previewMaxLines = with(density) {
             val lineHeightPx = textStyle.lineHeight.toPx().coerceAtLeast(1f)
@@ -141,17 +143,19 @@ fun PrompterViewport(
             }
         }
 
-        // Real nearby-text location: convert the guide line's viewport Y into the text node's
-        // local coordinates (accounting for the current scroll translationY), then find the
-        // visual line it crosses. A derived state keeps the extraction cheap: it recomputes
-        // only when an input actually changes, and onNearbyTextChanged fires only when the
-        // anchor line or the extracted text changes (never per frame).
+        // Real nearby-text location. The reading anchor is the STABLE one captured at session
+        // start (session.readingAnchor), never the live guideLinePosition — so moving or
+        // toggling the visual guide line during playback cannot make the controller's text
+        // jump to a different passage. The anchor Y in viewport coordinates is
+        // contentHeight × anchor.viewportFraction; subtracting the current scroll offset
+        // yields the text-local Y of the reading line.
         var lastNearbyAnchor by remember { mutableStateOf(-1) }
         var lastNearbyText by remember { mutableStateOf<String?>(null) }
+        val readingAnchor = session?.readingAnchor
         val nearbyState = remember(
             mode,
             playbackTextLayout,
-            settings.guideLinePosition,
+            readingAnchor,
             contentOffset,
             contentHeightPx,
             document,
@@ -159,12 +163,10 @@ fun PrompterViewport(
             if (mode != PrompterViewportMode.Playback) return@remember null
             val layout = playbackTextLayout ?: return@remember null
             if (contentHeightPx <= 0) return@remember null
-            val guideViewportY = contentHeightPx * settings.guideLinePosition.coerceIn(0.15f, 0.75f)
-            // The text node is laid out at the top of the content box and translated by
-            // contentOffset (graphicsLayer translationY); the guide line's text-local Y is
-            // therefore viewportY - contentOffset.
-            val guideLocalY = guideViewportY - contentOffset
-            extractNearbyTextWindow(layout, guideLocalY)
+            val anchorFraction = readingAnchor?.viewportFraction ?: 0.25f
+            val anchorViewportY = contentHeightPx * anchorFraction.coerceIn(0f, 1f)
+            val anchorLocalY = anchorViewportY - contentOffset
+            extractNearbyTextWindow(layout, anchorLocalY)
         }
         LaunchedEffect(nearbyState) {
             val state = nearbyState
