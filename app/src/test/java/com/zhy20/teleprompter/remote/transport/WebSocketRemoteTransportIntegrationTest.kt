@@ -30,10 +30,10 @@ class WebSocketRemoteTransportIntegrationTest {
         // Bind to port 0 so the OS assigns a free port (avoids cross-test collisions).
         val prompterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val server = WebSocketRemoteTransport(
-            role = WebSocketRemoteTransport.Role.Prompter,
             bindPort = 0,
             scope = prompterScope,
         )
+        server.setRole(WebSocketRemoteTransport.Role.Prompter)
         server.start()
 
         // Wait for the server to bind its port.
@@ -49,9 +49,9 @@ class WebSocketRemoteTransportIntegrationTest {
 
         val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val client = WebSocketRemoteTransport(
-            role = WebSocketRemoteTransport.Role.Controller,
             scope = clientScope,
         )
+        client.setRole(WebSocketRemoteTransport.Role.Controller)
         client.start()
 
         val serverConnected = CompletableDeferred<Unit>()
@@ -147,11 +147,73 @@ class WebSocketRemoteTransportIntegrationTest {
     }
 
     @Test
+    fun runtimeRoleSwitchLetsControllerSendAfterSetRole() = runRealTest {
+        // Regression for the two-device hang: the same transport instance is constructed once
+        // (AppContainer) and switches role at runtime. A controller must send through its
+        // client socket after setRole(Controller), not through the (null) server.
+        val prompterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val server = WebSocketRemoteTransport(bindPort = 0, scope = prompterScope)
+        server.setRole(WebSocketRemoteTransport.Role.Prompter)
+        server.start()
+        val port = withTimeout(5_000) {
+            var candidate: Int? = null
+            while (candidate == null) {
+                candidate = server.boundPort.value
+                if (candidate == null) kotlinx.coroutines.delay(50)
+            }
+            candidate
+        }
+
+        val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val client = WebSocketRemoteTransport(scope = clientScope)
+        // Constructed with the default Prompter role; switch it to Controller at runtime —
+        // exactly what the repository does when the user picks "本机作为控制端".
+        client.setRole(WebSocketRemoteTransport.Role.Controller)
+        client.start()
+
+        val serverMessages = mutableListOf<RemoteMessage>()
+        val serverJob = launch { server.incomingMessages.collect { serverMessages.add(it) } }
+        val serverConnected = CompletableDeferred<Unit>()
+        val serverEventsJob = launch { server.connectionEvents.collect { if (it is RemoteTransportEvent.Connected) serverConnected.complete(Unit) } }
+        val clientConnected = CompletableDeferred<Unit>()
+        val clientEventsJob = launch { client.connectionEvents.collect { if (it is RemoteTransportEvent.Connected) clientConnected.complete(Unit) } }
+        delay(100)
+
+        client.connect("127.0.0.1", port)
+        withTimeout(5_000) { serverConnected.await() }
+        withTimeout(5_000) { clientConnected.await() }
+
+        // The ClientHello must arrive over the client socket (previously it was dropped
+        // because the controller transport still routed to its server role).
+        client.send(
+            RemoteMessage.ClientHello(
+                protocolVersion = 2,
+                sessionId = "s1",
+                pairingToken = "t".repeat(32),
+                device = RemoteDeviceInfo("d", "手机", RemoteRole.Controller),
+            ),
+        )
+        withTimeout(5_000) {
+            while (serverMessages.none { it is RemoteMessage.ClientHello }) {
+                kotlinx.coroutines.delay(20)
+            }
+        }
+        assertTrue(serverMessages.any { it is RemoteMessage.ClientHello })
+
+        server.stop()
+        client.stop()
+        serverJob.cancel()
+        serverEventsJob.cancel()
+        clientEventsJob.cancel()
+    }
+
+    @Test
     fun serverNotRunningFailsClientConnect() = runRealTest {
         // Grab a free port and close it so nothing is listening when the client connects.
         val port = java.net.ServerSocket(0).use { it.localPort }
         val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        val client = WebSocketRemoteTransport(role = WebSocketRemoteTransport.Role.Controller, scope = clientScope)
+        val client = WebSocketRemoteTransport(scope = clientScope)
+        client.setRole(WebSocketRemoteTransport.Role.Controller)
         client.start()
         val disconnected = CompletableDeferred<RemoteTransportEvent.Disconnected>()
         val job = launch { client.connectionEvents.collect { e -> if (e is RemoteTransportEvent.Disconnected) disconnected.complete(e) } }

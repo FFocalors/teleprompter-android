@@ -116,7 +116,19 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 
 - 应用层心跳 5 秒一次；连续 15 秒未收到对端有效消息判定连接丢失。心跳不进入命令执行层，随连接生命周期取消。
 - 提词端断线：本机播放不暂停、不退出、不返回台本库，仅更新连接状态；宽限期内保留原控制端身份与恢复凭据。
-- 控制端断线：使用 `sessionId + resumeToken` 以 1s/2s/4s/8s 指数退避自动重连，总窗口不超过 30 秒；用户主动断开不自动重连；重连成功立即收到完整快照。
+- 控制端断线：使用 `sessionId + resumeToken` 以 1s/2s/4s/8s 指数退避自动重连，总窗口不超过 30 秒；重连成功立即收到完整快照。
+
+### 主动断开（区别于意外掉线）
+
+三种情况明确区分：
+
+- **意外掉线**：进入自动重连，保留恢复凭据，控制端显示"正在重连"。
+- **控制端主动断开**（`disconnectFromPrompter`）：发送 `DisconnectNotice` → 停止客户端 → 设置 `userInitiatedDisconnect` → 禁止自动重连 → 清除 `connectionId`/`resumeToken`/旧快照 → 返回扫码页面。
+- **提词端主动断开**：
+  - `disconnectController`（断开当前控制端）：发 `DisconnectNotice`、关闭旧连接、销毁旧凭据；Server 继续运行并轮换新 `sessionId`/`pairingToken`，生成新二维码回到等待状态；本机播放不受影响。
+  - `stopHosting`（停止远控）：断开控制端、关闭 Server、停止心跳与等待任务、清除配对数据，返回 Disabled。
+
+实现要点：`userInitiatedDisconnect` 标志在显式断开时置位并在新一次扫码/等待时重置；`sessionGeneration` 单调递增用于过滤旧连接的迟到回调；心跳与重连 Job 都在断开路径取消；`DisconnectNotice` 发送失败不阻止本地关闭。
 
 ### 状态快照与命令执行
 
@@ -124,6 +136,13 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 - 每条命令都有唯一 `commandId`，提词端去重（重复命令返回上次结果，缓存上限 256 条）。
 - 命令按当前播放状态校验（如 `PausePlayback` 仅在 Playing 时执行），非法状态返回结构化 `CommandResult`，不强行改页面。
 - 开始播放接入 Setup 保存门控：控制端 `StartPlayback` → 协调器校验位于对应 Setup 页 → `RemoteStartPlaybackHandler` 转发给可见的 `PersistentSetupScreen` → `SetupViewModel.flushNow()` 保存成功后才 `beginPlayback` + 导航；保存失败不导航并返回 `SetupSaveFailed`。
+
+### 提词线附近文字（真实定位）
+
+- `nearbyText` 不再来自静态 `plainTextPreview`。正式播放页的 `PrompterViewport` 持有真实 `TextLayoutResult`，按 `viewportHeight × guideLinePosition` 得到提词线视口 Y，再减去当前滚动偏移（`contentOffset`）换算成正文本地 Y，用 `getLineForVerticalPosition` 找到穿越的视觉行。
+- 取前/当前/后最多 3 个视觉行（首尾自动夹取），合并为带换行的纯文本（上限 220 字符），空文档返回 null；不传输完整富文本。
+- 更新节流：`anchorLineIndex` 或提取文本变化才上报（`PrompterScreen` 写入 `AppState.playbackNearbyText`，`RemoteAppCoordinator.publishSnapshot` 读取）；播放进度仍沿用 250 ms 快照节流，附近文字变化可立即发布。离开播放页清空，避免旧文字残留。
+- 镜像只影响横向 `scaleX`，纵向行定位不受影响；`GuideMode.Off` 时仍用 `guideLinePosition` 作为阅读锚点。
 
 ### 连接入口
 

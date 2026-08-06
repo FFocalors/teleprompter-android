@@ -34,6 +34,9 @@ enum class RemoteUiSection {
     /** Connected but no ready prompter surface — show "waiting for setup". */
     ConnectedWaiting,
 
+    /** Prompter role is connected — show the controller info and disconnect/stop actions. */
+    PrompterConnected,
+
     /** Prompter is on the setup page — show the current script and start button. */
     Ready,
 
@@ -64,17 +67,23 @@ object RemoteUiMapper {
             is RemoteConnectionStatus.Failed -> RemoteUiSection.ConnectionFailed
             is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
             is RemoteConnectionStatus.Connected -> {
-                val snap = snapshot ?: return RemoteUiSection.ConnectedWaiting
-                when (snap.surface) {
-                    RemotePrompterSurface.Library,
-                    RemotePrompterSurface.Editor,
-                    -> RemoteUiSection.ConnectedWaiting
+                if (role == RemoteRole.Prompter) {
+                    // The prompter side shows connection management (controller name + the
+                    // disconnect/stop actions), never the controller's playback panels.
+                    RemoteUiSection.PrompterConnected
+                } else {
+                    val snap = snapshot ?: return RemoteUiSection.ConnectedWaiting
+                    when (snap.surface) {
+                        RemotePrompterSurface.Library,
+                        RemotePrompterSurface.Editor,
+                        -> RemoteUiSection.ConnectedWaiting
 
-                    RemotePrompterSurface.Setup -> RemoteUiSection.Ready
-                    RemotePrompterSurface.Countdown -> RemoteUiSection.Countdown
-                    RemotePrompterSurface.Playing -> RemoteUiSection.Playing
-                    RemotePrompterSurface.Paused -> RemoteUiSection.Paused
-                    RemotePrompterSurface.Finished -> RemoteUiSection.Finished
+                        RemotePrompterSurface.Setup -> RemoteUiSection.Ready
+                        RemotePrompterSurface.Countdown -> RemoteUiSection.Countdown
+                        RemotePrompterSurface.Playing -> RemoteUiSection.Playing
+                        RemotePrompterSurface.Paused -> RemoteUiSection.Paused
+                        RemotePrompterSurface.Finished -> RemoteUiSection.Finished
+                    }
                 }
             }
         }

@@ -81,7 +81,6 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         )
         DefaultRemoteSessionRepository(
             transport = WebSocketRemoteTransport(
-                role = WebSocketRemoteTransport.Role.Prompter,
                 bindPort = 8765,
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
             ),

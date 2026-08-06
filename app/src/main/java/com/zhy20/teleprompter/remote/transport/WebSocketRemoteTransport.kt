@@ -25,23 +25,26 @@ import java.net.InetSocketAddress
  * controller connection. As controller: opens a [org.java_websocket.client.WebSocketClient]
  * to a target host/port.
  *
- * This class is intentionally a *dumb frame layer*: it only surfaces connection events and
- * forwards decoded [RemoteMessage]s. Handshake validation, heartbeats, reconnect policy and
- * command execution all live in the repository, so no WebSocket concern leaks into the
- * domain layer. All inbound text is decoded through [RemoteJsonCodec]; malformed frames are
- * surfaced as a structured [RemoteMessage.ProtocolError].
+ * The [Role] is *not* fixed at construction: the same device can be a prompter or a
+ * controller depending on the session, so [setRole] is called by the repository whenever a
+ * role is chosen and any prior server/client is torn down first. This class stays a *dumb
+ * frame layer*: handshake validation, heartbeats, reconnect policy and command execution all
+ * live in the repository.
  */
 class WebSocketRemoteTransport(
-    private val role: Role,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    private val bindPort: Int = 0,
+    private val bindPort: Int = 8765,
 ) : RemoteTransport {
 
     enum class Role { Prompter, Controller }
 
+    @Volatile
+    private var role: Role = Role.Prompter
+
     private val _connectionEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 16)
     private val _incomingMessages = MutableSharedFlow<RemoteMessage>(extraBufferCapacity = 64)
     private val _boundPort = MutableStateFlow<Int?>(null)
+    private var boundPortReady = kotlinx.coroutines.CompletableDeferred<Boolean>()
 
     override val connectionEvents: SharedFlow<RemoteTransportEvent> = _connectionEvents.asSharedFlow()
     override val incomingMessages: SharedFlow<RemoteMessage> = _incomingMessages.asSharedFlow()
@@ -52,13 +55,32 @@ class WebSocketRemoteTransport(
     private var server: WebSocketServer? = null
     private var controller: org.java_websocket.client.WebSocketClient? = null
     private var activeConnection: WebSocket? = null
+    @Volatile
     private var started = false
+
+    /** Switches the transport to [role], tearing down the previous server/client. */
+    fun setRole(role: Role) {
+        if (this.role == role) return
+        this.role = role
+        runCatching { server?.stop(1_000) }
+        runCatching { controller?.close() }
+        server = null
+        controller = null
+        activeConnection = null
+        _boundPort.value = null
+        boundPortReady = kotlinx.coroutines.CompletableDeferred()
+    }
 
     override suspend fun start() {
         started = true
         when (role) {
             Role.Prompter -> startServer()
             Role.Controller -> Unit // connect(host, port) drives the client
+        }
+        if (role == Role.Prompter) {
+            // Wait for the server thread to actually bind (or fail) so the repository can
+            // read a valid port immediately after start().
+            kotlinx.coroutines.withTimeoutOrNull(5_000) { boundPortReady.await() }
         }
     }
 
@@ -123,6 +145,12 @@ class WebSocketRemoteTransport(
     }
 
     private fun startServer() {
+        // Regenerating a QR calls start() again: stop the previous server so the port can
+        // be re-bound cleanly.
+        runCatching { server?.stop(1_000) }
+        server = null
+        activeConnection = null
+
         // Try the requested port, then a small fallback range if it is taken (spec: no
         // unbounded scan). Port 0 lets the OS pick a free port.
         val attempts = buildList {
@@ -163,6 +191,7 @@ class WebSocketRemoteTransport(
                 override fun onStart() {
                     // The server thread has bound the socket here, so the real port is known.
                     _boundPort.value = port
+                    boundPortReady.complete(true)
                 }
             }
             ws.setConnectionLostTimeout(0) // application-layer heartbeat is managed by the repository
@@ -173,8 +202,11 @@ class WebSocketRemoteTransport(
             } catch (e: Exception) {
                 lastError = e
                 server = null
+                _boundPort.value = null
+                if (!boundPortReady.isCompleted) boundPortReady.complete(false)
             }
         }
+        if (!boundPortReady.isCompleted) boundPortReady.complete(false)
         _connectionEvents.tryEmit(RemoteTransportEvent.Disconnected(RemoteFailureReason.PortUnavailable))
     }
 

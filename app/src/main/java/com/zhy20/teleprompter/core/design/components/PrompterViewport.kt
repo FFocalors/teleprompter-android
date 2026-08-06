@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -41,6 +43,8 @@ import com.zhy20.teleprompter.core.util.PlaybackPreviewLayout
 import com.zhy20.teleprompter.core.util.PlaybackVisualLayer
 import com.zhy20.teleprompter.core.util.PrompterLayoutCalculator
 import com.zhy20.teleprompter.core.util.PrompterLayoutMetrics
+import com.zhy20.teleprompter.feature.prompter.PlaybackNearbyTextState
+import com.zhy20.teleprompter.feature.prompter.extractNearbyTextWindow
 import kotlin.math.floor
 import kotlin.math.min
 
@@ -71,12 +75,19 @@ fun PrompterViewport(
     scriptTestTag: String? = null,
     onLayoutMeasured: (PrompterLayoutMetrics) -> Unit = {},
     statusContent: @Composable BoxScope.(PrompterLayoutMetrics, Float) -> Unit = { _, _ -> },
+    onNearbyTextChanged: (PlaybackNearbyTextState?) -> Unit = {},
 ) {
     val density = LocalDensity.current
     var statusHeightPx by remember { mutableIntStateOf(0) }
     var contentWidthPx by remember { mutableIntStateOf(0) }
     var contentHeightPx by remember { mutableIntStateOf(0) }
     var fullTextHeightPx by remember { mutableIntStateOf(0) }
+
+    // Playback-only: the real TextLayoutResult of the visible document, used to locate the
+    // guide line's visual line. The guide Y is derived deterministically from contentOffset +
+    // contentHeightPx + guideLinePosition (the same rule PrompterGuide draws with), so no
+    // LayoutCoordinates bookkeeping is needed.
+    var playbackTextLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     BoxWithConstraints(modifier.clipToBounds()) {
         val virtualWidth = previewTarget?.width?.value ?: if (settings.orientation == PlaybackOrientation.Portrait) 360f else 640f
@@ -128,6 +139,47 @@ fun PrompterViewport(
             if (metrics.contentViewportHeightPx > 0f && metrics.textMeasuredHeightPx >= 0f) {
                 onLayoutMeasured(metrics)
             }
+        }
+
+        // Real nearby-text location: convert the guide line's viewport Y into the text node's
+        // local coordinates (accounting for the current scroll translationY), then find the
+        // visual line it crosses. A derived state keeps the extraction cheap: it recomputes
+        // only when an input actually changes, and onNearbyTextChanged fires only when the
+        // anchor line or the extracted text changes (never per frame).
+        var lastNearbyAnchor by remember { mutableStateOf(-1) }
+        var lastNearbyText by remember { mutableStateOf<String?>(null) }
+        val nearbyState = remember(
+            mode,
+            playbackTextLayout,
+            settings.guideLinePosition,
+            contentOffset,
+            contentHeightPx,
+            document,
+        ) {
+            if (mode != PrompterViewportMode.Playback) return@remember null
+            val layout = playbackTextLayout ?: return@remember null
+            if (contentHeightPx <= 0) return@remember null
+            val guideViewportY = contentHeightPx * settings.guideLinePosition.coerceIn(0.15f, 0.75f)
+            // The text node is laid out at the top of the content box and translated by
+            // contentOffset (graphicsLayer translationY); the guide line's text-local Y is
+            // therefore viewportY - contentOffset.
+            val guideLocalY = guideViewportY - contentOffset
+            extractNearbyTextWindow(layout, guideLocalY)
+        }
+        LaunchedEffect(nearbyState) {
+            val state = nearbyState
+            if (state == null) {
+                if (lastNearbyAnchor != -1 || lastNearbyText != null) {
+                    lastNearbyAnchor = -1
+                    lastNearbyText = null
+                    onNearbyTextChanged(null)
+                }
+                return@LaunchedEffect
+            }
+            if (state.anchorLineIndex == lastNearbyAnchor && state.text == lastNearbyText) return@LaunchedEffect
+            lastNearbyAnchor = state.anchorLineIndex
+            lastNearbyText = state.text
+            onNearbyTextChanged(state)
         }
 
         Column(Modifier.fillMaxSize()) {
@@ -188,7 +240,10 @@ fun PrompterViewport(
                     textAlign = settings.textAlignment.toComposeTextAlign(),
                     overflow = if (mode == PrompterViewportMode.Preview) TextOverflow.Ellipsis else TextOverflow.Clip,
                     onTextLayout = { result ->
-                        if (mode == PrompterViewportMode.Playback) fullTextHeightPx = result.size.height
+                        if (mode == PrompterViewportMode.Playback) {
+                            fullTextHeightPx = result.size.height
+                            playbackTextLayout = result
+                        }
                     },
                 )
                 PrompterGuide(

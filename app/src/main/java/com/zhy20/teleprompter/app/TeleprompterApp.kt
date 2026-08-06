@@ -224,6 +224,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             appState.playbackSession.currentSemanticProgress,
             appState.playbackSession.elapsedTimeMillis,
             appState.playbackSettings.speedMultiplier,
+            appState.playbackNearbyText,
         ) {
             if (isRemoteConnected) remoteCoordinator.publishSnapshot()
         }

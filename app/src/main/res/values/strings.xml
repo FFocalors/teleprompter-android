@@ -112,6 +112,7 @@
     <string name="remote_role_hint">提词端负责保存并播放台本；控制端只负责远程控制。</string>
     <string name="remote_role_prompter">本机作为提词端</string>
     <string name="remote_role_controller">本机作为控制端</string>
+    <string name="choose_role_again">重新选择角色</string>
     <string name="prompter_role_description">本机将启动局域网服务并显示二维码，另一台手机扫码后即可控制播放。</string>
     <string name="prompter_address_format">局域网地址 %1$s:%2$d</string>
     <string name="pairing_expires_hint">二维码约 5 分钟内有效，一次只允许一个控制端。</string>
@@ -132,6 +133,14 @@
     <string name="connect">连接</string>
     <string name="connecting">正在连接…</string>
     <string name="disconnect">断开连接</string>
+    <string name="disconnect_controller">断开当前控制端</string>
+    <string name="disconnect_from_prompter">断开连接</string>
+    <string name="stop_hosting">停止远控</string>
+    <string name="disconnect_controller_confirm">确定断开当前控制端吗？断开后将生成新的配对二维码。</string>
+    <string name="disconnect_from_prompter_confirm">确定断开与提词端的连接吗？</string>
+    <string name="stop_hosting_confirm">确定停止远控服务吗？将断开当前控制端并关闭服务。</string>
+    <string name="connected_controller">已连接控制端：%1$s</string>
+    <string name="prompter_connected_hint">本机播放不受远控断开影响。断开当前控制端后将生成新二维码。</string>
     <string name="disconnected">未连接</string>
     <string name="waiting_connection">等待连接</string>
     <string name="connected">已连接</string>
@@ -172,6 +181,8 @@
     <string name="speed">速度</string>
     <string name="speed_down">−0.1×</string>
     <string name="speed_up">+0.1×</string>
+    <string name="speed_decrease">减速</string>
+    <string name="speed_increase">加速</string>
     <string name="seek_backward">向后微调</string>
     <string name="seek_forward">向前微调</string>
     <string name="demo_state">演示状态</string>

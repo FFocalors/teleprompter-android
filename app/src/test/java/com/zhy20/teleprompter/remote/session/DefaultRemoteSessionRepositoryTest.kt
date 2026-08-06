@@ -471,4 +471,155 @@ class DefaultRemoteSessionRepositoryTest {
         assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
         assertNull(repository.snapshot.value)
     }
+
+    // ---- explicit disconnects ----
+
+    @Test
+    fun controllerDisconnectFromPrompterDoesNotReconnect() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.asController()
+        val payload = com.zhy20.teleprompter.remote.pairing.RemotePairingPayload(
+            protocolVersion = RemoteProtocol.VERSION,
+            host = "127.0.0.1",
+            port = 8765,
+            sessionId = "s1",
+            pairingToken = "tok",
+            expiresAtEpochMillis = Long.MAX_VALUE,
+        )
+        repository.connectToPrompter(payload)
+        advanceUntilIdle()
+        transport.simulateConnected(prompterDevice)
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ServerAccepted("conn-1", prompterDevice, "resume-1", snapshot(1)))
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+
+        repository.disconnectFromPrompter()
+        advanceUntilIdle()
+
+        assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
+        assertNull(repository.snapshot.value)
+        // A late transport Disconnected (from the closed socket) must NOT trigger reconnect.
+        transport.simulateDisconnected(RemoteFailureReason.HandshakeFailed)
+        advanceUntilIdle()
+        assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
+    }
+
+    @Test
+    fun prompterDisconnectControllerRotatesSessionAndQr() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.prepare(RemoteRole.Prompter)
+        repository.startWaiting()
+        val firstPayload = repository.sessionState.value.pairingPayload!!
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, firstPayload.sessionId, firstPayload.pairingToken, controllerDevice),
+        )
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+
+        repository.disconnectController()
+        advanceUntilIdle()
+
+        // Back to waiting with a brand-new session/token (old QR invalidated).
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.WaitingForController)
+        val newPayload = repository.sessionState.value.pairingPayload
+        assertTrue(newPayload != null)
+        assertTrue(newPayload!!.sessionId != firstPayload.sessionId)
+        assertTrue(newPayload.pairingToken != firstPayload.pairingToken)
+        // The DisconnectNotice was sent to the old controller.
+        assertTrue(transport.sentMessages.value.any { it is RemoteMessage.DisconnectNotice })
+    }
+
+    @Test
+    fun prompterStopHostingReturnsDisabledAndCloses() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.prepare(RemoteRole.Prompter)
+        repository.startWaiting()
+        val payload = repository.sessionState.value.pairingPayload!!
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, payload.sessionId, payload.pairingToken, controllerDevice),
+        )
+        advanceUntilIdle()
+
+        repository.stopHosting()
+        advanceUntilIdle()
+
+        assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
+        assertNull(repository.snapshot.value)
+        assertNull(repository.sessionState.value.pairingPayload)
+        // The old controller cannot resume: a stale Disconnected callback must not change state.
+        transport.simulateDisconnected(RemoteFailureReason.HandshakeFailed)
+        advanceUntilIdle()
+        assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
+    }
+
+    @Test
+    fun repeatedDisconnectsAreIdempotent() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.asController()
+        val payload = com.zhy20.teleprompter.remote.pairing.RemotePairingPayload(
+            protocolVersion = RemoteProtocol.VERSION,
+            host = "127.0.0.1",
+            port = 8765,
+            sessionId = "s1",
+            pairingToken = "tok",
+            expiresAtEpochMillis = Long.MAX_VALUE,
+        )
+        repository.connectToPrompter(payload)
+        advanceUntilIdle()
+
+        repository.disconnectFromPrompter()
+        repository.disconnectFromPrompter()
+        repository.disconnectFromPrompter()
+        advanceUntilIdle()
+
+        assertEquals(RemoteConnectionStatus.Disabled, repository.sessionState.value.status)
+    }
+
+    @Test
+    fun freshConnectAfterDisconnectResetsUserInitiatedFlag() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.asController()
+        val payload = com.zhy20.teleprompter.remote.pairing.RemotePairingPayload(
+            protocolVersion = RemoteProtocol.VERSION,
+            host = "127.0.0.1",
+            port = 8765,
+            sessionId = "s1",
+            pairingToken = "tok",
+            expiresAtEpochMillis = Long.MAX_VALUE,
+        )
+        repository.connectToPrompter(payload)
+        advanceUntilIdle()
+        transport.simulateConnected(prompterDevice)
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ServerAccepted("conn-1", prompterDevice, "resume-1", snapshot(1)))
+        advanceUntilIdle()
+
+        repository.disconnectFromPrompter()
+        advanceUntilIdle()
+
+        // Reconnect with a fresh payload: the user-initiated flag must be cleared so an
+        // unexpected drop after this DOES reconnect.
+        val freshPayload = payload.copy(sessionId = "s2", pairingToken = "tok2")
+        repository.connectToPrompter(freshPayload)
+        advanceUntilIdle()
+        transport.simulateConnected(prompterDevice)
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ServerAccepted("conn-2", prompterDevice, "resume-2", snapshot(2)))
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+
+        transport.simulateDisconnected(RemoteFailureReason.HandshakeFailed)
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Reconnecting)
+    }
 }

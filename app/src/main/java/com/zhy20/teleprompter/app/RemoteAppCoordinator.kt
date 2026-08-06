@@ -153,8 +153,9 @@ class RemoteAppCoordinator(
 
     /**
      * Builds and publishes an immutable snapshot from the current real app state, returning
-     * its revision. The full nearby text is reduced to a short plain-text summary (140 chars)
-     * so the protocol never transmits the whole rich-text document.
+     * its revision. The nearby text is the real guide-line window reported by the playback
+     * page (never a static plain-text preview); it is capped to a short plain-text summary so
+     * the protocol never transmits the whole rich-text document.
      */
     fun publishSnapshot(): Long {
         val id = appState.selectedScriptId
@@ -170,7 +171,7 @@ class RemoteAppCoordinator(
             playbackState = appState.playbackState,
             session = appState.playbackSession,
             speedMultiplier = appState.playbackSettings.speedMultiplier,
-            nearbyText = script.plainTextPreview.take(140),
+            nearbyText = appState.playbackNearbyText?.take(220),
         )
         repository.updatePrompterSnapshot(snapshot)
         return revision

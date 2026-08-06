@@ -96,7 +96,21 @@ class DefaultRemoteSessionRepository(
     private var active = false
     private var role: RemoteRole? = null
 
+    /**
+     * Set when the user explicitly disconnects (either side). While true, transport
+     * disconnects never trigger auto-reconnect, and stale callbacks cannot change the
+     * session. Reset on the next fresh connect/start.
+     */
+    private var userInitiatedDisconnect = false
+
+    /**
+     * Monotonic session generation. Any transport event/message tagged with an older
+     * generation is ignored so a closed connection cannot pollute a newer session.
+     */
+    private var sessionGeneration = 0L
+
     private var heartbeatJob: Job? = null
+    private var reconnectJob: Job? = null
     private var lastActivityNanos = System.nanoTime()
 
     private val seenCommandIds = LinkedHashMap<String, RemoteCommandResultState>()
@@ -114,6 +128,11 @@ class DefaultRemoteSessionRepository(
 
     override suspend fun prepare(role: RemoteRole) {
         this.role = role
+        userInitiatedDisconnect = false
+        (transport as? WebSocketRemoteTransport)?.setRole(
+            if (role == RemoteRole.Prompter) WebSocketRemoteTransport.Role.Prompter
+            else WebSocketRemoteTransport.Role.Controller,
+        )
         _sessionState.value = _sessionState.value.copy(
             role = role,
             status = RemoteConnectionStatus.Ready,
@@ -129,6 +148,18 @@ class DefaultRemoteSessionRepository(
             _sessionState.value = _sessionState.value.copy(status = RemoteConnectionStatus.Failed(RemoteFailureReason.TransportUnavailable))
             return
         }
+        // Re-entrant: regenerating a QR (or restarting after a drop) must invalidate the old
+        // session and stop any previous server before creating a fresh one.
+        active = false
+        userInitiatedDisconnect = false
+        stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
+        prompterCredentials = null
+        _snapshot.value = null
+        transport.stop()
+        sessionGeneration += 1
+
         active = true
         val sessionId = RemoteCredentialGenerator.newSessionId()
         val token = RemoteCredentialGenerator.newPairingToken()
@@ -178,6 +209,12 @@ class DefaultRemoteSessionRepository(
 
     override suspend fun connectToPrompter(payload: RemotePairingPayload) {
         if (role != RemoteRole.Controller) return
+        // A fresh scan always resets the user-initiated flag and stale reconnect state.
+        userInitiatedDisconnect = false
+        resumeCredentials = null
+        reconnectJob?.cancel()
+        reconnectJob = null
+        sessionGeneration += 1
         controllerCredentials = SessionCredentials(
             sessionId = payload.sessionId,
             pairingToken = payload.pairingToken,
@@ -213,7 +250,10 @@ class DefaultRemoteSessionRepository(
 
     override suspend fun disconnect() {
         active = false
+        userInitiatedDisconnect = true
         stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
         resumeCredentials = null
         controllerCredentials = null
         prompterCredentials = null
@@ -222,6 +262,87 @@ class DefaultRemoteSessionRepository(
         _sessionState.value = RemoteSessionState(
             status = RemoteConnectionStatus.Disabled,
             role = role,
+        )
+        _snapshot.value = null
+        resetCommandHistory()
+    }
+
+    override suspend fun disconnectController() {
+        if (role != RemoteRole.Prompter) return
+        userInitiatedDisconnect = true
+        stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
+        // Notify the controller, then close its connection. A failed send must not block the
+        // local close.
+        runCatching { transport.send(RemoteMessage.DisconnectNotice()) }
+        runCatching { transport.stop() }
+        sessionGeneration += 1
+        prompterCredentials = null
+        controllerTarget = null
+        _snapshot.value = null
+        resetCommandHistory()
+        // The server keeps running: rotate to a fresh session/token and a new QR.
+        startWaiting()
+    }
+
+    override suspend fun disconnectFromPrompter() {
+        if (role != RemoteRole.Controller) return
+        userInitiatedDisconnect = true
+        stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
+        runCatching { transport.send(RemoteMessage.DisconnectNotice()) }
+        runCatching { transport.stop() }
+        sessionGeneration += 1
+        resumeCredentials = null
+        controllerCredentials = null
+        controllerTarget = null
+        _snapshot.value = null
+        resetCommandHistory()
+        _sessionState.value = RemoteSessionState(
+            status = RemoteConnectionStatus.Disabled,
+            role = role,
+        )
+    }
+
+    override suspend fun stopHosting() {
+        if (role != RemoteRole.Prompter) return
+        userInitiatedDisconnect = true
+        active = false
+        stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
+        runCatching { transport.send(RemoteMessage.DisconnectNotice()) }
+        runCatching { transport.stop() }
+        sessionGeneration += 1
+        prompterCredentials = null
+        controllerTarget = null
+        _snapshot.value = null
+        resetCommandHistory()
+        _sessionState.value = RemoteSessionState(
+            status = RemoteConnectionStatus.Disabled,
+            role = role,
+        )
+    }
+
+    override suspend fun resetRole() {
+        active = false
+        userInitiatedDisconnect = true
+        stopHeartbeat()
+        reconnectJob?.cancel()
+        reconnectJob = null
+        resumeCredentials = null
+        controllerCredentials = null
+        prompterCredentials = null
+        controllerTarget = null
+        role = null
+        (transport as? WebSocketRemoteTransport)?.setRole(WebSocketRemoteTransport.Role.Prompter)
+        transport.stop()
+        sessionGeneration += 1
+        _sessionState.value = RemoteSessionState(
+            status = RemoteConnectionStatus.Disabled,
+            role = null,
         )
         _snapshot.value = null
         resetCommandHistory()
@@ -268,6 +389,7 @@ class DefaultRemoteSessionRepository(
     // ---- transport events ----
 
     private fun handleTransportEvent(event: RemoteTransportEvent) {
+        if (userInitiatedDisconnect) return
         when (event) {
             is RemoteTransportEvent.Connected -> {
                 when (role) {
@@ -322,6 +444,9 @@ class DefaultRemoteSessionRepository(
         }
         when (role) {
             RemoteRole.Prompter -> {
+                // An explicit disconnectController() already reset the session; ignore the
+                // transport's own Disconnected callback from the old connection.
+                if (userInitiatedDisconnect) return
                 if (prompterCredentials != null) {
                     _sessionState.value = RemoteSessionState(
                         status = RemoteConnectionStatus.WaitingForController,
@@ -337,6 +462,18 @@ class DefaultRemoteSessionRepository(
                 }
             }
             RemoteRole.Controller -> {
+                if (userInitiatedDisconnect) {
+                    // Explicit disconnect: no reconnect, clear everything.
+                    resumeCredentials = null
+                    controllerCredentials = null
+                    controllerTarget = null
+                    _snapshot.value = null
+                    _sessionState.value = RemoteSessionState(
+                        status = RemoteConnectionStatus.Disabled,
+                        role = role,
+                    )
+                    return
+                }
                 if (resumeCredentials != null && active) {
                     startReconnect(reason)
                 } else {
@@ -366,27 +503,30 @@ class DefaultRemoteSessionRepository(
             reconnecting = true,
         )
         val backoff = longArrayOf(1_000L, 2_000L, 4_000L, 8_000L)
-        scope.launch {
+        reconnectJob = scope.launch {
             val deadline = System.nanoTime() + 30_000L * 1_000_000L
             var attempt = 0
-            while (active && resumeCredentials != null && System.nanoTime() < deadline) {
+            while (active && !userInitiatedDisconnect && resumeCredentials != null && System.nanoTime() < deadline) {
                 delay(backoff[attempt.coerceAtMost(backoff.lastIndex)])
-                if (!active || resumeCredentials == null) return@launch
+                if (!active || userInitiatedDisconnect || resumeCredentials == null) return@launch
                 connectTransport(target.first, target.second)
                 attempt++
             }
-            if (active) {
+            if (active && !userInitiatedDisconnect) {
                 _sessionState.value = _sessionState.value.copy(
                     status = RemoteConnectionStatus.Failed(original ?: RemoteFailureReason.HandshakeFailed),
                     reconnecting = false,
                 )
             }
+            reconnectJob = null
         }
     }
 
     // ---- incoming messages ----
 
     private fun handleIncomingMessage(message: RemoteMessage) {
+        // Stale callbacks from a closed connection must never affect the current session.
+        if (userInitiatedDisconnect) return
         touchActivity()
         when (message) {
             is RemoteMessage.ClientHello -> handleClientHello(message)

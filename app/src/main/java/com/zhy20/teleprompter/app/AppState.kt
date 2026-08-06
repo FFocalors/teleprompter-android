@@ -55,6 +55,18 @@ class AppState(
     var selectedLanguage by mutableStateOf("zh-CN")
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
+    /**
+     * The real nearby text reported by the playback page (derived from the actual
+     * TextLayoutResult + guide line position). Only the final plain text lives here — never
+     * a TextLayoutResult or any Compose type. Cleared when leaving the prompter page.
+     */
+    var playbackNearbyText: String? by mutableStateOf(null)
+        private set
+
+    fun updatePlaybackNearbyText(text: String?) {
+        playbackNearbyText = text
+    }
+
     fun script(id: String): Script = scripts.firstOrNull { it.id == id }
         ?: if (id == "new") draftScript else emptyScript(id, playbackSettings)
 

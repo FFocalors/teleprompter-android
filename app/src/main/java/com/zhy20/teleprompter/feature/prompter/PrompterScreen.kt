@@ -111,6 +111,12 @@ fun PrompterScreen(
     }
     BackHandler { appState.resetPlayback(); onExit() }
 
+    // Clear the reported nearby text when leaving the prompter page so the controller never
+    // keeps stale text on Library/Editor/Setup.
+    DisposableEffect(Unit) {
+        onDispose { appState.updatePlaybackNearbyText(null) }
+    }
+
     LaunchedEffect(appState.playbackState) {
         val state = appState.playbackState
         if (state is PlaybackState.Countdown) {
@@ -189,6 +195,9 @@ fun PrompterScreen(
                         foreground = foreground,
                         viewportScale = viewportScale,
                     )
+                },
+                onNearbyTextChanged = { state ->
+                    appState.updatePlaybackNearbyText(state?.text)
                 },
             )
 

@@ -246,6 +246,10 @@ class StubRemoteSessionRepository(
     override suspend fun connectToPrompter(payload: com.zhy20.teleprompter.remote.pairing.RemotePairingPayload) = Unit
     override suspend fun connectManual(host: String, port: Int, sessionId: String, token: String) = Unit
     override suspend fun disconnect() = Unit
+    override suspend fun disconnectController() = Unit
+    override suspend fun disconnectFromPrompter() = Unit
+    override suspend fun stopHosting() = Unit
+    override suspend fun resetRole() = Unit
     override suspend fun sendCommand(command: RemoteCommand) = Unit
     override fun updatePrompterSnapshot(snapshot: RemotePrompterSnapshot) = Unit
     override fun resetCommandHistory() = Unit

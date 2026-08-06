@@ -45,6 +45,10 @@ sealed interface RemoteUiAction {
     data class ConnectToPrompter(val payload: RemotePairingPayload) : RemoteUiAction
     data class ConnectManual(val host: String, val port: Int, val sessionId: String, val token: String) : RemoteUiAction
     data object Disconnect : RemoteUiAction
+    data object DisconnectController : RemoteUiAction
+    data object DisconnectFromPrompter : RemoteUiAction
+    data object StopHosting : RemoteUiAction
+    data object ResetRole : RemoteUiAction
     data object StartPlayback : RemoteUiAction
     data object Pause : RemoteUiAction
     data object ResumeImmediately : RemoteUiAction
@@ -110,6 +114,10 @@ class RemoteViewModel(
                 repository.connectManual(action.host, action.port, action.sessionId, action.token)
             }
             RemoteUiAction.Disconnect -> viewModelScope.launch { repository.disconnect() }
+            RemoteUiAction.DisconnectController -> viewModelScope.launch { repository.disconnectController() }
+            RemoteUiAction.DisconnectFromPrompter -> viewModelScope.launch { repository.disconnectFromPrompter() }
+            RemoteUiAction.StopHosting -> viewModelScope.launch { repository.stopHosting() }
+            RemoteUiAction.ResetRole -> viewModelScope.launch { repository.resetRole() }
 
             RemoteUiAction.StartPlayback -> sendCommand(
                 RemoteCommand.StartPlayback(

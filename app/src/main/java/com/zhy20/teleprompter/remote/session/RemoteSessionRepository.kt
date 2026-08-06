@@ -48,6 +48,28 @@ interface RemoteSessionRepository {
     /** Disconnects the active session and returns to the disabled state. */
     suspend fun disconnect()
 
+    /**
+     * Prompter: disconnects the currently connected controller only. The server keeps
+     * running with a fresh session/token (new QR); the old credentials are destroyed and no
+     * reconnect is possible with them.
+     */
+    suspend fun disconnectController()
+
+    /**
+     * Controller: explicitly disconnects from the prompter. Sends a DisconnectNotice, stops
+     * the client, forbids auto-reconnect, and clears credentials + snapshot.
+     */
+    suspend fun disconnectFromPrompter()
+
+    /**
+     * Prompter: fully stops hosting — disconnects any controller, closes the server, stops
+     * heartbeat/waiting work, clears pairing data, and returns to Disabled (role kept).
+     */
+    suspend fun stopHosting()
+
+    /** Disconnects and clears the chosen role so the user can re-pick prompter/controller. */
+    suspend fun resetRole()
+
     /** Controller: sends a command request. */
     suspend fun sendCommand(command: RemoteCommand)
 
