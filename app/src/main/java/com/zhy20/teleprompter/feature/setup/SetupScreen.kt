@@ -54,6 +54,7 @@ import com.zhy20.teleprompter.core.design.components.DisplayPresetPicker
 import com.zhy20.teleprompter.core.design.components.PrompterViewport
 import com.zhy20.teleprompter.core.design.components.PrompterViewportMode
 import com.zhy20.teleprompter.core.design.components.PrompterPreviewTarget
+import com.zhy20.teleprompter.core.design.components.RemoteStatusEntryCard
 import com.zhy20.teleprompter.core.design.components.RemoteStatusReadOnlyCard
 import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.design.components.SettingsCard
@@ -84,6 +85,7 @@ fun SetupScreen(
     settingsOverride: PlaybackSettings? = null,
     onSettingsChange: ((PlaybackSettings) -> Unit)? = null,
     remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
+    onRemote: (() -> Unit)? = null,
 ) {
     val script = scriptOverride ?: appState.script(scriptId)
     val settings = settingsOverride ?: appState.playbackSettings
@@ -106,6 +108,7 @@ fun SetupScreen(
                             normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                             appState = appState,
                             remoteConnectionStatus = remoteConnectionStatus,
+                            onRemote = onRemote,
                             modifier = Modifier.weight(1f),
                         )
                         StartBar(onStart = { onStart(scriptId) })
@@ -126,6 +129,7 @@ fun SetupScreen(
                         normalSeconds = script.currentNormalEstimatedDurationSeconds(),
                         appState = appState,
                         remoteConnectionStatus = remoteConnectionStatus,
+                        onRemote = onRemote,
                         modifier = Modifier.weight(1f),
                     )
                     StartBar(onStart = { onStart(scriptId) })
@@ -234,6 +238,7 @@ private fun SettingsPanel(
     normalSeconds: Int,
     appState: AppState,
     remoteConnectionStatus: RemoteConnectionStatus,
+    onRemote: (() -> Unit)?,
     modifier: Modifier,
 ) {
     Column(
@@ -275,7 +280,13 @@ private fun SettingsPanel(
             Slider(settings.guideLinePosition, { onSettings(settings.copy(guideLinePosition = it)) }, valueRange = .15f..0.75f)
         }
         SettingsCard(stringResource(R.string.remote_status)) {
-            RemoteStatusReadOnlyCard(remoteConnectionStatus)
+            if (onRemote != null) {
+                // The setup page's controller-status card is a real entry into the remote
+                // page; the whole card is clickable with press feedback and an a11y action.
+                RemoteStatusEntryCard(remoteConnectionStatus, onRemote)
+            } else {
+                RemoteStatusReadOnlyCard(remoteConnectionStatus)
+            }
         }
         Spacer(Modifier.height(AppSpacing.xl))
     }

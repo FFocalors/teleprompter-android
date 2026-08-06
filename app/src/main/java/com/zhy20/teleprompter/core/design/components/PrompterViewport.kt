@@ -43,8 +43,10 @@ import com.zhy20.teleprompter.core.util.PlaybackPreviewLayout
 import com.zhy20.teleprompter.core.util.PlaybackVisualLayer
 import com.zhy20.teleprompter.core.util.PrompterLayoutCalculator
 import com.zhy20.teleprompter.core.util.PrompterLayoutMetrics
-import com.zhy20.teleprompter.feature.prompter.PlaybackNearbyTextState
-import com.zhy20.teleprompter.feature.prompter.extractNearbyTextWindow
+import com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate
+import com.zhy20.teleprompter.feature.prompter.PlaybackReadingWindow
+import com.zhy20.teleprompter.feature.prompter.advanceReadingWindowFromLayout
+import com.zhy20.teleprompter.feature.prompter.extractReadingWindow
 import kotlin.math.floor
 import kotlin.math.min
 
@@ -75,7 +77,7 @@ fun PrompterViewport(
     scriptTestTag: String? = null,
     onLayoutMeasured: (PrompterLayoutMetrics) -> Unit = {},
     statusContent: @Composable BoxScope.(PrompterLayoutMetrics, Float) -> Unit = { _, _ -> },
-    onNearbyTextChanged: (PlaybackNearbyTextState?) -> Unit = {},
+    onNearbyTextChanged: (PlaybackReadingTextUpdate?) -> Unit = {},
 ) {
     val density = LocalDensity.current
     var statusHeightPx by remember { mutableIntStateOf(0) }
@@ -143,16 +145,14 @@ fun PrompterViewport(
             }
         }
 
-        // Real nearby-text location. The reading anchor is the STABLE one captured at session
+        // Real reading-text location. The reading anchor is the STABLE one captured at session
         // start (session.readingAnchor), never the live guideLinePosition — so moving or
         // toggling the visual guide line during playback cannot make the controller's text
-        // jump to a different passage. The anchor Y in viewport coordinates is
-        // contentHeight × anchor.viewportFraction; subtracting the current scroll offset
-        // yields the text-local Y of the reading line.
-        var lastNearbyAnchor by remember { mutableStateOf(-1) }
-        var lastNearbyText by remember { mutableStateOf<String?>(null) }
+        // jump to a different passage. A hysteresis window keeps the text block stable while
+        // the active range advances inside it.
+        var lastWindow by remember { mutableStateOf<PlaybackReadingWindow?>(null) }
         val readingAnchor = session?.readingAnchor
-        val nearbyState = remember(
+        val readingWindowState = remember(
             mode,
             playbackTextLayout,
             readingAnchor,
@@ -166,22 +166,38 @@ fun PrompterViewport(
             val anchorFraction = readingAnchor?.viewportFraction ?: 0.25f
             val anchorViewportY = contentHeightPx * anchorFraction.coerceIn(0f, 1f)
             val anchorLocalY = anchorViewportY - contentOffset
-            extractNearbyTextWindow(layout, anchorLocalY)
+            // Determine the reading line, then either slide the existing window or build a
+            // fresh one with the hysteresis policy.
+            val lineCount = layout.lineCount
+            if (lineCount <= 0) return@remember null
+            val anchorLine = layout.getLineForVerticalPosition(anchorLocalY).coerceIn(0, lineCount - 1)
+            val prev = lastWindow
+            if (prev != null) {
+                advanceReadingWindowFromLayout(layout, prev, anchorLine)
+            } else {
+                extractReadingWindow(layout, anchorLocalY)
+            }
         }
-        LaunchedEffect(nearbyState) {
-            val state = nearbyState
-            if (state == null) {
-                if (lastNearbyAnchor != -1 || lastNearbyText != null) {
-                    lastNearbyAnchor = -1
-                    lastNearbyText = null
+        LaunchedEffect(readingWindowState) {
+            val window = readingWindowState
+            if (window == null) {
+                if (lastWindow != null) {
+                    lastWindow = null
                     onNearbyTextChanged(null)
                 }
                 return@LaunchedEffect
             }
-            if (state.anchorLineIndex == lastNearbyAnchor && state.text == lastNearbyText) return@LaunchedEffect
-            lastNearbyAnchor = state.anchorLineIndex
-            lastNearbyText = state.text
-            onNearbyTextChanged(state)
+            if (window == lastWindow) return@LaunchedEffect
+            lastWindow = window
+            onNearbyTextChanged(
+                PlaybackReadingTextUpdate(
+                    text = window.text,
+                    activeStart = window.activeStart,
+                    activeEnd = window.activeEnd,
+                    sourceStartOffset = window.sourceStartOffset,
+                    sourceEndOffset = window.sourceEndOffset,
+                ),
+            )
         }
 
         Column(Modifier.fillMaxSize()) {

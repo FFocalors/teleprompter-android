@@ -3,6 +3,7 @@ package com.zhy20.teleprompter.app
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.PrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteReadingText
 import com.zhy20.teleprompter.remote.protocol.RemoteCommand
 import com.zhy20.teleprompter.remote.protocol.RemoteRejectReason
 import com.zhy20.teleprompter.remote.session.RemoteCommandResultState
@@ -162,6 +163,7 @@ class RemoteAppCoordinator(
         if (id.isBlank()) return revision
         revision += 1
         val script = appState.script(id)
+        val reading = appState.playbackReadingText
         val snapshot = RemoteSnapshotFactory.fromPlaybackState(
             revision = revision,
             surface = appState.prompterSurface,
@@ -171,7 +173,17 @@ class RemoteAppCoordinator(
             playbackState = appState.playbackState,
             session = appState.playbackSession,
             speedMultiplier = appState.playbackSettings.speedMultiplier,
-            nearbyText = appState.playbackNearbyText?.take(220),
+            nearbyText = reading?.text?.take(140),
+            readingText = reading?.let {
+                RemoteReadingText(
+                    text = it.text,
+                    activeStart = it.activeStart,
+                    activeEnd = it.activeEnd,
+                    sourceStartOffset = it.sourceStartOffset,
+                    sourceEndOffset = it.sourceEndOffset,
+                    layoutRevision = 0L,
+                )
+            },
         )
         repository.updatePrompterSnapshot(snapshot)
         return revision

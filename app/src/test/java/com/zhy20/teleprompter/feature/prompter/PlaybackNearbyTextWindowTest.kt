@@ -1,7 +1,9 @@
 package com.zhy20.teleprompter.feature.prompter
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackNearbyTextWindowTest {
@@ -11,7 +13,9 @@ class PlaybackNearbyTextWindowTest {
         "第三行内容" + "\n" +
         "第四行内容" + "\n" +
         "第五行内容" + "\n" +
-        "第六行内容"
+        "第六行内容" + "\n" +
+        "第七行内容" + "\n" +
+        "第八行内容"
 
     /** Each visual line is one paragraph in this synthetic layout. */
     private val lines = fullText.split('\n').let { parts ->
@@ -23,136 +27,107 @@ class PlaybackNearbyTextWindowTest {
         }
     }
 
-    private fun window(anchor: Int, windowLines: Int = 3) =
-        selectNearbyTextWindow(fullText, lines, anchor, windowLines)
+    private fun window(anchor: Int, windowLines: Int = 6) =
+        buildReadingWindow(fullText, lines, anchor, windowLines)
 
     @Test
-    fun firstLineShowsFirstThreeLines() {
-        val state = window(anchor = 0)
-        assertEquals(0, state!!.anchorLineIndex)
-        assertEquals("第一行内容\n第二行内容\n第三行内容", state.text)
+    fun firstLineStartsAtDocumentBeginning() {
+        val w = window(anchor = 0)
+        assertNotNull(w)
+        assertEquals(0, w!!.windowStartLineIndex)
+        assertTrue(w.text.startsWith("第一行内容"))
+        assertEquals(0, w.sourceStartOffset)
     }
 
     @Test
-    fun secondLineShowsFirstThreeLinesCenteredOnSecond() {
-        val state = window(anchor = 1)
-        assertEquals(1, state!!.anchorLineIndex)
-        assertEquals("第一行内容\n第二行内容\n第三行内容", state.text)
+    fun activeRangeTracksTheAnchorLineInsideWindow() {
+        val w = window(anchor = 2)
+        assertNotNull(w)
+        assertEquals(2, w!!.anchorLineIndex)
+        // The active range is the anchor line's chars relative to the window.
+        assertEquals("第三行内容", w.text.substring(w.activeStart, w.activeEnd))
     }
 
     @Test
-    fun middleLineIsCentered() {
-        val state = window(anchor = 3)
-        assertEquals(3, state!!.anchorLineIndex)
-        assertEquals("第三行内容\n第四行内容\n第五行内容", state.text)
+    fun lastLineClampsWindowToDocumentEnd() {
+        val w = window(anchor = 7)
+        assertNotNull(w)
+        assertEquals(7, w!!.anchorLineIndex)
+        assertEquals("第八行内容", w.text.substring(w.activeStart, w.activeEnd))
+        assertEquals(fullText.length, w.sourceEndOffset)
     }
 
     @Test
-    fun secondToLastLineIsCentered() {
-        val state = window(anchor = 4)
-        assertEquals(4, state!!.anchorLineIndex)
-        assertEquals("第四行内容\n第五行内容\n第六行内容", state.text)
+    fun windowShowsAboutSixVisualLinesOfContext() {
+        val w = window(anchor = 3)
+        assertNotNull(w)
+        val covered = w!!.windowEndLineIndex - w.windowStartLineIndex + 1
+        assertTrue(covered >= 5 && covered <= 6)
     }
 
     @Test
-    fun lastLineShowsLastThreeLines() {
-        val state = window(anchor = 5)
-        assertEquals(5, state!!.anchorLineIndex)
-        assertEquals("第四行内容\n第五行内容\n第六行内容", state.text)
+    fun anchorOutOfRangeIsClamped() {
+        val w = window(anchor = 99)
+        assertEquals(7, w!!.anchorLineIndex)
     }
 
     @Test
-    fun singleLineText() {
-        val state = selectNearbyTextWindow("只有一行", listOf(VisualLineRange(0, 4)), anchorLineIndex = 0)
-        assertEquals("只有一行", state!!.text)
-    }
-
-    @Test
-    fun twoLineTextClampsToBothLines() {
-        val text = "甲\n乙"
-        val ranges = listOf(VisualLineRange(0, 1), VisualLineRange(2, 3))
-        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 1)
-        assertEquals("甲\n乙", state!!.text)
-    }
-
-    @Test
-    fun emptyTextReturnsNull() {
-        assertNull(selectNearbyTextWindow("", listOf(VisualLineRange(0, 0)), anchorLineIndex = 0))
+    fun emptyDocumentReturnsNull() {
+        assertNull(buildReadingWindow("", listOf(VisualLineRange(0, 0)), anchorLineIndex = 0))
     }
 
     @Test
     fun emptyLinesReturnsNull() {
-        assertNull(selectNearbyTextWindow("abc", emptyList(), anchorLineIndex = 0))
+        assertNull(buildReadingWindow("abc", emptyList(), anchorLineIndex = 0))
     }
 
     @Test
     fun overlongTextIsTruncated() {
         val longLine = "字".repeat(100)
-        val state = selectNearbyTextWindow(longLine, listOf(VisualLineRange(0, 100)), anchorLineIndex = 0, maxChars = 30)
-        assertEquals(30, state!!.text.length)
-        assertEquals("字".repeat(30), state.text)
+        val w = buildReadingWindow(longLine, listOf(VisualLineRange(0, 100)), anchorLineIndex = 0, maxChars = 40)
+        assertEquals(40, w!!.text.length)
     }
 
     @Test
-    fun anchorOutOfRangeIsClamped() {
-        val state = window(anchor = 99)
-        assertEquals(5, state!!.anchorLineIndex)
-        assertEquals("第四行内容\n第五行内容\n第六行内容", state.text)
+    fun advanceKeepsWindowTextWhileActiveRangeMovesInsideIt() {
+        val first = window(anchor = 1, windowLines = 6)
+        val second = advanceReadingWindow(fullText, lines, current = first!!, newAnchorLineIndex = 3)
+        // Same window text (hysteresis), only the active range advanced.
+        assertEquals(first.text, second.text)
+        assertEquals(3, second.anchorLineIndex)
+        assertEquals("第四行内容", second.text.substring(second.activeStart, second.activeEnd))
     }
 
     @Test
-    fun paragraphBlankLinesArePreservedWithinWindow() {
-        val text = "甲\n\n\n乙"
-        val ranges = listOf(
-            VisualLineRange(0, 1),
-            VisualLineRange(2, 2), // empty visual line
-            VisualLineRange(3, 3), // empty visual line
-            VisualLineRange(4, 5),
-        )
-        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 3, windowLines = 5)
-        assertEquals("甲\n\n\n乙", state!!.text)
-    }
-
-    @Test
-    fun whitespaceOnlyWindowIsTrimmedToNull() {
-        val text = "   \n   "
-        val ranges = listOf(VisualLineRange(0, 3), VisualLineRange(4, 7))
-        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 0)
-        assertNull(state)
-    }
-
-    @Test
-    fun englishLongParagraphWrappingIsHandledByVisualLines() {
-        // A single paragraph wrapped into 4 visual lines: the window follows the visual
-        // lines for the anchor, but the returned text is a CONTIGUOUS slice of the source —
-        // the visual line boundaries are not inserted as newlines.
-        val text = "one two three four five six seven eight nine ten"
-        val ranges = listOf(
-            VisualLineRange(0, 11),           // "one two thr"
-            VisualLineRange(11, 22),          // "ee four five"
-            VisualLineRange(22, 34),          // " six seven e"
-            VisualLineRange(34, text.length), // "ight nine ten"
-        )
-        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 1, windowLines = 3)
-        assertEquals(1, state!!.anchorLineIndex)
-        // No newline between the three visual lines — only the source text, contiguous.
-        assertEquals("one two three four five six seven", state.text)
+    fun advanceNearBackEdgeBuildsAFreshWindow() {
+        val first = window(anchor = 0, windowLines = 6)
+        // Jump far into the window (anchor near the back edge) -> fresh window slides forward.
+        val advanced = advanceReadingWindow(fullText, lines, current = first!!, newAnchorLineIndex = 4)
+        assertTrue(advanced.windowStartLineIndex > first.windowStartLineIndex)
     }
 
     @Test
     fun paragraphNewlinesArePreservedButAutoWrapBoundariesAreNot() {
         val text = "第一段涵盖了标点、数字等内容。" + "\n" + "第二段开始。"
-        // The first paragraph auto-wraps into 3 visual lines at the tablet width; the
-        // paragraph boundary (the real '\n') stays between paragraphs.
+        // The first paragraph auto-wraps into 3 visual lines; the paragraph boundary (real
+        // '\n') stays between paragraphs.
         val ranges = listOf(
             VisualLineRange(0, 6),   // "第一段涵盖了"
             VisualLineRange(6, 12),  // "标点、数字等内"
             VisualLineRange(12, 17), // "容。"
             VisualLineRange(18, 23), // "第二段开始。"
         )
-        val state = selectNearbyTextWindow(text, ranges, anchorLineIndex = 1, windowLines = 4)
-        assertEquals(1, state!!.anchorLineIndex)
+        val w = buildReadingWindow(text, ranges, anchorLineIndex = 1, windowLines = 4)
+        assertNotNull(w)
         // Visual boundaries dropped; the real paragraph newline preserved.
-        assertEquals("第一段涵盖了标点、数字等内容。\n第二段开始。", state.text)
+        assertEquals("第一段涵盖了标点、数字等内容。\n第二段开始。", w!!.text)
+    }
+
+    @Test
+    fun whitespaceOnlyWindowIsNull() {
+        val text = "   \n   "
+        val ranges = listOf(VisualLineRange(0, 3), VisualLineRange(4, 7))
+        val w = buildReadingWindow(text, ranges, anchorLineIndex = 0)
+        assertNull(w)
     }
 }

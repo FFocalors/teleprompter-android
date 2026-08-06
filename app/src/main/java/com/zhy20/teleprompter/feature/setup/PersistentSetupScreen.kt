@@ -29,6 +29,7 @@ fun PersistentSetupScreen(
     remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
     onBack: () -> Unit,
     onStart: (String) -> Unit,
+    onRemote: (() -> Unit)? = null,
     startPlaybackHandler: RemoteStartPlaybackHandler? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -86,6 +87,13 @@ fun PersistentSetupScreen(
                         appState.beginPlayback(id)
                         onStart(id)
                     }
+                }
+            },
+            onRemote = onRemote?.let { remote ->
+                {
+                    // Reuse the same flush gate as local start: save before leaving to the
+                    // remote page, so unsaved direction/speed/countdown/guide changes persist.
+                    viewModel.flush { saved -> if (saved) remote() }
                 }
             },
             scriptOverride = state.script,

@@ -3,6 +3,7 @@ package com.zhy20.teleprompter.remote.protocol
 import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
 import com.zhy20.teleprompter.remote.model.RemotePlaybackState
 import com.zhy20.teleprompter.remote.model.RemotePrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteReadingText
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.model.remotePrompterSnapshot
 import org.junit.Assert.assertEquals
@@ -155,5 +156,50 @@ class RemoteJsonCodecTest {
         val json = RemoteJsonCodec.encode(RemoteMessage.SnapshotUpdate(snapshot))
         val decoded = (RemoteJsonCodec.decode(json).getOrThrow() as RemoteMessage.SnapshotUpdate).snapshot
         assertEquals(140, decoded.nearbyText?.length)
+    }
+
+    @Test
+    fun readingTextRoundTripsWithActiveRange() {
+        val snapshot = remotePrompterSnapshot(
+            revision = 5,
+            surface = RemotePrompterSurface.Playing,
+            readingText = RemoteReadingText(
+                text = "第一行\n第二行当前朗读\n第三行",
+                activeStart = 4,
+                activeEnd = 9,
+                sourceStartOffset = 12,
+                sourceEndOffset = 25,
+                layoutRevision = 3L,
+            ),
+        )
+        val json = RemoteJsonCodec.encode(RemoteMessage.SnapshotUpdate(snapshot))
+        val decoded = (RemoteJsonCodec.decode(json).getOrThrow() as RemoteMessage.SnapshotUpdate).snapshot
+        val reading = decoded.readingText
+        assertEquals("第一行\n第二行当前朗读\n第三行", reading?.text)
+        assertEquals(4, reading?.activeStart)
+        assertEquals(9, reading?.activeEnd)
+        assertEquals(12, reading?.sourceStartOffset)
+        assertEquals(25, reading?.sourceEndOffset)
+        assertEquals(3L, reading?.layoutRevision)
+    }
+
+    @Test
+    fun readingTextOutOfRangeOffsetsAreClampedOnDecode() {
+        // Build via the helper (valid JSON), then inject out-of-range offsets manually so the
+        // decoder clamps rather than failing the whole snapshot.
+        val base = remotePrompterSnapshot(
+            revision = 1,
+            surface = RemotePrompterSurface.Playing,
+            readingText = RemoteReadingText("abc", activeStart = 0, activeEnd = 3, sourceStartOffset = 0, sourceEndOffset = 3, layoutRevision = 0),
+        )
+        val json = RemoteJsonCodec.encode(RemoteMessage.SnapshotUpdate(base))
+        val tampered = json.replace("\"activeStart\":0", "\"activeStart\":99")
+            .replace("\"activeEnd\":3", "\"activeEnd\":-5")
+        val decoded = RemoteJsonCodec.decode(tampered).getOrThrow() as RemoteMessage.SnapshotUpdate
+        val reading = decoded.snapshot.readingText
+        assertEquals("abc", reading?.text)
+        // activeStart clamps to text.length; activeEnd (negative) clamps to >= activeStart.
+        assertEquals(3, reading?.activeStart)
+        assertEquals(3, reading?.activeEnd)
     }
 }

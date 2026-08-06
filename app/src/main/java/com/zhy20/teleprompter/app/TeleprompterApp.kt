@@ -224,7 +224,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             appState.playbackSession.currentSemanticProgress,
             appState.playbackSession.elapsedTimeMillis,
             appState.playbackSettings.speedMultiplier,
-            appState.playbackNearbyText,
+            appState.playbackReadingText,
         ) {
             if (isRemoteConnected) remoteCoordinator.publishSnapshot()
         }
@@ -318,6 +318,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     remoteConnectionStatus = remoteSessionState.status,
                     onBack = { navController.popBackStack() },
                     onStart = { scriptId -> navController.navigate(AppRoutes.prompter(scriptId)) },
+                    onRemote = { navController.navigate(AppRoutes.Remote) },
                     startPlaybackHandler = startPlaybackHandler,
                 )
             }

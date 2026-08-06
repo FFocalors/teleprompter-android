@@ -176,8 +176,8 @@
     <string name="waiting_for_setup">等待提词端进入准备页</string>
     <string name="current_script">当前台本</string>
     <string name="ready">准备就绪</string>
-    <string name="nearby_text">提词线附近文字</string>
-    <string name="empty_nearby_text">（暂无正文摘要）</string>
+    <string name="nearby_text">当前朗读文本</string>
+    <string name="empty_nearby_text">（等待开始播放）</string>
     <string name="speed">速度</string>
     <string name="speed_down">−0.1×</string>
     <string name="speed_up">+0.1×</string>

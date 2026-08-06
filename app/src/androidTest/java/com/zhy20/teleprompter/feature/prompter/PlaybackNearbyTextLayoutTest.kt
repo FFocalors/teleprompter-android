@@ -25,19 +25,17 @@ class PlaybackNearbyTextLayoutTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<PlaybackGestureTestActivity>()
 
-    private fun extractAt(localGuideY: Float): PlaybackNearbyTextState? {
-        var extracted: PlaybackNearbyTextState? = null
-        var layoutResult: TextLayoutResult? = null
+    private fun extractAt(localAnchorY: Float): PlaybackReadingWindow? {
+        var extracted: PlaybackReadingWindow? = null
         composeRule.setContent {
             var captured by remember { mutableStateOf<TextLayoutResult?>(null) }
-            layoutResult = captured
             Text(
                 text = "第一行\n第二行\n第三行\n第四行",
                 style = TextStyle(fontSize = 20.sp, lineHeight = 28.sp),
                 modifier = Modifier.testTag("nearbyTextSource"),
                 onTextLayout = { captured = it },
             )
-            captured?.let { extracted = extractNearbyTextWindow(it, localGuideY) }
+            captured?.let { extracted = extractReadingWindow(it, localAnchorY) }
         }
         composeRule.waitForIdle()
         return extracted
@@ -48,7 +46,7 @@ class PlaybackNearbyTextLayoutTest {
         // The real TextLayoutResult decides the line: pick the middle of line 1 by its own
         // top/bottom, so the test is robust to actual line heights.
         var lineMiddle = 0f
-        var extracted: PlaybackNearbyTextState? = null
+        var extracted: PlaybackReadingWindow? = null
         composeRule.setContent {
             var captured by remember { mutableStateOf<TextLayoutResult?>(null) }
             val result = captured
@@ -60,31 +58,33 @@ class PlaybackNearbyTextLayoutTest {
             )
             result?.let {
                 lineMiddle = (it.getLineTop(1) + it.getLineBottom(1)) / 2f
-                extracted = extractNearbyTextWindow(it, lineMiddle)
+                extracted = extractReadingWindow(it, lineMiddle)
             }
         }
         composeRule.waitForIdle()
-        assertEquals(1, extracted!!.anchorLineIndex)
-        assertEquals("第一行\n第二行\n第三行", extracted!!.text)
+        val w = extracted!!
+        assertEquals(1, w.anchorLineIndex)
+        // The active range is the reading line's own characters.
+        assertEquals("第二行", w.text.substring(w.activeStart, w.activeEnd))
     }
 
     @Test
     fun guideLineAtBottomSelectsLastLines() {
-        val extracted = extractAt(localGuideY = 100_000f)
+        val extracted = extractAt(localAnchorY = 100_000f)
         assertEquals(3, extracted!!.anchorLineIndex)
-        assertEquals("第二行\n第三行\n第四行", extracted!!.text)
+        assertEquals("第四行", extracted.text.substring(extracted.activeStart, extracted.activeEnd))
     }
 
     @Test
     fun guideLineAtTopSelectsFirstLines() {
-        val extracted = extractAt(localGuideY = -100_000f)
+        val extracted = extractAt(localAnchorY = -100_000f)
         assertEquals(0, extracted!!.anchorLineIndex)
-        assertEquals("第一行\n第二行\n第三行", extracted!!.text)
+        assertEquals("第一行", extracted.text.substring(extracted.activeStart, extracted.activeEnd))
     }
 
     @Test
     fun emptyDocumentReturnsNull() {
-        var extracted: PlaybackNearbyTextState? = null
+        var extracted: PlaybackReadingWindow? = null
         composeRule.setContent {
             var captured by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
@@ -93,7 +93,7 @@ class PlaybackNearbyTextLayoutTest {
                 modifier = Modifier.testTag("nearbyTextSource"),
                 onTextLayout = { captured = it },
             )
-            captured?.let { extracted = extractNearbyTextWindow(it, 0f) }
+            captured?.let { extracted = extractReadingWindow(it, 0f) }
         }
         composeRule.waitForIdle()
         assertNull(extracted)

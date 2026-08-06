@@ -1,6 +1,42 @@
 package com.zhy20.teleprompter.remote.model
 
 /**
+ * Structured reading window sent to the controller. The [text] is a finite window of the
+ * source document (never the whole script); [activeStart]/[activeEnd] are the current reading
+ * range relative to [text]; [sourceStartOffset]/[sourceEndOffset] are the absolute character
+ * offsets in the canonical annotated text. All ranges are validated/normalized so a malformed
+ * peer cannot crash the controller.
+ */
+data class RemoteReadingText(
+    val text: String,
+    val activeStart: Int,
+    val activeEnd: Int,
+    val sourceStartOffset: Int,
+    val sourceEndOffset: Int,
+    val layoutRevision: Long,
+) {
+    fun normalized(): RemoteReadingText? {
+        if (text.isEmpty()) return null
+        val length = text.length
+        val start = activeStart.coerceIn(0, length)
+        val end = activeEnd.coerceIn(start, length)
+        val srcStart = sourceStartOffset.coerceAtLeast(0)
+        val srcEnd = sourceEndOffset.coerceAtLeast(srcStart)
+        if (text.length > MAX_READING_TEXT_LENGTH) return null
+        return copy(
+            activeStart = start,
+            activeEnd = end,
+            sourceStartOffset = srcStart,
+            sourceEndOffset = srcEnd,
+            layoutRevision = layoutRevision.coerceAtLeast(0L),
+        )
+    }
+}
+
+/** Hard cap on the reading-text window so a peer cannot push an unbounded document. */
+const val MAX_READING_TEXT_LENGTH = 420
+
+/**
  * Immutable, protocol-safe snapshot of the prompter device state, sent to a controller.
  *
  * The snapshot carries only a finite plain-text summary of the nearby text (never the full
@@ -23,6 +59,7 @@ data class RemotePrompterSnapshot(
     val speedMultiplier: Float,
     val countdownSecondsRemaining: Int?,
     val nearbyText: String?,
+    val readingText: RemoteReadingText? = null,
 ) {
     /** Normalizes all fields so a snapshot can never carry invalid protocol values. */
     fun normalized(): RemotePrompterSnapshot = copy(
@@ -33,6 +70,7 @@ data class RemotePrompterSnapshot(
         estimatedDurationSeconds = estimatedDurationSeconds?.coerceAtLeast(0),
         countdownSecondsRemaining = countdownSecondsRemaining?.coerceAtLeast(0),
         nearbyText = nearbyText?.take(MAX_NEARBY_TEXT_LENGTH),
+        readingText = readingText?.normalized(),
     )
 }
 
@@ -59,6 +97,7 @@ fun remotePrompterSnapshot(
     speedMultiplier: Float = 1f,
     countdownSecondsRemaining: Int? = null,
     nearbyText: String? = null,
+    readingText: RemoteReadingText? = null,
 ): RemotePrompterSnapshot = RemotePrompterSnapshot(
     revision = revision,
     surface = surface,
@@ -72,4 +111,5 @@ fun remotePrompterSnapshot(
     speedMultiplier = speedMultiplier,
     countdownSecondsRemaining = countdownSecondsRemaining,
     nearbyText = nearbyText,
+    readingText = readingText?.normalized(),
 ).normalized()

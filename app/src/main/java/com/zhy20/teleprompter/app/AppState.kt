@@ -59,15 +59,31 @@ class AppState(
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
     /**
-     * The real nearby text reported by the playback page (derived from the actual
-     * TextLayoutResult + guide line position). Only the final plain text lives here — never
-     * a TextLayoutResult or any Compose type. Cleared when leaving the prompter page.
+     * The real reading text reported by the playback page (window text + active range +
+     * absolute source offsets), derived from the actual TextLayoutResult. Only the final
+     * pure-text payload lives here — never a TextLayoutResult or any Compose type. Cleared
+     * when leaving the prompter page.
      */
-    var playbackNearbyText: String? by mutableStateOf(null)
+    var playbackReadingText: com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate? by mutableStateOf(null)
         private set
 
-    fun updatePlaybackNearbyText(text: String?) {
-        playbackNearbyText = text
+    /** Backwards-compatible plain-text accessor for tests/UI. */
+    var playbackNearbyText: String?
+        get() = playbackReadingText?.text
+        set(value) {
+            playbackReadingText = value?.let { t ->
+                com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate(
+                    text = t,
+                    activeStart = 0,
+                    activeEnd = t.length,
+                    sourceStartOffset = 0,
+                    sourceEndOffset = t.length,
+                )
+            }
+        }
+
+    fun updatePlaybackReadingText(update: com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate?) {
+        playbackReadingText = update
     }
 
     fun script(id: String): Script = scripts.firstOrNull { it.id == id }

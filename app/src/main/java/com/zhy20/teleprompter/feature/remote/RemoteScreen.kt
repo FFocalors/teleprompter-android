@@ -54,6 +54,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -453,19 +456,42 @@ private fun NearbyTextCard(snapshot: RemotePrompterSnapshot, modifier: Modifier 
             Text(stringResource(R.string.nearby_text), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
             // Fixed-height text area: derived from the real line height so fontScale and
             // screen width never change the card height. The progress bar and time rows stay
-            // at a stable Y regardless of the nearby text length.
+            // at a stable Y regardless of the reading text length.
             val density = LocalDensity.current
             val lineHeightPx = with(density) { MaterialTheme.typography.bodyLarge.lineHeight.toPx() }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val narrowRows = if (maxWidth < 360.dp || lineHeightPx > 28f * density.density) 4 else 5
+                val narrowRows = if (maxWidth < 360.dp || lineHeightPx > 28f * density.density) 4 else 6
                 val textAreaHeight = with(density) { (lineHeightPx * narrowRows).toDp() }
                 Surface(
                     color = AppColors.Secondary.copy(alpha = .25f),
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.fillMaxWidth().height(textAreaHeight),
                 ) {
+                    val reading = snapshot.readingText
+                    val annotated = if (reading != null && reading.text.isNotBlank()) {
+                        // Highlight the active reading range with a subtle background; the
+                        // surrounding context stays normal. Ranges are already normalized.
+                        buildAnnotatedString {
+                            append(reading.text)
+                            val start = reading.activeStart.coerceIn(0, reading.text.length)
+                            val end = reading.activeEnd.coerceIn(start, reading.text.length)
+                            if (end > start) {
+                                addStyle(
+                                    SpanStyle(
+                                        background = AppColors.Primary.copy(alpha = .18f),
+                                        fontWeight = FontWeight.SemiBold,
+                                    ),
+                                    start,
+                                    end,
+                                )
+                            }
+                        }
+                    } else {
+                        null
+                    }
+                    val placeholder = stringResource(R.string.empty_nearby_text)
                     Text(
-                        snapshot.nearbyText.orEmpty().ifBlank { stringResource(R.string.empty_nearby_text) },
+                        annotated ?: AnnotatedString(placeholder),
                         modifier = Modifier.fillMaxWidth().padding(AppSpacing.md).semantics { testTag = NearbyTextTestTag },
                         color = AppColors.TextPrimary,
                         style = MaterialTheme.typography.bodyLarge,

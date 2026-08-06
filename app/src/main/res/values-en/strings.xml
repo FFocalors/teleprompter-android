@@ -176,8 +176,8 @@
     <string name="waiting_for_setup">Waiting for the teleprompter to enter setup</string>
     <string name="current_script">Current script</string>
     <string name="ready">Ready</string>
-    <string name="nearby_text">Text near guide line</string>
-    <string name="empty_nearby_text">(No text summary)</string>
+    <string name="nearby_text">Current reading text</string>
+    <string name="empty_nearby_text">(Waiting for playback to start)</string>
     <string name="speed">Speed</string>
     <string name="speed_down">−0.1×</string>
     <string name="speed_up">+0.1×</string>

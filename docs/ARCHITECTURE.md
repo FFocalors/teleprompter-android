@@ -137,12 +137,13 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 - 命令按当前播放状态校验（如 `PausePlayback` 仅在 Playing 时执行），非法状态返回结构化 `CommandResult`，不强行改页面。
 - 开始播放接入 Setup 保存门控：控制端 `StartPlayback` → 协调器校验位于对应 Setup 页 → `RemoteStartPlaybackHandler` 转发给可见的 `PersistentSetupScreen` → `SetupViewModel.flushNow()` 保存成功后才 `beginPlayback` + 导航；保存失败不导航并返回 `SetupSaveFailed`。
 
-### 提词线附近文字（真实定位）
+### 当前朗读文本（结构化阅读窗口）
 
-- `nearbyText` 不再来自静态 `plainTextPreview`。正式播放页的 `PrompterViewport` 持有真实 `TextLayoutResult`，按**开始播放时捕获的稳定阅读锚点**（`PlaybackReadingAnchor`）定位阅读行：提词线开启时锚点为当时的 `guideLinePosition`，关闭时为视口顶部 25%。锚点 Y 减当前滚动偏移得到正文本地 Y，用 `getLineForVerticalPosition` 找到穿越的视觉行。
-- 取前/当前/后最多 3 个视觉行，但**返回的文本是从原始文本按字符范围截取的连续切片**——视觉折行边界不会变成 `\n`，只有源文本中真实存在的段落/手动换行保留；控制端按自身宽度重新自然排版。
-- 更新节流：`anchorLineIndex` 或提取文本变化才上报（`PrompterScreen` 写入 `AppState.playbackNearbyText`，`RemoteAppCoordinator.publishSnapshot` 读取）；播放进度沿用 250 ms 快照节流，附近文字变化可立即发布。离开播放页清空。
-- 视觉提词线在播放开始后可以自由移动/开关（`AppState.updateGuideOverlay`），**不会**改变阅读锚点或正文几何；nearbyText 也不会因拖线而跳段。
+- 控制端用户可见标题为"当前朗读文本"（内部字段仍叫 `nearbyText`/`readingText`，未做全仓库符号迁移）。数据从正式播放页的 `PrompterViewport` 真实 `TextLayoutResult` 生成，**字符 offset 一律来自该 TextLayoutResult 对应的同一份 canonical AnnotatedString**（`RichScriptText` 渲染文本），与可见文字零错位；网络/Repository 层只接收纯文本 + offset。
+- 阅读锚点为本次播放开始时捕获的固定 `PlaybackReadingAnchor`（提词线开启用其位置、关闭用视口顶部 0.25），移动/开关视觉提词线不改变锚点，因此控制端文字不会因拖线跳段。
+- 阅读窗口采用滞后策略：约 6 个视觉行上下文（窄屏/大字体 4 行，字符上限 360），阅读行在窗口内移动时只更新 `activeStart/activeEnd`，接近后沿 70% 时才向前滑动生成新窗口；窗口文本为原始文本连续切片，只保留源文本真实换行。
+- 上报结构 `RemoteReadingText{ text, activeStart, activeEnd, sourceStartOffset, sourceEndOffset, layoutRevision }` 经快照 JSON 编解码传输，解码时对非法 offset 做边界钳制；`RemoteSnapshotFactory`/网络层不引用 Compose 类型。
+- 控制端用 `AnnotatedString` 对 active 范围做轻量高亮，正文区域固定高度按 `lineHeight × 行数` 计算，进度条与时间行不随文本长度跳动。
 
 ### 播放初始位置（正式播放 vs 预览）
 

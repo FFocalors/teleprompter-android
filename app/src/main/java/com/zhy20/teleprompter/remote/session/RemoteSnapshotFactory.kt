@@ -6,6 +6,7 @@ import com.zhy20.teleprompter.core.util.PlaybackEngineState
 import com.zhy20.teleprompter.remote.model.RemotePlaybackState
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
 import com.zhy20.teleprompter.remote.model.RemotePrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteReadingText
 import com.zhy20.teleprompter.remote.model.remotePrompterSnapshot
 
 /**
@@ -25,6 +26,7 @@ object RemoteSnapshotFactory {
         session: PlaybackEngineState,
         speedMultiplier: Float,
         nearbyText: String?,
+        readingText: RemoteReadingText? = null,
     ): RemotePrompterSnapshot {
         val remoteSurface = surface.toRemoteSurface(playbackState)
         val countdownSeconds = (playbackState as? PlaybackState.Countdown)?.secondsRemaining
@@ -47,6 +49,7 @@ object RemoteSnapshotFactory {
             speedMultiplier = speedMultiplier,
             countdownSecondsRemaining = countdownSeconds,
             nearbyText = nearbyText,
+            readingText = readingText?.normalized(),
         )
     }
 }

@@ -1,10 +1,12 @@
 package com.zhy20.teleprompter.remote.protocol
 
 import com.zhy20.teleprompter.remote.model.MAX_NEARBY_TEXT_LENGTH
+import com.zhy20.teleprompter.remote.model.MAX_READING_TEXT_LENGTH
 import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
 import com.zhy20.teleprompter.remote.model.RemotePlaybackState
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
 import com.zhy20.teleprompter.remote.model.RemotePrompterSurface
+import com.zhy20.teleprompter.remote.model.RemoteReadingText
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import org.json.JSONObject
 
@@ -59,6 +61,13 @@ object RemoteJsonCodec {
     private const val KEY_REMAINING = "remainingTimeMillis"
     private const val KEY_SPEED = "speedMultiplier"
     private const val KEY_NEARBY_TEXT = "nearbyText"
+    private const val KEY_READING_TEXT = "readingText"
+    private const val KEY_TEXT = "text"
+    private const val KEY_ACTIVE_START = "activeStart"
+    private const val KEY_ACTIVE_END = "activeEnd"
+    private const val KEY_SOURCE_START = "sourceStartOffset"
+    private const val KEY_SOURCE_END = "sourceEndOffset"
+    private const val KEY_LAYOUT_REVISION = "layoutRevision"
     private const val KEY_COMMAND_TYPE = "commandType"
     private const val KEY_DELTA = "delta"
 
@@ -203,6 +212,18 @@ object RemoteJsonCodec {
             .put(KEY_SPEED, snapshot.speedMultiplier.toDouble())
         snapshot.countdownSecondsRemaining?.let { json.put(KEY_COUNTDOWN_REMAINING, it) }
         snapshot.nearbyText?.let { json.put(KEY_NEARBY_TEXT, it) }
+        snapshot.readingText?.let { reading ->
+            json.put(
+                KEY_READING_TEXT,
+                JSONObject()
+                    .put(KEY_TEXT, reading.text)
+                    .put(KEY_ACTIVE_START, reading.activeStart)
+                    .put(KEY_ACTIVE_END, reading.activeEnd)
+                    .put(KEY_SOURCE_START, reading.sourceStartOffset)
+                    .put(KEY_SOURCE_END, reading.sourceEndOffset)
+                    .put(KEY_LAYOUT_REVISION, reading.layoutRevision),
+            )
+        }
         return json
     }
 
@@ -342,6 +363,18 @@ object RemoteJsonCodec {
 
         val estimated = json.optLong(KEY_ESTIMATED_DURATION, -1L).takeIf { it >= 0 }?.toInt()
         val countdown = json.optLong(KEY_COUNTDOWN_REMAINING, -1L).takeIf { it >= 0 }?.toInt()
+        val readingJson = json.optJSONObject(KEY_READING_TEXT)
+        val readingText = readingJson?.let { r ->
+            val text = r.optString(KEY_TEXT).takeIf { it.isNotEmpty() }?.take(MAX_READING_TEXT_LENGTH) ?: return@let null
+            RemoteReadingText(
+                text = text,
+                activeStart = r.optInt(KEY_ACTIVE_START, 0).coerceIn(0, text.length),
+                activeEnd = r.optInt(KEY_ACTIVE_END, text.length).coerceIn(0, text.length),
+                sourceStartOffset = r.optLong(KEY_SOURCE_START, 0L).coerceAtLeast(0L).toInt(),
+                sourceEndOffset = r.optLong(KEY_SOURCE_END, 0L).coerceAtLeast(0L).toInt(),
+                layoutRevision = r.optLong(KEY_LAYOUT_REVISION, 0L).coerceAtLeast(0L),
+            ).normalized()
+        }
 
         return Result.success(
             RemotePrompterSnapshot(
@@ -357,6 +390,7 @@ object RemoteJsonCodec {
                 speedMultiplier = speed.toFloat(),
                 countdownSecondsRemaining = countdown,
                 nearbyText = optionalString(json, KEY_NEARBY_TEXT)?.take(MAX_NEARBY_TEXT_LENGTH),
+                readingText = readingText,
             ).normalized(),
         )
     }
