@@ -58,7 +58,13 @@ data class RemotePrompterSnapshot(
     val remainingTimeMillis: Long,
     val speedMultiplier: Float,
     val countdownSecondsRemaining: Int?,
+    /**
+     * @deprecated Legacy plain-text summary. No longer populated by the prompter; the
+     *   controller's current-reading text now comes from the dedicated reading window + cursor
+     *   messages. Kept only for protocol/backward compatibility and never used in display.
+     */
     val nearbyText: String?,
+    /** @deprecated Legacy structured reading window; see [nearbyText]. */
     val readingText: RemoteReadingText? = null,
 ) {
     /** Normalizes all fields so a snapshot can never carry invalid protocol values. */

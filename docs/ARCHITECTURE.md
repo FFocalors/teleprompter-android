@@ -82,17 +82,21 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 ### 目录与数据流
 
 ```text
-remote/model/      角色、连接状态（密封）、设备、会话状态、提词端快照
+remote/model/      角色、连接状态（密封）、设备、会话状态、提词端快照、阅读窗口/游标
 remote/protocol/   协议版本、消息（ClientHello/ServerAccepted/ServerRejected/CommandRequest/
-                   CommandResult/SnapshotUpdate/HeartbeatPing/Pong/DisconnectNotice/ProtocolError）、
-                   命令校验、RemoteJsonCodec（org.json 显式编解码）
+                   CommandResult/SnapshotUpdate/ReadingWindowUpdate/ReadingCursorUpdate/
+                   HeartbeatPing/Pong/DisconnectNotice/ProtocolError）、命令校验、
+                   RemoteJsonCodec（org.json 显式编解码）
 remote/pairing/    配对载荷模型 + URI 编解码 + 安全随机凭据生成
 remote/network/    LocalNetworkAddressProvider（ConnectivityManager 取当前局域网 IPv4）
 remote/transport/  RemoteTransport 接口 + WebSocketRemoteTransport（Server/Client）+ FakeRemoteTransport
 remote/session/    RemoteSessionRepository + DefaultRemoteSessionRepository + 快照工厂 + 会话凭据
-feature/remote/    RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper、RemoteQrGenerator
-app/               RemoteAppCoordinator（命令→业务方法→结果）、RemoteStartPlaybackHandler、
-                   AppContainer 注入（生产用真实 WebSocket Transport）
+feature/remote/    RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper、RemoteQrGenerator、
+                   ControllerReadingViewport（本地重排版 + 平滑滚动）
+feature/prompter/reading/  PlaybackReadingTracker（绝对阅读游标）、ReadingWindowManager（阅读窗口）、
+                   ControllerReadingViewportMath（控制端映射），均为纯 JVM 可测逻辑
+app/               RemoteAppCoordinator（命令→业务方法→结果、pushReadingState 阅读同步）、
+                   RemoteStartPlaybackHandler、AppContainer 注入（生产用真实 WebSocket Transport）
 ```
 
 控制端命令的完整链路：
@@ -137,13 +141,14 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 - 命令按当前播放状态校验（如 `PausePlayback` 仅在 Playing 时执行），非法状态返回结构化 `CommandResult`，不强行改页面。
 - 开始播放接入 Setup 保存门控：控制端 `StartPlayback` → 协调器校验位于对应 Setup 页 → `RemoteStartPlaybackHandler` 转发给可见的 `PersistentSetupScreen` → `SetupViewModel.flushNow()` 保存成功后才 `beginPlayback` + 导航；保存失败不导航并返回 `SetupSaveFailed`。
 
-### 当前朗读文本（结构化阅读窗口）
+### 当前朗读文本（绝对阅读游标 + 阅读窗口）
 
-- 控制端用户可见标题为"当前朗读文本"（内部字段仍叫 `nearbyText`/`readingText`，未做全仓库符号迁移）。数据从正式播放页的 `PrompterViewport` 真实 `TextLayoutResult` 生成，**字符 offset 一律来自该 TextLayoutResult 对应的同一份 canonical AnnotatedString**（`RichScriptText` 渲染文本），与可见文字零错位；网络/Repository 层只接收纯文本 + offset。
-- 阅读锚点为本次播放开始时捕获的固定 `PlaybackReadingAnchor`（提词线开启用其位置、关闭用视口顶部 0.25），移动/开关视觉提词线不改变锚点，因此控制端文字不会因拖线跳段。
-- 阅读窗口采用滞后策略：约 6 个视觉行上下文（窄屏/大字体 4 行，字符上限 360），阅读行在窗口内移动时只更新 `activeStart/activeEnd`，接近后沿 70% 时才向前滑动生成新窗口；窗口文本为原始文本连续切片，只保留源文本真实换行。
-- 上报结构 `RemoteReadingText{ text, activeStart, activeEnd, sourceStartOffset, sourceEndOffset, layoutRevision }` 经快照 JSON 编解码传输，解码时对非法 offset 做边界钳制；`RemoteSnapshotFactory`/网络层不引用 Compose 类型。
-- 控制端用 `AnnotatedString` 对 active 范围做轻量高亮，正文区域固定高度按 `lineHeight × 行数` 计算，进度条与时间行不随文本长度跳动。
+控制端用户可见标题为"当前朗读文本"（内部仍保留旧字段名 `nearbyText`/`readingText`，已标记废弃且不再填充）。阅读同步分两层，全部基于**同一份 canonical 文本**（`RichScriptText` 渲染的 `TextLayoutResult.layoutInput.text`，即 `ScriptContent.plainText()`），字符 offset 一律为该文本的 **UTF-16 code unit offset**：
+
+- **ReadingCursor**：`PlaybackReadingTracker` 从正式播放的真实排版与本次 Session 启动时锁定的固定 `PlaybackReadingAnchor` 计算**全文绝对阅读游标**。当前阅读行定义为"第一个 `lineBottom` 越过阅读锚点 Y 的视觉行"（对 `lineBottom` 二分查找，锚点位于两行/两段间隙时上一行已读完、当前行进度归零，不再依赖 `getLineForVerticalPosition` 的选择语义）；行内用 `(anchorLocalY - lineTop) / (lineBottom - lineTop)` 得到亚字符进度，因此游标是连续的 `Double`（如 186.2、186.8、187.4），不是整行跳变。该游标只用于远控显示，不代表逐字匀速朗读。
+- **ReadingWindow**：`ReadingWindowManager` 维护**低频**阅读窗口——canonical 文本的较大连续切片（目标约 700 字符、硬上限 1100；初次建立游标位于约 30%，前进到约 72% 才滑动新窗口并把游标放回约 30%，向后越过约 18% 时重排窗口让游标回到约 65%）。窗口起止优先对齐自然换行/段落边界，且**永不切断 surrogate pair**；它不是控制端屏幕显示的 5–6 行，而是控制端本地重新排版的缓存。
+- **协议**：低频 `ReadingWindowUpdate`（仅在窗口变化时发送）与高频 `ReadingCursorUpdate`（约 12–20 Hz、latest-only：相同游标不重发、普通连续移动按 60 ms 节流、Seek 跳变立即发送；`sequence` 单调，控制端忽略乱序/过期游标）拆分为两类独立消息，与普通快照的 250 ms 节流解耦。`RemoteJsonCodec` 显式编解码并对文本长度、offset 范围与 `end-start==text.length` 做结构化校验。提词端经 `RemoteAppCoordinator.pushReadingState` 读取 `AppState` 的当前窗口/游标并推送（重连后先发窗口再发游标）。
+- **控制端**：`RemoteViewModel` 暴露 `readingWindow`/`readingCursor` 两个 StateFlow；`RemoteScreen` 的 `ControllerReadingViewport` 持有窗口并用**控制端自己的 `TextLayoutResult`** 重新排版（不保留平板视觉折行、保留原文换行与段落），通过 `ControllerReadingViewportMath` 把绝对游标映射到本机布局得到连续 cursorY（`floor` 后的 offset 做 surrogate 安全处理，行内亚字符进度映射为连续 Y），再用 `Animatable` 平滑滚动（普通更新约 70 ms 线性、Seek 大跳 snap、窗口切换 ≤120 ms 重锚定）把阅读位置稳定在固定阅读锚点（约 28% 高度）。区域高度固定约 5–6 行，短文本不缩小、长文本不撑高；控制端不建立第二播放时钟。
 
 ### 播放初始位置（正式播放 vs 预览）
 
@@ -188,8 +193,9 @@ RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemote
 ## 测试
 
 - JVM 测试覆盖模型、中文语速、富文本映射、序列化、编辑器保存、播放引擎、播放布局和触控策略。
-- 远控 JVM 测试覆盖 JSON Codec、配对载荷、握手校验、Repository 会话、命令去重与结果、UI 状态映射、Setup 保存门控，以及**真实 localhost WebSocket 集成**（Server/Client 经真实 Socket 完成握手、命令、快照和断开）。
-- AndroidTest 覆盖 Room 内存数据库、Compose 视口、提词辅助和播放触控。
+- 远控 JVM 测试覆盖 JSON Codec（含 `ReadingWindowUpdate`/`ReadingCursorUpdate` 编解码与非法字段拒绝）、配对载荷、握手校验、Repository 会话、命令去重与结果、UI 状态映射、Setup 保存门控，以及**真实 localhost WebSocket 集成**（Server/Client 经真实 Socket 完成握手、命令、快照和断开）。
+- 阅读同步 JVM 测试覆盖 `PlaybackReadingTracker`（行底判定、行间间隙、连续游标、空行/emoji/中英混排）、`ReadingWindowManager`（初始/前进/向后 Seek/硬上限/surrogate/段落对齐/文本 revision 变化）、`ControllerReadingViewportMath`（亚字符映射、锚点保持、窗口切换连续性）以及提词端游标通道的 latest-only/去重/60 ms 节流/Seek 立即发送、控制端窗口/游标接收与 sequence/textRevision 过滤、重连重置与重发。
+- AndroidTest 覆盖 Room 内存数据库、Compose 视口、提词辅助、播放触控、控制端 `ControllerReadingViewport` 的固定区域高度、长文本不撑高与窄屏排版。
 - Preview 使用 `data/fake` 中的统一 Mock 数据，不访问真实数据库或网络。
 
 ## 当前边界

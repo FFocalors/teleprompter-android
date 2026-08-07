@@ -111,10 +111,13 @@ fun PrompterScreen(
     }
     BackHandler { appState.resetPlayback(); onExit() }
 
-    // Clear the reported nearby text when leaving the prompter page so the controller never
-    // keeps stale text on Library/Editor/Setup.
+    // Clear the reported reading cursor/window when leaving the prompter page so the controller
+    // never keeps a stale reading position on Library/Editor/Setup.
     DisposableEffect(Unit) {
-        onDispose { appState.updatePlaybackReadingText(null) }
+        onDispose {
+            appState.updatePlaybackReadingCursor(null)
+            appState.updatePlaybackReadingWindow(null)
+        }
     }
 
     LaunchedEffect(appState.playbackState) {
@@ -200,8 +203,11 @@ fun PrompterScreen(
                         viewportScale = viewportScale,
                     )
                 },
-                onNearbyTextChanged = { update ->
-                    appState.updatePlaybackReadingText(update)
+                onReadingCursor = { cursor ->
+                    appState.updatePlaybackReadingCursor(cursor)
+                },
+                onReadingWindow = { window ->
+                    appState.updatePlaybackReadingWindow(window)
                 },
             )
 

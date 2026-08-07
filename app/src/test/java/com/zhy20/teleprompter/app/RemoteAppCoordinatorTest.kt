@@ -7,6 +7,7 @@ import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.model.RemoteSessionState
 import com.zhy20.teleprompter.remote.protocol.RemoteCommand
+import com.zhy20.teleprompter.remote.protocol.RemoteMessage
 import com.zhy20.teleprompter.remote.protocol.RemoteRejectReason
 import com.zhy20.teleprompter.remote.session.RemoteCommandResultState
 import com.zhy20.teleprompter.remote.session.RemoteCommandToEffect
@@ -14,11 +15,13 @@ import com.zhy20.teleprompter.remote.session.RemoteDeviceInfoHolder
 import com.zhy20.teleprompter.remote.session.RemoteNavigationEffect
 import com.zhy20.teleprompter.remote.session.RemoteSessionEffect
 import com.zhy20.teleprompter.remote.session.RemoteSessionRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -220,13 +223,105 @@ class RemoteAppCoordinatorTest {
         assertEquals(2, handled)
         assertEquals(2, repository.recorded.count { it.success && it.commandId.startsWith("cmd-") })
     }
+
+    // ---- reading sync (window + cursor push) ----
+
+    private val windowText = "第一段内容。第二段内容。"
+
+    private fun window(revision: Long, start: Int = 0) = com.zhy20.teleprompter.feature.prompter.reading.ReadingWindow(
+        revision = revision,
+        textRevision = 1L,
+        startOffset = start,
+        endOffset = windowText.length,
+        text = windowText.substring(start),
+    )
+
+    private fun cursor(offset: Double) = com.zhy20.teleprompter.feature.prompter.reading.ReadingCursorSample(
+        textRevision = 1L,
+        absoluteOffset = offset,
+        lineIndex = 0,
+        lineStartOffset = 0,
+        lineEndOffset = windowText.length,
+    )
+
+    @Test
+    fun pushReadingStateSendsWindowOnceAndDedupesIdenticalCursor() {
+        val state = appState()
+        state.updatePlaybackReadingWindow(window(1))
+        state.updatePlaybackReadingCursor(cursor(5.0))
+        val repository = StubRemoteSessionRepository(MutableSharedFlow())
+        val coordinator = RemoteAppCoordinator(state, repository, CoroutineScope(UnconfinedTestDispatcher()), RemoteStartPlaybackHandler())
+
+        coordinator.pushReadingState()
+        assertEquals(1, repository.sentWindows.size)
+        assertEquals(1, repository.sentCursors.size)
+        assertEquals(1L, repository.sentWindows.single().windowRevision)
+        assertEquals(5.0, repository.sentCursors.single().absoluteOffset, 1e-6)
+
+        // Nothing changed -> no re-send (latest-only dedup at the source).
+        coordinator.pushReadingState()
+        assertEquals(1, repository.sentWindows.size)
+        assertEquals(1, repository.sentCursors.size)
+    }
+
+    @Test
+    fun pushReadingStateSendsNewWindowAndChangedCursor() {
+        val state = appState()
+        state.updatePlaybackReadingWindow(window(1))
+        state.updatePlaybackReadingCursor(cursor(5.0))
+        val repository = StubRemoteSessionRepository(MutableSharedFlow())
+        val coordinator = RemoteAppCoordinator(state, repository, CoroutineScope(UnconfinedTestDispatcher()), RemoteStartPlaybackHandler())
+        coordinator.pushReadingState()
+
+        state.updatePlaybackReadingWindow(window(2))
+        state.updatePlaybackReadingCursor(cursor(9.0))
+        coordinator.pushReadingState()
+
+        assertEquals(2, repository.sentWindows.size)
+        assertEquals(2L, repository.sentWindows.last().windowRevision)
+        assertEquals(2, repository.sentCursors.size)
+        assertEquals(9.0, repository.sentCursors.last().absoluteOffset, 1e-6)
+    }
+
+    @Test
+    fun pushReadingStateForceResendsAfterReconnect() {
+        val state = appState()
+        state.updatePlaybackReadingWindow(window(1))
+        state.updatePlaybackReadingCursor(cursor(5.0))
+        val repository = StubRemoteSessionRepository(MutableSharedFlow())
+        val coordinator = RemoteAppCoordinator(state, repository, CoroutineScope(UnconfinedTestDispatcher()), RemoteStartPlaybackHandler())
+        coordinator.pushReadingState()
+        assertEquals(1, repository.sentWindows.size)
+
+        // A reconnect must re-deliver the current window + cursor even if unchanged locally.
+        coordinator.pushReadingState(force = true)
+        assertEquals(2, repository.sentWindows.size)
+        assertEquals(2, repository.sentCursors.size)
+    }
+
+    @Test
+    fun publishSnapshotNoLongerPopulatesLegacyReadingText() {
+        val state = appState()
+        state.updatePlaybackReadingWindow(window(1))
+        state.updatePlaybackReadingCursor(cursor(5.0))
+        val repository = StubRemoteSessionRepository(MutableSharedFlow())
+        val coordinator = RemoteAppCoordinator(state, repository, CoroutineScope(UnconfinedTestDispatcher()), RemoteStartPlaybackHandler())
+
+        coordinator.publishSnapshot()
+        val snap = repository.snapshot.value
+        assertEquals(null, snap?.nearbyText)
+        assertEquals(null, snap?.readingText)
+    }
 }
 
 class StubRemoteSessionRepository(
     override val sessionEffects: Flow<RemoteSessionEffect>,
 ) : RemoteSessionRepository {
     override val sessionState: StateFlow<RemoteSessionState> = MutableStateFlow(RemoteSessionState())
-    override val snapshot: StateFlow<RemotePrompterSnapshot?> = MutableStateFlow(null)
+    private val snapshotState = MutableStateFlow<RemotePrompterSnapshot?>(null)
+    override val snapshot: StateFlow<RemotePrompterSnapshot?> = snapshotState.asStateFlow()
+    override val readingWindow: StateFlow<com.zhy20.teleprompter.remote.model.RemoteReadingWindow?> = MutableStateFlow(null)
+    override val readingCursor: StateFlow<com.zhy20.teleprompter.remote.model.RemoteReadingCursor?> = MutableStateFlow(null)
     override val incomingCommands: Flow<RemoteCommand> = MutableSharedFlow()
 
     private val holder = object : RemoteDeviceInfoHolder {
@@ -239,6 +334,8 @@ class StubRemoteSessionRepository(
     override val localDevice: RemoteDeviceInfoHolder = holder
 
     val recorded = mutableListOf<RemoteCommandResultState>()
+    val sentWindows = mutableListOf<RemoteMessage.ReadingWindowUpdate>()
+    val sentCursors = mutableListOf<RemoteMessage.ReadingCursorUpdate>()
 
     override suspend fun prepare(role: RemoteRole) = Unit
     override suspend fun startWaiting() = Unit
@@ -251,7 +348,15 @@ class StubRemoteSessionRepository(
     override suspend fun stopHosting() = Unit
     override suspend fun resetRole() = Unit
     override suspend fun sendCommand(command: RemoteCommand) = Unit
-    override fun updatePrompterSnapshot(snapshot: RemotePrompterSnapshot) = Unit
+    override fun updatePrompterSnapshot(snapshot: RemotePrompterSnapshot) {
+        snapshotState.value = snapshot
+    }
+    override fun updateReadingWindow(update: RemoteMessage.ReadingWindowUpdate) {
+        sentWindows += update
+    }
+    override fun updateReadingCursor(update: RemoteMessage.ReadingCursorUpdate) {
+        sentCursors += update
+    }
     override fun resetCommandHistory() = Unit
     override fun takeCommandResult(commandId: String): RemoteCommandResultState? = null
     override fun recordResult(commandId: String, result: RemoteCommandResultState) {

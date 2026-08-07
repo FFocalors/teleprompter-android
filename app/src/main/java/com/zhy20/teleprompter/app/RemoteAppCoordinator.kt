@@ -3,8 +3,8 @@ package com.zhy20.teleprompter.app
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackState
 import com.zhy20.teleprompter.core.model.PrompterSurface
-import com.zhy20.teleprompter.remote.model.RemoteReadingText
 import com.zhy20.teleprompter.remote.protocol.RemoteCommand
+import com.zhy20.teleprompter.remote.protocol.RemoteMessage
 import com.zhy20.teleprompter.remote.protocol.RemoteRejectReason
 import com.zhy20.teleprompter.remote.session.RemoteCommandResultState
 import com.zhy20.teleprompter.remote.session.RemoteSessionEffect
@@ -39,6 +39,10 @@ class RemoteAppCoordinator(
 ) {
     /** Monotonic snapshot revision for this session; persists across command handling. */
     private var revision = 0L
+
+    /** Outgoing reading-channel dedup so the window is sent once and identical cursors are skipped. */
+    private var lastSentWindowRevision: Long? = null
+    private var lastSentCursorOffset: Double? = null
 
     init {
         repository.sessionEffects
@@ -154,16 +158,17 @@ class RemoteAppCoordinator(
 
     /**
      * Builds and publishes an immutable snapshot from the current real app state, returning
-     * its revision. The nearby text is the real guide-line window reported by the playback
-     * page (never a static plain-text preview); it is capped to a short plain-text summary so
-     * the protocol never transmits the whole rich-text document.
+     * its revision.
+     *
+     * The legacy [RemotePrompterSnapshot.nearbyText]/[RemotePrompterSnapshot.readingText]
+     * fields are deliberately left unpopulated: the controller's current-reading text now
+     * comes exclusively from [pushReadingState] (absolute reading window + cursor).
      */
     fun publishSnapshot(): Long {
         val id = appState.selectedScriptId
         if (id.isBlank()) return revision
         revision += 1
         val script = appState.script(id)
-        val reading = appState.playbackReadingText
         val snapshot = RemoteSnapshotFactory.fromPlaybackState(
             revision = revision,
             surface = appState.prompterSurface,
@@ -173,23 +178,57 @@ class RemoteAppCoordinator(
             playbackState = appState.playbackState,
             session = appState.playbackSession,
             speedMultiplier = appState.playbackSettings.speedMultiplier,
-            nearbyText = reading?.text?.take(140),
-            readingText = reading?.let {
-                RemoteReadingText(
-                    text = it.text,
-                    activeStart = it.activeStart,
-                    activeEnd = it.activeEnd,
-                    sourceStartOffset = it.sourceStartOffset,
-                    sourceEndOffset = it.sourceEndOffset,
-                    layoutRevision = 0L,
-                )
-            },
+            nearbyText = null,
+            readingText = null,
         )
         repository.updatePrompterSnapshot(snapshot)
         return revision
     }
 
+    /**
+     * Pushes the latest reading window + cursor to a connected controller. The window is sent
+     * only when it actually changed; the cursor is latest-only (identical values are skipped and
+     * the repository throttles ordinary motion to ~12–20 Hz while seek jumps pass immediately).
+     *
+     * @param force when true (e.g. right after a (re)connect) the current window and cursor are
+     *   re-sent even if unchanged locally, so the controller never depends on pre-drop cache.
+     */
+    fun pushReadingState(force: Boolean = false) {
+        val window = appState.playbackReadingWindow
+        if (window != null && (force || window.revision != lastSentWindowRevision)) {
+            lastSentWindowRevision = window.revision
+            repository.updateReadingWindow(
+                RemoteMessage.ReadingWindowUpdate(
+                    textRevision = window.textRevision,
+                    windowRevision = window.revision,
+                    startOffset = window.startOffset,
+                    endOffset = window.endOffset,
+                    text = window.text,
+                ),
+            )
+        }
+        val cursor = appState.playbackReadingCursor
+        if (cursor != null && (force || cursorChanged(cursor.absoluteOffset))) {
+            lastSentCursorOffset = cursor.absoluteOffset
+            repository.updateReadingCursor(
+                RemoteMessage.ReadingCursorUpdate(
+                    textRevision = cursor.textRevision,
+                    absoluteOffset = cursor.absoluteOffset,
+                    sequence = 0L, // stamped by the repository
+                    sentAtElapsedRealtimeMillis = 0L, // stamped by the repository
+                ),
+            )
+        }
+    }
+
+    private fun cursorChanged(offset: Double): Boolean {
+        val prev = lastSentCursorOffset ?: return true
+        return kotlin.math.abs(offset - prev) >= 1e-4
+    }
+
     fun reset() {
         revision = 0L
+        lastSentWindowRevision = null
+        lastSentCursorOffset = null
     }
 }

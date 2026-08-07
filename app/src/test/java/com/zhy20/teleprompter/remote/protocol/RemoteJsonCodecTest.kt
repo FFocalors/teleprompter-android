@@ -202,4 +202,65 @@ class RemoteJsonCodecTest {
         assertEquals(3, reading?.activeStart)
         assertEquals(3, reading?.activeEnd)
     }
+
+    @Test
+    fun readingWindowUpdateRoundTrips() {
+        val text = "第一段内容。" + "中".repeat(490) + "结尾。"
+        val message = RemoteMessage.ReadingWindowUpdate(
+            textRevision = 9L,
+            windowRevision = 3L,
+            startOffset = 120,
+            endOffset = 120 + text.length,
+            text = text,
+        )
+        val json = RemoteJsonCodec.encode(message)
+        val decoded = RemoteJsonCodec.decode(json).getOrThrow()
+        assertEquals(message, decoded)
+    }
+
+    @Test
+    fun readingCursorUpdateRoundTrips() {
+        val message = RemoteMessage.ReadingCursorUpdate(
+            textRevision = 9L,
+            absoluteOffset = 186.4,
+            sequence = 42L,
+            sentAtElapsedRealtimeMillis = 1_234_567L,
+        )
+        val json = RemoteJsonCodec.encode(message)
+        val decoded = RemoteJsonCodec.decode(json).getOrThrow()
+        assertEquals(message, decoded)
+    }
+
+    @Test
+    fun readingWindowOversizeTextIsRejected() {
+        val json = """{"type":"readingWindowUpdate","textRevision":1,"windowRevision":1,"startOffset":0,"endOffset":5,"text":"${"字".repeat(1300)}"}"""
+        val result = RemoteJsonCodec.decode(json)
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun readingWindowEmptyTextIsRejected() {
+        val json = """{"type":"readingWindowUpdate","textRevision":1,"windowRevision":1,"startOffset":0,"endOffset":0,"text":""}"""
+        assertTrue(RemoteJsonCodec.decode(json).isFailure)
+    }
+
+    @Test
+    fun readingWindowNegativeRevisionsAreRejected() {
+        val json = """{"type":"readingWindowUpdate","textRevision":-1,"windowRevision":1,"startOffset":0,"endOffset":3,"text":"abc"}"""
+        assertTrue(RemoteJsonCodec.decode(json).isFailure)
+    }
+
+    @Test
+    fun readingCursorNonFiniteOffsetIsRejected() {
+        val nan = """{"type":"readingCursorUpdate","textRevision":1,"absoluteOffset":NaN,"sequence":1,"sentAtElapsedRealtimeMillis":0}"""
+        assertTrue(RemoteJsonCodec.decode(nan).isFailure)
+        val negative = """{"type":"readingCursorUpdate","textRevision":1,"absoluteOffset":-3.0,"sequence":1,"sentAtElapsedRealtimeMillis":0}"""
+        assertTrue(RemoteJsonCodec.decode(negative).isFailure)
+    }
+
+    @Test
+    fun readingCursorNegativeSequenceIsRejected() {
+        val json = """{"type":"readingCursorUpdate","textRevision":1,"absoluteOffset":5.0,"sequence":-1,"sentAtElapsedRealtimeMillis":0}"""
+        assertTrue(RemoteJsonCodec.decode(json).isFailure)
+    }
 }

@@ -2,6 +2,7 @@ package com.zhy20.teleprompter.remote.protocol
 
 import com.zhy20.teleprompter.remote.model.MAX_NEARBY_TEXT_LENGTH
 import com.zhy20.teleprompter.remote.model.MAX_READING_TEXT_LENGTH
+import com.zhy20.teleprompter.remote.model.MAX_READING_WINDOW_LENGTH
 import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
 import com.zhy20.teleprompter.remote.model.RemotePlaybackState
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
@@ -70,6 +71,12 @@ object RemoteJsonCodec {
     private const val KEY_LAYOUT_REVISION = "layoutRevision"
     private const val KEY_COMMAND_TYPE = "commandType"
     private const val KEY_DELTA = "delta"
+    private const val KEY_TEXT_REVISION = "textRevision"
+    private const val KEY_WINDOW_REVISION = "windowRevision"
+    private const val KEY_START_OFFSET = "startOffset"
+    private const val KEY_END_OFFSET = "endOffset"
+    private const val KEY_ABSOLUTE_OFFSET = "absoluteOffset"
+    private const val KEY_SENT_AT = "sentAtElapsedRealtimeMillis"
 
     private const val TYPE_CLIENT_HELLO = "clientHello"
     private const val TYPE_SERVER_ACCEPTED = "serverAccepted"
@@ -81,6 +88,8 @@ object RemoteJsonCodec {
     private const val TYPE_HEARTBEAT_PONG = "heartbeatPong"
     private const val TYPE_DISCONNECT_NOTICE = "disconnectNotice"
     private const val TYPE_PROTOCOL_ERROR = "protocolError"
+    private const val TYPE_READING_WINDOW = "readingWindowUpdate"
+    private const val TYPE_READING_CURSOR = "readingCursorUpdate"
 
     private const val COMMAND_START = "startPlayback"
     private const val COMMAND_PAUSE = "pausePlayback"
@@ -132,6 +141,21 @@ object RemoteJsonCodec {
                 json.put(KEY_TYPE, TYPE_SNAPSHOT_UPDATE)
                 json.put(KEY_SNAPSHOT, encodeSnapshot(message.snapshot))
             }
+            is RemoteMessage.ReadingWindowUpdate -> {
+                json.put(KEY_TYPE, TYPE_READING_WINDOW)
+                json.put(KEY_TEXT_REVISION, message.textRevision)
+                json.put(KEY_WINDOW_REVISION, message.windowRevision)
+                json.put(KEY_START_OFFSET, message.startOffset)
+                json.put(KEY_END_OFFSET, message.endOffset)
+                json.put(KEY_TEXT, message.text)
+            }
+            is RemoteMessage.ReadingCursorUpdate -> {
+                json.put(KEY_TYPE, TYPE_READING_CURSOR)
+                json.put(KEY_TEXT_REVISION, message.textRevision)
+                json.put(KEY_ABSOLUTE_OFFSET, message.absoluteOffset)
+                json.put(KEY_SEQUENCE, message.sequence)
+                json.put(KEY_SENT_AT, message.sentAtElapsedRealtimeMillis)
+            }
             is RemoteMessage.HeartbeatPing -> {
                 json.put(KEY_TYPE, TYPE_HEARTBEAT_PING)
                 json.put(KEY_SEQUENCE, message.sequence)
@@ -176,6 +200,8 @@ object RemoteJsonCodec {
             TYPE_COMMAND_REQUEST -> decodeCommandRequest(json)
             TYPE_COMMAND_RESULT -> decodeCommandResult(json)
             TYPE_SNAPSHOT_UPDATE -> decodeSnapshotUpdate(json)
+            TYPE_READING_WINDOW -> decodeReadingWindow(json)
+            TYPE_READING_CURSOR -> decodeReadingCursor(json)
             TYPE_HEARTBEAT_PING -> decodeHeartbeat(json, pong = false)
             TYPE_HEARTBEAT_PONG -> decodeHeartbeat(json, pong = true)
             TYPE_DISCONNECT_NOTICE -> decodeDisconnectNotice(json)
@@ -306,6 +332,63 @@ object RemoteJsonCodec {
         val snapshotJson = json.optJSONObject(KEY_SNAPSHOT)
             ?: return Result.failure(RemoteDecodeError.Malformed("missing snapshot"))
         return decodeSnapshot(snapshotJson).map { RemoteMessage.SnapshotUpdate(it) }
+    }
+
+    private fun decodeReadingWindow(json: JSONObject): Result<RemoteMessage> {
+        val textRevision = json.optLong(KEY_TEXT_REVISION, -1L)
+        val windowRevision = json.optLong(KEY_WINDOW_REVISION, -1L)
+        if (textRevision < 0L || windowRevision < 0L) {
+            return Result.failure(RemoteDecodeError.Malformed("bad reading window revision"))
+        }
+        val start = json.optLong(KEY_START_OFFSET, -1L)
+        val end = json.optLong(KEY_END_OFFSET, -1L)
+        if (start < 0L || end < 0L) {
+            return Result.failure(RemoteDecodeError.Malformed("bad reading window offsets"))
+        }
+        val text = json.optString(KEY_TEXT)
+        if (text.isEmpty()) return Result.failure(RemoteDecodeError.Malformed("empty reading window"))
+        if (text.length > MAX_READING_WINDOW_LENGTH) {
+            return Result.failure(RemoteDecodeError.Malformed("reading window too large"))
+        }
+        val startInt = start.toInt()
+        val endInt = end.toInt()
+        // start/end are ABSOLUTE offsets into the canonical text; the delivered text must match
+        // the declared range exactly (`end - start == text.length`).
+        if (startInt < 0 || endInt < startInt) {
+            return Result.failure(RemoteDecodeError.Malformed("bad reading window range"))
+        }
+        if (endInt - startInt != text.length) {
+            return Result.failure(RemoteDecodeError.Malformed("reading window text/range mismatch"))
+        }
+        return Result.success(
+            RemoteMessage.ReadingWindowUpdate(
+                textRevision = textRevision,
+                windowRevision = windowRevision,
+                startOffset = startInt,
+                endOffset = endInt,
+                text = text,
+            ),
+        )
+    }
+
+    private fun decodeReadingCursor(json: JSONObject): Result<RemoteMessage> {
+        val textRevision = json.optLong(KEY_TEXT_REVISION, -1L)
+        if (textRevision < 0L) return Result.failure(RemoteDecodeError.Malformed("bad cursor text revision"))
+        val offset = json.optDouble(KEY_ABSOLUTE_OFFSET, Double.NaN)
+        if (!offset.isFinite() || offset < 0.0) {
+            return Result.failure(RemoteDecodeError.Malformed("bad cursor offset"))
+        }
+        val sequence = json.optLong(KEY_SEQUENCE, -1L)
+        if (sequence < 0L) return Result.failure(RemoteDecodeError.Malformed("bad cursor sequence"))
+        val sentAt = json.optLong(KEY_SENT_AT, -1L).coerceAtLeast(0L)
+        return Result.success(
+            RemoteMessage.ReadingCursorUpdate(
+                textRevision = textRevision,
+                absoluteOffset = offset,
+                sequence = sequence,
+                sentAtElapsedRealtimeMillis = sentAt,
+            ),
+        )
     }
 
     private fun decodeHeartbeat(json: JSONObject, pong: Boolean): Result<RemoteMessage> {

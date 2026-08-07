@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
+import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
+import com.zhy20.teleprompter.remote.model.RemoteReadingWindow
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayload
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayloadCodec
@@ -21,6 +23,10 @@ import kotlinx.coroutines.launch
 data class RemoteUiState(
     val status: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
     val snapshot: RemotePrompterSnapshot? = null,
+    /** The latest reading text window (low-frequency) for the current-reading viewport. */
+    val readingWindow: RemoteReadingWindow? = null,
+    /** The latest absolute reading cursor (high-frequency) for the current-reading viewport. */
+    val readingCursor: RemoteReadingCursor? = null,
     val commandInFlight: Boolean = false,
     val role: RemoteRole? = null,
     val pairingPayload: RemotePairingPayload? = null,
@@ -80,10 +86,14 @@ class RemoteViewModel(
     val uiState: StateFlow<RemoteUiState> = combine(
         repository.sessionState,
         repository.snapshot,
-    ) { session, snap ->
+        repository.readingWindow,
+        repository.readingCursor,
+    ) { session, snap, readingWindow, readingCursor ->
         RemoteUiState(
             status = session.status,
             snapshot = snap,
+            readingWindow = readingWindow,
+            readingCursor = readingCursor,
             commandInFlight = session.commandInFlight,
             role = session.role,
             pairingPayload = session.pairingPayload,

@@ -49,17 +49,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zhy20.teleprompter.R
@@ -152,8 +147,8 @@ fun RemoteScreen(
                     RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel()
                     RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
                     RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
-                    RemoteUiSection.Playing -> snapshot?.let { PlayingRemotePanel(it, onAction, expanded) }
-                    RemoteUiSection.Paused -> snapshot?.let { PausedRemotePanel(it, onAction) }
+                    RemoteUiSection.Playing -> snapshot?.let { PlayingRemotePanel(state, it, onAction, expanded) }
+                    RemoteUiSection.Paused -> snapshot?.let { PausedRemotePanel(state, it, onAction) }
                     RemoteUiSection.Finished -> FinishedRemotePanel()
                 }
                 Spacer(Modifier.height(AppSpacing.lg))
@@ -435,84 +430,52 @@ private fun FinishedRemotePanel() {
 }
 
 @Composable
-private fun PlayingRemotePanel(snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit, expanded: Boolean) {
+private fun PlayingRemotePanel(state: RemoteUiState, snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit, expanded: Boolean) {
     if (expanded) {
         Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            NearbyTextCard(snapshot, Modifier.weight(1.2f))
+            NearbyTextCard(state, Modifier.weight(1.2f))
             RemoteControls(snapshot, onAction, Modifier.weight(1f))
         }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            NearbyTextCard(snapshot)
+            NearbyTextCard(state)
             RemoteControls(snapshot, onAction)
         }
     }
 }
 
+/**
+ * The "当前朗读文本" card: a fixed-height [ControllerReadingViewport] driven by the reading
+ * window + cursor, with the progress bar and time rows below. The card height never depends on
+ * the reading text, so the lower rows stay at a stable Y.
+ */
 @Composable
-private fun NearbyTextCard(snapshot: RemotePrompterSnapshot, modifier: Modifier = Modifier) {
+private fun NearbyTextCard(state: RemoteUiState, modifier: Modifier = Modifier) {
     AppCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.nearby_text), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
-            // Fixed-height text area: derived from the real line height so fontScale and
-            // screen width never change the card height. The progress bar and time rows stay
-            // at a stable Y regardless of the reading text length.
-            val density = LocalDensity.current
-            val lineHeightPx = with(density) { MaterialTheme.typography.bodyLarge.lineHeight.toPx() }
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val narrowRows = if (maxWidth < 360.dp || lineHeightPx > 28f * density.density) 4 else 6
-                val textAreaHeight = with(density) { (lineHeightPx * narrowRows).toDp() }
-                Surface(
-                    color = AppColors.Secondary.copy(alpha = .25f),
-                    shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.fillMaxWidth().height(textAreaHeight),
-                ) {
-                    val reading = snapshot.readingText
-                    val annotated = if (reading != null && reading.text.isNotBlank()) {
-                        // Highlight the active reading range with a subtle background; the
-                        // surrounding context stays normal. Ranges are already normalized.
-                        buildAnnotatedString {
-                            append(reading.text)
-                            val start = reading.activeStart.coerceIn(0, reading.text.length)
-                            val end = reading.activeEnd.coerceIn(start, reading.text.length)
-                            if (end > start) {
-                                addStyle(
-                                    SpanStyle(
-                                        background = AppColors.Primary.copy(alpha = .18f),
-                                        fontWeight = FontWeight.SemiBold,
-                                    ),
-                                    start,
-                                    end,
-                                )
-                            }
-                        }
-                    } else {
-                        null
-                    }
-                    val placeholder = stringResource(R.string.empty_nearby_text)
-                    Text(
-                        annotated ?: AnnotatedString(placeholder),
-                        modifier = Modifier.fillMaxWidth().padding(AppSpacing.md).semantics { testTag = NearbyTextTestTag },
-                        color = AppColors.TextPrimary,
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = narrowRows,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
+            val placeholder = stringResource(R.string.empty_nearby_text)
+            ControllerReadingViewport(
+                window = state.readingWindow,
+                cursor = state.readingCursor,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = placeholder,
+                semanticsTag = NearbyTextTestTag,
+            )
+            val progress = state.snapshot?.progress?.coerceIn(0f, 1f) ?: 0f
             LinearProgressIndicator(
-                progress = { snapshot.progress.coerceIn(0f, 1f) },
+                progress = { progress },
                 modifier = Modifier.fillMaxWidth(),
                 color = AppColors.Primary,
                 trackColor = AppColors.Secondary,
             )
             // Progress + times: allow wrapping on narrow screens instead of forcing one row.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val progressText = stringResource(R.string.progress_percent, (snapshot.progress.coerceIn(0f, 1f) * 100).toInt())
+                val progressText = stringResource(R.string.progress_percent, (progress * 100).toInt())
                 val timeText = stringResource(
                     R.string.playback_elapsed_remaining,
-                    formatDuration((snapshot.elapsedTimeMillis / 1_000L).toInt()),
-                    formatDuration((snapshot.remainingTimeMillis / 1_000L).toInt()),
+                    formatDuration(((state.snapshot?.elapsedTimeMillis ?: 0L) / 1_000L).toInt()),
+                    formatDuration(((state.snapshot?.remainingTimeMillis ?: 0L) / 1_000L).toInt()),
                 )
                 if (maxWidth >= 340.dp) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -621,8 +584,8 @@ private fun SpeedIconButton(
 }
 
 @Composable
-private fun PausedRemotePanel(snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit) {
-    NearbyTextCard(snapshot)
+private fun PausedRemotePanel(state: RemoteUiState, snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit) {
+    NearbyTextCard(state)
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.paused), style = MaterialTheme.typography.headlineMedium)

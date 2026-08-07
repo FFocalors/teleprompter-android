@@ -15,6 +15,8 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -224,9 +226,21 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             appState.playbackSession.currentSemanticProgress,
             appState.playbackSession.elapsedTimeMillis,
             appState.playbackSettings.speedMultiplier,
-            appState.playbackReadingText,
         ) {
             if (isRemoteConnected) remoteCoordinator.publishSnapshot()
+        }
+        // Reading sync: while a controller is connected and the prompter page is live, push the
+        // latest reading window + cursor at a bounded cadence. Reading the latest AppState value
+        // each tick makes the cursor channel latest-only; the repository's gate throttles
+        // ordinary motion to ~12–20 Hz and lets seek jumps pass immediately.
+        LaunchedEffect(isRemoteConnected, appState.prompterSurface) {
+            if (!isRemoteConnected || appState.prompterSurface != PrompterSurface.Prompter) return@LaunchedEffect
+            // Fresh (re)connect: re-send the current window + cursor even if unchanged locally.
+            remoteCoordinator.pushReadingState(force = true)
+            while (isActive && isRemoteConnected) {
+                remoteCoordinator.pushReadingState()
+                delay(60)
+            }
         }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             NavHost(navController = navController, startDestination = AppRoutes.Library) {

@@ -58,6 +58,32 @@ sealed interface RemoteMessage {
         val snapshot: RemotePrompterSnapshot,
     ) : RemoteMessage
 
+    /**
+     * Prompter → controller: a large contiguous window of the canonical text for local
+     * re-layout. Low-frequency; sent only when the window actually changes.
+     *
+     * All offsets are UTF-16 code unit offsets into the canonical text.
+     */
+    data class ReadingWindowUpdate(
+        val textRevision: Long,
+        val windowRevision: Long,
+        val startOffset: Int,
+        val endOffset: Int,
+        val text: String,
+    ) : RemoteMessage
+
+    /**
+     * Prompter → controller: the current absolute reading position, expressed as a continuous
+     * UTF-16 offset. High-frequency and tiny. [sequence] is monotonic; the controller ignores
+     * out-of-order or stale sequences (latest-only).
+     */
+    data class ReadingCursorUpdate(
+        val textRevision: Long,
+        val absoluteOffset: Double,
+        val sequence: Long,
+        val sentAtElapsedRealtimeMillis: Long,
+    ) : RemoteMessage
+
     /** Application-level keep-alive; used to detect a dead link. */
     data class HeartbeatPing(
         val sequence: Long,

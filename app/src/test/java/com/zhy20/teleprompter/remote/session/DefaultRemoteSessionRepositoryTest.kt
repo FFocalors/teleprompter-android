@@ -622,4 +622,235 @@ class DefaultRemoteSessionRepositoryTest {
         advanceUntilIdle()
         assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Reconnecting)
     }
+
+    // ---- reading sync (window + absolute cursor) ----
+
+    private suspend fun TestScope.connectedPrompter(transport: FakeRemoteTransport): DefaultRemoteSessionRepository {
+        val repository = repo(transport)
+        repository.prepare(RemoteRole.Prompter)
+        repository.startWaiting()
+        val payload = repository.sessionState.value.pairingPayload!!
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, payload.sessionId, payload.pairingToken, controllerDevice),
+        )
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+        return repository
+    }
+
+    private suspend fun TestScope.connectedController(transport: FakeRemoteTransport): DefaultRemoteSessionRepository {
+        val repository = repo(transport)
+        repository.asController()
+        repository.connectToPrompter(
+            com.zhy20.teleprompter.remote.pairing.RemotePairingPayload(
+                protocolVersion = RemoteProtocol.VERSION,
+                host = "127.0.0.1",
+                port = 8765,
+                sessionId = "s1",
+                pairingToken = "tok",
+                expiresAtEpochMillis = Long.MAX_VALUE,
+            ),
+        )
+        advanceUntilIdle()
+        transport.simulateConnected(prompterDevice)
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ServerAccepted("conn-1", prompterDevice, "resume-1", snapshot(1)))
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+        return repository
+    }
+
+    @Test
+    fun prompterSendsReadingWindowOncePerWindowRevision() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = connectedPrompter(transport)
+        val w1 = RemoteMessage.ReadingWindowUpdate(1, 1, 0, 50, "a".repeat(50))
+        repository.updateReadingWindow(w1)
+        advanceUntilIdle()
+        repository.updateReadingWindow(w1) // same revision -> deduped
+        advanceUntilIdle()
+
+        val sent = transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingWindowUpdate>()
+        assertEquals(1, sent.size)
+        assertEquals(1L, sent.single().windowRevision)
+
+        val w2 = w1.copy(windowRevision = 2L)
+        repository.updateReadingWindow(w2)
+        advanceUntilIdle()
+        assertEquals(2, transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingWindowUpdate>().size)
+    }
+
+    @Test
+    fun prompterCursorIsLatestOnlyDedupedAndJumpBypassesGate() = runTest(UnconfinedTestDispatcher()) {
+        // Deterministic clock: the cursor channel must throttle ordinary motion to ~16 Hz and
+        // let seek-style jumps pass immediately. Intermediate frames are dropped (latest-only).
+        var clockNanos = 0L
+        val transport = FakeRemoteTransport()
+        val repository = DefaultRemoteSessionRepository(
+            transport = transport,
+            scope = backgroundScope,
+            lanAddressProvider = { "192.168.137.20" },
+            nanoTime = { clockNanos },
+            nowRealtimeMillis = { clockNanos / 1_000_000L },
+        )
+        repository.prepare(RemoteRole.Prompter)
+        repository.startWaiting()
+        val payload = repository.sessionState.value.pairingPayload!!
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, payload.sessionId, payload.pairingToken, controllerDevice),
+        )
+        advanceUntilIdle()
+
+        repository.updateReadingCursor(cursor(1, 100.0, 1))
+        advanceUntilIdle()
+        repository.updateReadingCursor(cursor(1, 100.0, 2)) // identical -> deduped
+        advanceUntilIdle()
+
+        clockNanos = 10_000_000L // 10 ms after the first send -> still inside the 60 ms gate
+        repository.updateReadingCursor(cursor(1, 100.5, 3))
+        advanceUntilIdle()
+        clockNanos = 20_000_000L
+        repository.updateReadingCursor(cursor(1, 101.0, 4)) // still < 2.0 from the last sent -> gated
+        advanceUntilIdle()
+
+        clockNanos = 30_000_000L
+        repository.updateReadingCursor(cursor(1, 300.0, 5)) // seek jump -> sent immediately
+        advanceUntilIdle()
+
+        val sent = transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingCursorUpdate>()
+        // Only the first and the jump were transmitted; intermediate frames were dropped and
+        // identical cursors were never resent.
+        assertEquals(listOf(100.0, 300.0), sent.map { it.absoluteOffset })
+        // The sequence is stamped by the repository and is monotonic.
+        assertTrue(sent.map { it.sequence }.let { it == it.sorted() })
+    }
+
+    @Test
+    fun prompterDoesNotSendReadingWhenNotConnected() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.prepare(RemoteRole.Prompter)
+
+        repository.updateReadingWindow(RemoteMessage.ReadingWindowUpdate(1, 1, 0, 10, "abc"))
+        repository.updateReadingCursor(cursor(1, 5.0, 1))
+        advanceUntilIdle()
+        assertTrue(transport.sentMessages.value.none { it is RemoteMessage.ReadingWindowUpdate || it is RemoteMessage.ReadingCursorUpdate })
+    }
+
+    @Test
+    fun controllerStoresReadingWindowAndCursor() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 3, 20, 120, "中".repeat(100)))
+        advanceUntilIdle()
+        assertEquals(3L, repository.readingWindow.value?.windowRevision)
+        assertEquals(20, repository.readingWindow.value?.startOffset)
+        assertEquals(120, repository.readingWindow.value?.endOffset)
+
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 86.5, 7, 1000L))
+        advanceUntilIdle()
+        assertEquals(86.5, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+        assertEquals(7L, repository.readingCursor.value?.sequence)
+    }
+
+    @Test
+    fun controllerIgnoresStaleOrRepeatedCursorSequence() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 50.0, 5, 0))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 60.0, 3, 0)) // stale
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 70.0, 5, 0)) // repeated
+        advanceUntilIdle()
+
+        assertEquals(50.0, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+    }
+
+    @Test
+    fun controllerDropsCursorWithWrongTextRevisionUntilMatchingWindow() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 1, 0, 100, "a".repeat(100)))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(2, 40.0, 1, 0)) // mismatched text revision
+        advanceUntilIdle()
+        assertEquals(null, repository.readingCursor.value)
+
+        // The matching window arrives, then the cursor is accepted.
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(2, 2, 0, 100, "b".repeat(100)))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(2, 40.0, 2, 0))
+        advanceUntilIdle()
+        assertEquals(40.0, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+        assertEquals(2L, repository.readingWindow.value?.textRevision)
+    }
+
+    @Test
+    fun controllerResetsReadingStateOnReconnectHandshake() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 1, 0, 50, "a".repeat(50)))
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 10.0, 1, 0))
+        advanceUntilIdle()
+        assertTrue(repository.readingWindow.value != null)
+        assertTrue(repository.readingCursor.value != null)
+
+        // A re-established connection must not reuse the pre-drop reading state.
+        transport.injectMessage(RemoteMessage.ServerAccepted("conn-2", prompterDevice, "resume-2", snapshot(2)))
+        advanceUntilIdle()
+        assertEquals(null, repository.readingWindow.value)
+        assertEquals(null, repository.readingCursor.value)
+    }
+
+    @Test
+    fun prompterResendsReadingWindowAfterNewControllerHandshake() = runTest(UnconfinedTestDispatcher()) {
+        val transport = FakeRemoteTransport()
+        val repository = repo(transport)
+        repository.prepare(RemoteRole.Prompter)
+        repository.startWaiting()
+        val payload = repository.sessionState.value.pairingPayload!!
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, payload.sessionId, payload.pairingToken, controllerDevice),
+        )
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+
+        val w1 = RemoteMessage.ReadingWindowUpdate(1, 1, 0, 50, "a".repeat(50))
+        repository.updateReadingWindow(w1)
+        advanceUntilIdle()
+        repository.updateReadingWindow(w1) // deduped before the drop
+        advanceUntilIdle()
+        assertEquals(1, transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingWindowUpdate>().size)
+
+        // The controller drops; the prompter keeps waiting with a resume credential.
+        transport.simulateDisconnected(RemoteFailureReason.HandshakeFailed)
+        advanceUntilIdle()
+        val resumeToken = transport.sentMessages.value.filterIsInstance<RemoteMessage.ServerAccepted>().last().resumeToken
+        transport.simulateConnected(controllerDevice)
+        advanceUntilIdle()
+        transport.injectMessage(
+            RemoteMessage.ClientHello(RemoteProtocol.VERSION, payload.sessionId, resumeToken, controllerDevice),
+        )
+        advanceUntilIdle()
+        assertTrue(repository.sessionState.value.status is RemoteConnectionStatus.Connected)
+
+        // The same window revision is delivered again: the handshake reset the outgoing dedup.
+        repository.updateReadingWindow(w1)
+        advanceUntilIdle()
+        assertEquals(2, transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingWindowUpdate>().size)
+    }
+
+    private fun cursor(textRevision: Long, absoluteOffset: Double, sequence: Long) =
+        RemoteMessage.ReadingCursorUpdate(textRevision, absoluteOffset, sequence, 0L)
 }

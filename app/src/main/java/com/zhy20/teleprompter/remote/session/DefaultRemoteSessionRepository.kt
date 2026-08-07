@@ -4,6 +4,8 @@ import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
 import com.zhy20.teleprompter.remote.model.RemoteFailureReason
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
+import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
+import com.zhy20.teleprompter.remote.model.RemoteReadingWindow
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.model.RemoteSessionState
 import com.zhy20.teleprompter.remote.pairing.PAIRING_VALIDITY_MILLIS
@@ -59,6 +61,11 @@ class DefaultRemoteSessionRepository(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val nanoTime: () -> Long = System::nanoTime,
     /**
+     * Monotonic elapsed-realtime source for the reading-cursor timestamp. Defaults to a JVM-safe
+     * monotonic millisecond clock so unit tests do not need [android.os.SystemClock].
+     */
+    private val nowRealtimeMillis: () -> Long = { System.nanoTime() / 1_000_000L },
+    /**
      * Resolves the LAN IPv4 this device should advertise in the pairing QR (prompter role).
      * Injected so the domain layer never touches Android network APIs.
      */
@@ -72,6 +79,25 @@ class DefaultRemoteSessionRepository(
 
     private val _snapshot = MutableStateFlow<RemotePrompterSnapshot?>(null)
     override val snapshot: StateFlow<RemotePrompterSnapshot?> = _snapshot.asStateFlow()
+
+    /** Controller-side reading sync state (latest window + latest cursor). */
+    private val _readingWindow = MutableStateFlow<RemoteReadingWindow?>(null)
+    override val readingWindow: StateFlow<RemoteReadingWindow?> = _readingWindow.asStateFlow()
+
+    private val _readingCursor = MutableStateFlow<RemoteReadingCursor?>(null)
+    override val readingCursor: StateFlow<RemoteReadingCursor?> = _readingCursor.asStateFlow()
+
+    /**
+     * Highest cursor sequence accepted so far (controller role). Stale/out-of-order cursor
+     * messages (sequence <= this) are dropped — the cursor channel is latest-only.
+     */
+    private var lastCursorSequence = Long.MIN_VALUE
+
+    /** Dedup + cursor gate state for the prompter's outgoing reading channel. */
+    private var lastSentWindowRevision: Long? = null
+    private var lastSentCursorOffset: Double? = null
+    private var cursorSequence = 0L
+    private var lastCursorSendNanos = 0L
 
     private val _incomingCommands = MutableSharedFlow<RemoteCommand>(extraBufferCapacity = 32)
     override val incomingCommands: Flow<RemoteCommand> = _incomingCommands.asSharedFlow()
@@ -157,6 +183,7 @@ class DefaultRemoteSessionRepository(
         reconnectJob = null
         prompterCredentials = null
         _snapshot.value = null
+        resetReadingState()
         transport.stop()
         sessionGeneration += 1
 
@@ -202,6 +229,7 @@ class DefaultRemoteSessionRepository(
             role = role,
         )
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
     }
 
@@ -264,6 +292,7 @@ class DefaultRemoteSessionRepository(
             role = role,
         )
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
     }
 
@@ -281,6 +310,7 @@ class DefaultRemoteSessionRepository(
         prompterCredentials = null
         controllerTarget = null
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
         // The server keeps running: rotate to a fresh session/token and a new QR.
         startWaiting()
@@ -299,6 +329,7 @@ class DefaultRemoteSessionRepository(
         controllerCredentials = null
         controllerTarget = null
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
         _sessionState.value = RemoteSessionState(
             status = RemoteConnectionStatus.Disabled,
@@ -319,6 +350,7 @@ class DefaultRemoteSessionRepository(
         prompterCredentials = null
         controllerTarget = null
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
         _sessionState.value = RemoteSessionState(
             status = RemoteConnectionStatus.Disabled,
@@ -345,6 +377,7 @@ class DefaultRemoteSessionRepository(
             role = null,
         )
         _snapshot.value = null
+        resetReadingState()
         resetCommandHistory()
     }
 
@@ -377,6 +410,51 @@ class DefaultRemoteSessionRepository(
         if (shouldThrottle) return
         lastSnapshotSendNanos = now
         scope.launch { transport.send(RemoteMessage.SnapshotUpdate(normalized)) }
+    }
+
+    /**
+     * Sends a reading window. The window is low-frequency: identical [RemoteMessage.ReadingWindowUpdate.windowRevision]
+     * values are never resent, so a fresh window is delivered once and the controller keeps it
+     * as its local re-layout cache until the next window slides.
+     */
+    override fun updateReadingWindow(update: RemoteMessage.ReadingWindowUpdate) {
+        val state = sessionState.value
+        if (state.status !is RemoteConnectionStatus.Connected) return
+        if (update.windowRevision == lastSentWindowRevision) return
+        lastSentWindowRevision = update.windowRevision
+        scope.launch { transport.send(update) }
+    }
+
+    /**
+     * Sends the absolute reading cursor. The channel is **latest-only**: an identical cursor is
+     * never resent, ordinary continuous motion is throttled to roughly 12–20 Hz, and a
+     * seek-style jump (delta ≥ [CURSOR_JUMP_THRESHOLD]) bypasses the cadence gate so the
+     * controller snaps to the new position immediately. Every sent cursor carries a fresh
+     * monotonic [RemoteMessage.ReadingCursorUpdate.sequence].
+     */
+    override fun updateReadingCursor(update: RemoteMessage.ReadingCursorUpdate) {
+        val state = sessionState.value
+        if (state.status !is RemoteConnectionStatus.Connected) return
+        val prev = lastSentCursorOffset
+        if (prev != null && kotlin.math.abs(update.absoluteOffset - prev) < CURSOR_DEDUP_EPSILON) return
+        val now = nanoTime()
+        val isJump = prev == null || kotlin.math.abs(update.absoluteOffset - prev) >= CURSOR_JUMP_THRESHOLD
+        if (!isJump && (now - lastCursorSendNanos) < CURSOR_INTERVAL_NANOS) return
+        lastCursorSendNanos = now
+        lastSentCursorOffset = update.absoluteOffset
+        cursorSequence += 1
+        val stamped = update.copy(sequence = cursorSequence, sentAtElapsedRealtimeMillis = nowRealtimeMillis())
+        scope.launch { transport.send(stamped) }
+    }
+
+    /** Controller-side: drops stale reading state so a new session never shows an old text. */
+    private fun resetReadingState() {
+        _readingWindow.value = null
+        _readingCursor.value = null
+        lastCursorSequence = Long.MIN_VALUE
+        lastSentWindowRevision = null
+        lastSentCursorOffset = null
+        lastCursorSendNanos = 0L
     }
 
     override fun resetCommandHistory() {
@@ -535,6 +613,8 @@ class DefaultRemoteSessionRepository(
             is RemoteMessage.CommandRequest -> handleCommandRequest(message)
             is RemoteMessage.CommandResult -> handleCommandResult(message)
             is RemoteMessage.SnapshotUpdate -> handleSnapshot(message.snapshot)
+            is RemoteMessage.ReadingWindowUpdate -> handleReadingWindow(message)
+            is RemoteMessage.ReadingCursorUpdate -> handleReadingCursor(message)
             is RemoteMessage.HeartbeatPing -> scope.launch { transport.send(RemoteMessage.HeartbeatPong(message.sequence)) }
             is RemoteMessage.HeartbeatPong -> Unit
             is RemoteMessage.DisconnectNotice -> handleDisconnected(RemoteFailureReason.HandshakeFailed)
@@ -578,6 +658,11 @@ class DefaultRemoteSessionRepository(
             resumeToken = resumeToken,
             initialSnapshot = _snapshot.value,
         )
+        // A (re)connected controller must receive the current reading window + cursor afresh;
+        // clear the outgoing dedup so the coordinator's next push re-sends both.
+        lastSentWindowRevision = null
+        lastSentCursorOffset = null
+        lastCursorSendNanos = 0L
         _sessionState.value = RemoteSessionState(
             status = RemoteConnectionStatus.Connected(hello.device),
             snapshot = _snapshot.value,
@@ -598,6 +683,9 @@ class DefaultRemoteSessionRepository(
             resumeToken = accepted.resumeToken,
             connectionId = accepted.connectionId,
         )
+        // A fresh (or re-established) connection must not reuse pre-drop reading state; the
+        // prompter re-sends the current window + cursor right after the handshake.
+        resetReadingState()
         accepted.initialSnapshot?.let { _snapshot.value = it.normalized() }
         _sessionState.value = RemoteSessionState(
             status = RemoteConnectionStatus.Connected(accepted.prompterDevice),
@@ -677,6 +765,43 @@ class DefaultRemoteSessionRepository(
         if (current == null || normalized.revision > current.revision) {
             _snapshot.value = normalized
         }
+    }
+
+    private fun handleReadingWindow(update: RemoteMessage.ReadingWindowUpdate) {
+        if (role != RemoteRole.Controller) return
+        val window = RemoteReadingWindow(
+            textRevision = update.textRevision,
+            windowRevision = update.windowRevision,
+            startOffset = update.startOffset,
+            endOffset = update.endOffset,
+            text = update.text,
+        ).normalized() ?: return
+        _readingWindow.value = window
+        // A fresh window re-anchors the cursor: keep the cursor only if it shares the text.
+        val cursor = _readingCursor.value
+        if (cursor != null && cursor.textRevision != window.textRevision) {
+            _readingCursor.value = null
+        }
+    }
+
+    private fun handleReadingCursor(update: RemoteMessage.ReadingCursorUpdate) {
+        if (role != RemoteRole.Controller) return
+        // Latest-only: out-of-order or stale sequences are never applied.
+        if (update.sequence <= lastCursorSequence) return
+        lastCursorSequence = update.sequence
+        // The cursor must share the window's text revision; otherwise wait for the matching
+        // window so a stale position is never shown against new text.
+        val currentWindow = _readingWindow.value
+        if (currentWindow != null && update.textRevision != currentWindow.textRevision) {
+            _readingCursor.value = null
+            return
+        }
+        _readingCursor.value = RemoteReadingCursor(
+            textRevision = update.textRevision,
+            absoluteOffset = update.absoluteOffset,
+            sequence = update.sequence,
+            sentAtElapsedRealtimeMillis = update.sentAtElapsedRealtimeMillis,
+        ).normalized()
     }
 
     // ---- command result recording ----
@@ -768,5 +893,8 @@ class DefaultRemoteSessionRepository(
         private const val HEARTBEAT_TIMEOUT_MILLIS = 15_000L
         private const val MAX_COMMAND_CACHE = 256
         private const val SNAPSHOT_THROTTLE_NANOS = 250_000_000L // 250 ms
+        private const val CURSOR_INTERVAL_NANOS = 60_000_000L // ~16 Hz (12–20 Hz target)
+        private const val CURSOR_JUMP_THRESHOLD = 2.0
+        private const val CURSOR_DEDUP_EPSILON = 1e-4
     }
 }

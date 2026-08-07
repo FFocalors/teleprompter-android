@@ -32,9 +32,14 @@
 - 台本库主操作区同时显示”导入文件”与”新建台本”，手机改为底部双按钮操作栏，平板保持标题区右侧按钮。
 - 控制端页面改用远控 ViewModel 与 Session 状态，移除演示状态选择器和直接修改 `AppState` 的逻辑；样式设置页远控卡片改为只读状态卡片，连接状态由 Session Repository 提供。
 - 远控页新增角色选择（提词端/控制端）、二维码等待/扫码、手动连接输入和断线重连界面；开始播放改为”保存设置后启动”（本机与远控共用同一保存门控）。
+- 控制端"当前朗读文本"改用**绝对阅读游标 + 阅读窗口**同步，废弃旧的"定位提词线附近视觉行 → 截取几行 → 发送字符串"算法作为状态源：新增 `PlaybackReadingTracker` 基于真实排版与固定阅读锚点计算全文绝对 UTF-16 阅读游标（首个 `lineBottom` 越过锚点的视觉行 + 行内亚字符进度，不再依赖 `getLineForVerticalPosition` 的选择语义）；新增 `ReadingWindowManager` 维护低频大窗口（目标约 700 字符、硬上限 1100，前后上下文约 30%/70%，前后向滞后阈值 18%/72%，窗口起止对齐自然换行且不切断 surrogate pair）。
+- 阅读同步拆分为两类独立消息：低频 `ReadingWindowUpdate`（仅在窗口变化时发送）与高频 `ReadingCursorUpdate`（约 12–20 Hz、latest-only、相同游标不重发、Seek 跳变立即发送、重连后先发窗口再发游标），与普通快照的 250 ms 节流解耦。
+- 控制端不再直接显示提词端字符串，而是新建 `ControllerReadingViewport`：用控制端自己的 `TextLayoutResult` 重新排版窗口文本（不保留平板视觉折行），把绝对游标映射到本机布局（`ControllerReadingViewportMath` 亚字符映射），用 `Animatable` 平滑滚动把阅读位置稳定在固定阅读锚点（约 28% 高度），区域高度固定约 5–6 行、短文本不缩小长文本不撑高；控制端不建立第二播放时钟。
+- 协议新增 `ReadingWindowUpdate`/`ReadingCursorUpdate` 消息类型与 `RemoteJsonCodec` 编解码；`RemotePrompterSnapshot` 中的旧 `nearbyText`/`readingText` 字段标记为废弃且不再填充。
 
 ### 修复
 
+- 修复旧"当前朗读文本"算法的五个根因：控制端仅显示约两行（视觉行窗口经手机重排后缩水）、文字越过阅读锚点后仍长时间滞留（`getLineForVerticalPosition` 在行间间隙的选择语义）、整块文本跳换（无连续滚动）、更新滞后（250 ms 快照节流）以及平板/手机视觉行不一致导致错位。
 - 提词设置页底部"控制端状态"卡片接入真实远控入口：整张卡片可点击（带按压反馈与无障碍 click action），点击前先经 `SetupViewModel.flush()` 保存当前播放设置，保存成功才导航到现有远控页，保存失败不导航且不丢设置；与"本机开始播放"复用同一套离开前保存逻辑。
 - 控制端"提词线附近文字"更名为"当前朗读文本"（中英文资源与 Preview 同步更新），并从静态小窗口升级为结构化阅读窗口 `RemoteReadingText`（窗口文本 + 当前朗读 active 范围 + 绝对源 offset + layout revision）。
 - 阅读窗口扩大：约 6 个视觉行上下文（窄屏/大字体回退 4 行），字符上限 360；采用滞后窗口策略——阅读行在窗口内移动时只更新 active 范围、不整体替换文本，接近后沿（70%）时才向前滑动窗口。

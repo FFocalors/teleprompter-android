@@ -3,6 +3,15 @@ package com.zhy20.teleprompter.feature.prompter
 import androidx.compose.ui.text.TextLayoutResult
 
 /**
+ * @deprecated Legacy "visual-line nearby text" algorithm. Superseded as the reading source by
+ *   [com.zhy20.teleprompter.feature.prompter.reading.PlaybackReadingTracker] (absolute reading
+ *   cursor) + [com.zhy20.teleprompter.feature.prompter.reading.ReadingWindowManager] (large
+ *   canonical window). The prompter viewport no longer calls these functions; they are kept only
+ *   so the original window-selection tests continue to run. Do not reintroduce them into the
+ *   controller display path.
+ */
+
+/**
  * A reading-text window produced by the playback text layout. The [text] is a contiguous
  * slice of the canonical annotated text (the same string the TextLayoutResult was built
  * from), so character offsets are always consistent — never applied to a re-derived plainText.

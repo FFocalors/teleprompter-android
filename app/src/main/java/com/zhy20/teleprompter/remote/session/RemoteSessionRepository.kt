@@ -1,10 +1,13 @@
 package com.zhy20.teleprompter.remote.session
 
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
+import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
+import com.zhy20.teleprompter.remote.model.RemoteReadingWindow
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.model.RemoteSessionState
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayload
 import com.zhy20.teleprompter.remote.protocol.RemoteCommand
+import com.zhy20.teleprompter.remote.protocol.RemoteMessage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -20,6 +23,12 @@ interface RemoteSessionRepository {
 
     val sessionState: StateFlow<RemoteSessionState>
     val snapshot: StateFlow<RemotePrompterSnapshot?>
+
+    /** Controller-side: the latest reading window received from the prompter (low-frequency). */
+    val readingWindow: StateFlow<RemoteReadingWindow?>
+
+    /** Controller-side: the latest absolute reading cursor received (high-frequency, latest-only). */
+    val readingCursor: StateFlow<RemoteReadingCursor?>
 
     /** Commands received from the controller, emitted exactly once after deduplication. */
     val incomingCommands: Flow<RemoteCommand>
@@ -75,6 +84,12 @@ interface RemoteSessionRepository {
 
     /** Prompter: publishes a fresh prompter snapshot to the controller. */
     fun updatePrompterSnapshot(snapshot: RemotePrompterSnapshot)
+
+    /** Prompter: publishes a reading text window (sent only when the window actually changes). */
+    fun updateReadingWindow(update: RemoteMessage.ReadingWindowUpdate)
+
+    /** Prompter: publishes the absolute reading cursor (high-frequency, latest-only). */
+    fun updateReadingCursor(update: RemoteMessage.ReadingCursorUpdate)
 
     /** Clears the in-memory deduplication history (used after reconnect). */
     fun resetCommandHistory()

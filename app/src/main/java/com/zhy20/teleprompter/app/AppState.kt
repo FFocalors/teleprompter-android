@@ -23,6 +23,8 @@ import com.zhy20.teleprompter.core.util.PlaybackEngine
 import com.zhy20.teleprompter.core.util.PlaybackEngineState
 import com.zhy20.teleprompter.core.util.PlaybackReadingAnchor
 import com.zhy20.teleprompter.core.util.PlaybackTiming
+import com.zhy20.teleprompter.feature.prompter.reading.ReadingCursorSample
+import com.zhy20.teleprompter.feature.prompter.reading.ReadingWindow
 
 class AppState(
     private val clockNanos: () -> Long = System::nanoTime,
@@ -59,15 +61,41 @@ class AppState(
     private val editorStates = mutableMapOf<String, RichTextEditorState>()
 
     /**
-     * The real reading text reported by the playback page (window text + active range +
-     * absolute source offsets), derived from the actual TextLayoutResult. Only the final
-     * pure-text payload lives here — never a TextLayoutResult or any Compose type. Cleared
-     * when leaving the prompter page.
+     * The real absolute reading cursor reported by the playback page, derived from the actual
+     * `TextLayoutResult` via [com.zhy20.teleprompter.feature.prompter.reading.PlaybackReadingTracker].
+     * High-frequency (every playback frame). Only the final pure-text payload lives here — never
+     * a `TextLayoutResult` or any Compose type. Cleared when leaving the prompter page.
      */
+    var playbackReadingCursor: ReadingCursorSample? by mutableStateOf(null)
+        private set
+
+    /**
+     * The current reading text window (a large contiguous slice of the canonical text) built by
+     * [com.zhy20.teleprompter.feature.prompter.reading.ReadingWindowManager]. Low-frequency: the
+     * instance only changes when the window actually slides. Cleared when leaving the prompter page.
+     */
+    var playbackReadingWindow: ReadingWindow? by mutableStateOf(null)
+        private set
+
+    fun updatePlaybackReadingCursor(cursor: ReadingCursorSample?) {
+        playbackReadingCursor = cursor
+    }
+
+    fun updatePlaybackReadingWindow(window: ReadingWindow?) {
+        playbackReadingWindow = window
+    }
+
+    /**
+     * @deprecated Legacy visual-line reading window. No longer produced by the playback page and
+     * no longer the source of truth for the controller; kept only for protocol/backward-compat
+     * tests. The controller now uses [playbackReadingCursor] + [playbackReadingWindow].
+     */
+    @Deprecated("Replaced by playbackReadingCursor + playbackReadingWindow (absolute reading sync)")
     var playbackReadingText: com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate? by mutableStateOf(null)
         private set
 
-    /** Backwards-compatible plain-text accessor for tests/UI. */
+    /** @deprecated Backwards-compatible plain-text accessor for the legacy path; see [playbackReadingText]. */
+    @Deprecated("Replaced by playbackReadingCursor + playbackReadingWindow (absolute reading sync)")
     var playbackNearbyText: String?
         get() = playbackReadingText?.text
         set(value) {
@@ -82,6 +110,8 @@ class AppState(
             }
         }
 
+    /** @deprecated See [playbackReadingText]. */
+    @Deprecated("Replaced by updatePlaybackReadingCursor + updatePlaybackReadingWindow")
     fun updatePlaybackReadingText(update: com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate?) {
         playbackReadingText = update
     }

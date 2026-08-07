@@ -232,6 +232,40 @@ class AppStatePlaybackTest {
         // Anchor Y at 50% of the viewport; line height is not measured here, so no +1.5 offset.
         assertEquals(500f, on.playbackSession.currentScrollOffset, 0.01f)
     }
+
+    @Test
+    fun guideOverlayChangesNeverMoveTheCapturedReadingAnchor() {
+        // The reading cursor is computed from the session's immutable readingAnchor, so moving
+        // or toggling the visual guide line during playback must not change it.
+        var now = 0L
+        val state = testState { now }
+        state.selectScript("4")
+        state.updatePlaybackSettings(
+            state.playbackSettings.copy(
+                countdown = CountdownOption.Off,
+                guideMode = GuideMode.Line,
+                guideLinePosition = 0.3f,
+            ),
+        )
+        state.beginPlayback("4")
+        state.updatePlaybackLayout(viewportHeightPx = 1_000f, textHeightPx = 4_000f)
+        val anchor = state.playbackSession.readingAnchor
+        assertTrue(anchor != null)
+        assertEquals(0.3f, anchor!!.viewportFraction, 0f)
+
+        now = 5_000_000_000L
+        state.onPlaybackFrame(now)
+        state.updateGuideOverlay(position = 0.7f)
+        state.onPlaybackEvent(PlaybackEvent.ChangeGuideMode(GuideMode.Off))
+        state.onPlaybackEvent(PlaybackEvent.ChangeGuideMode(GuideMode.HighlightBar))
+        state.onPlaybackEvent(PlaybackEvent.ChangeGuideMode(GuideMode.Line))
+        state.updateGuideOverlay(position = 0.2f)
+
+        // The anchor captured at session start is untouched.
+        assertEquals(anchor, state.playbackSession.readingAnchor)
+        // And the visible guide settings changed as expected (visual layer only).
+        assertEquals(0.2f, state.playbackSettings.guideLinePosition, 0f)
+    }
 }
 
 private fun testState(clock: () -> Long = System::nanoTime): AppState = AppState(

@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,10 +45,11 @@ import com.zhy20.teleprompter.core.util.PlaybackPreviewLayout
 import com.zhy20.teleprompter.core.util.PlaybackVisualLayer
 import com.zhy20.teleprompter.core.util.PrompterLayoutCalculator
 import com.zhy20.teleprompter.core.util.PrompterLayoutMetrics
-import com.zhy20.teleprompter.feature.prompter.PlaybackReadingTextUpdate
-import com.zhy20.teleprompter.feature.prompter.PlaybackReadingWindow
-import com.zhy20.teleprompter.feature.prompter.advanceReadingWindowFromLayout
-import com.zhy20.teleprompter.feature.prompter.extractReadingWindow
+import com.zhy20.teleprompter.feature.prompter.reading.ComposeReadingLayout
+import com.zhy20.teleprompter.feature.prompter.reading.PlaybackReadingTracker
+import com.zhy20.teleprompter.feature.prompter.reading.ReadingCursorSample
+import com.zhy20.teleprompter.feature.prompter.reading.ReadingWindow
+import com.zhy20.teleprompter.feature.prompter.reading.ReadingWindowManager
 import kotlin.math.floor
 import kotlin.math.min
 
@@ -57,6 +60,19 @@ data class PrompterPreviewTarget(
     val width: Dp,
     val height: Dp,
     val usesLargeLayout: Boolean,
+)
+
+/**
+ * Assigns a fresh, stable revision to each canonical document instance seen by the playback
+ * viewport. The reading cursor/window are tagged with it so the controller can discard stale
+ * positions when the script text changes.
+ */
+private val canonicalTextRevisionCounter = java.util.concurrent.atomic.AtomicLong(0L)
+
+/** A cursor + window computed for the current frame (kept as one immutable value). */
+private data class ReadingFrame(
+    val cursor: ReadingCursorSample,
+    val window: ReadingWindow,
 )
 
 /**
@@ -77,7 +93,8 @@ fun PrompterViewport(
     scriptTestTag: String? = null,
     onLayoutMeasured: (PrompterLayoutMetrics) -> Unit = {},
     statusContent: @Composable BoxScope.(PrompterLayoutMetrics, Float) -> Unit = { _, _ -> },
-    onNearbyTextChanged: (PlaybackReadingTextUpdate?) -> Unit = {},
+    onReadingCursor: (ReadingCursorSample?) -> Unit = {},
+    onReadingWindow: (ReadingWindow?) -> Unit = {},
 ) {
     val density = LocalDensity.current
     var statusHeightPx by remember { mutableIntStateOf(0) }
@@ -145,14 +162,17 @@ fun PrompterViewport(
             }
         }
 
-        // Real reading-text location. The reading anchor is the STABLE one captured at session
-        // start (session.readingAnchor), never the live guideLinePosition — so moving or
-        // toggling the visual guide line during playback cannot make the controller's text
-        // jump to a different passage. A hysteresis window keeps the text block stable while
-        // the active range advances inside it.
-        var lastWindow by remember { mutableStateOf<PlaybackReadingWindow?>(null) }
+        // Real reading-position source. The reading anchor is the STABLE one captured at
+        // session start (session.readingAnchor), never the live guideLinePosition — so moving
+        // or toggling the visual guide line during playback cannot move the reading cursor.
+        // The cursor is a continuous absolute UTF-16 offset into the canonical text
+        // (PlaybackReadingTracker); the window is a large contiguous slice of that same text
+        // (ReadingWindowManager) that slides with hysteresis. The controller re-flows the
+        // window at its own width, so visual lines are never used as a cross-device unit.
+        val textRevision by remember(document) { mutableLongStateOf(canonicalTextRevisionCounter.incrementAndGet()) }
+        val windowManager = remember(document) { ReadingWindowManager() }
         val readingAnchor = session?.readingAnchor
-        val readingWindowState = remember(
+        val readingFrame = remember(
             mode,
             playbackTextLayout,
             readingAnchor,
@@ -164,40 +184,22 @@ fun PrompterViewport(
             val layout = playbackTextLayout ?: return@remember null
             if (contentHeightPx <= 0) return@remember null
             val anchorFraction = readingAnchor?.viewportFraction ?: 0.25f
+            // The text is offset by contentOffset (graphicsLayer translationY), so the reading
+            // anchor's text-local Y is exactly anchorViewportY - contentOffset.
             val anchorViewportY = contentHeightPx * anchorFraction.coerceIn(0f, 1f)
             val anchorLocalY = anchorViewportY - contentOffset
-            // Determine the reading line, then either slide the existing window or build a
-            // fresh one with the hysteresis policy.
-            val lineCount = layout.lineCount
-            if (lineCount <= 0) return@remember null
-            val anchorLine = layout.getLineForVerticalPosition(anchorLocalY).coerceIn(0, lineCount - 1)
-            val prev = lastWindow
-            if (prev != null) {
-                advanceReadingWindowFromLayout(layout, prev, anchorLine)
-            } else {
-                extractReadingWindow(layout, anchorLocalY)
-            }
+            val readingLayout = ComposeReadingLayout(layout)
+            val cursor = PlaybackReadingTracker.computeCursor(readingLayout, anchorLocalY, textRevision)
+            val window = windowManager.update(readingLayout.text, textRevision, cursor.absoluteOffset)
+            ReadingFrame(cursor, window)
         }
-        LaunchedEffect(readingWindowState) {
-            val window = readingWindowState
-            if (window == null) {
-                if (lastWindow != null) {
-                    lastWindow = null
-                    onNearbyTextChanged(null)
-                }
-                return@LaunchedEffect
-            }
-            if (window == lastWindow) return@LaunchedEffect
-            lastWindow = window
-            onNearbyTextChanged(
-                PlaybackReadingTextUpdate(
-                    text = window.text,
-                    activeStart = window.activeStart,
-                    activeEnd = window.activeEnd,
-                    sourceStartOffset = window.sourceStartOffset,
-                    sourceEndOffset = window.sourceEndOffset,
-                ),
-            )
+        // Push the cursor on every frame. The network layer is latest-only, so intermediate
+        // per-frame values are dropped and only the most recent is transmitted at ~12–20 Hz.
+        SideEffect { onReadingCursor(readingFrame?.cursor) }
+        // Report the window only when it actually changed: ReadingWindowManager returns the same
+        // instance while the window is stable, so this fires only on a window slide.
+        LaunchedEffect(readingFrame?.window) {
+            onReadingWindow(readingFrame?.window)
         }
 
         Column(Modifier.fillMaxSize()) {
