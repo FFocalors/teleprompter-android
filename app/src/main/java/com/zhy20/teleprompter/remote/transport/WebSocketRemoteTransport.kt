@@ -44,7 +44,6 @@ class WebSocketRemoteTransport(
     private val _connectionEvents = MutableSharedFlow<RemoteTransportEvent>(extraBufferCapacity = 16)
     private val _incomingMessages = MutableSharedFlow<RemoteMessage>(extraBufferCapacity = 64)
     private val _boundPort = MutableStateFlow<Int?>(null)
-    private var boundPortReady = kotlinx.coroutines.CompletableDeferred<Boolean>()
 
     override val connectionEvents: SharedFlow<RemoteTransportEvent> = _connectionEvents.asSharedFlow()
     override val incomingMessages: SharedFlow<RemoteMessage> = _incomingMessages.asSharedFlow()
@@ -68,19 +67,15 @@ class WebSocketRemoteTransport(
         controller = null
         activeConnection = null
         _boundPort.value = null
-        boundPortReady = kotlinx.coroutines.CompletableDeferred()
     }
 
     override suspend fun start() {
         started = true
         when (role) {
+            // Prompter: startServer() suspends until the server thread actually binds (or all
+            // candidate ports fail), so start() returns with a valid boundPort.
             Role.Prompter -> startServer()
             Role.Controller -> Unit // connect(host, port) drives the client
-        }
-        if (role == Role.Prompter) {
-            // Wait for the server thread to actually bind (or fail) so the repository can
-            // read a valid port immediately after start().
-            kotlinx.coroutines.withTimeoutOrNull(5_000) { boundPortReady.await() }
         }
     }
 
@@ -144,7 +139,15 @@ class WebSocketRemoteTransport(
         }
     }
 
-    private fun startServer() {
+    /**
+     * Starts the prompter server, suspending until the server thread actually binds (or every
+     * candidate port fails). `WebSocketServer.start()` only spawns the server thread, so the
+     * bind happens asynchronously and surfaces through [WebSocketServer.onStart] / [WebSocketServer.onError].
+     * Each candidate port is awaited independently so a port that is already in use (e.g. a
+     * lingering socket from a previous crash, common on Windows) falls through to the next one
+     * instead of crashing the process.
+     */
+    private suspend fun startServer() {
         // Regenerating a QR calls start() again: stop the previous server so the port can
         // be re-bound cleanly.
         runCatching { server?.stop(1_000) }
@@ -157,8 +160,8 @@ class WebSocketRemoteTransport(
             add(bindPort)
             if (bindPort != 0) addAll((bindPort + 1)..(bindPort + 5))
         }
-        var lastError: Exception? = null
         for (attempt in attempts.distinct()) {
+            val bound = kotlinx.coroutines.CompletableDeferred<Boolean>()
             val ws: WebSocketServer = object : WebSocketServer(InetSocketAddress(attempt), 1) {
                 override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
                     if (activeConnection != null && activeConnection !== conn) {
@@ -184,29 +187,39 @@ class WebSocketRemoteTransport(
                     }
                 }
 
-                override fun onError(conn: WebSocket, ex: Exception) {
-                    _connectionEvents.tryEmit(RemoteTransportEvent.Disconnected(RemoteFailureReason.TransportUnavailable))
+                override fun onError(conn: WebSocket?, ex: Exception) {
+                    if (conn == null) {
+                        // Server-level fatal error: most commonly the requested port could not
+                        // be bound. Signal the pending bind attempt so the fallback port is
+                        // tried next; a connected peer (if any) is told the transport failed.
+                        if (!bound.isCompleted) bound.complete(false)
+                        _connectionEvents.tryEmit(RemoteTransportEvent.Disconnected(RemoteFailureReason.TransportUnavailable))
+                    } else {
+                        _connectionEvents.tryEmit(RemoteTransportEvent.Disconnected(RemoteFailureReason.TransportUnavailable))
+                    }
                 }
 
                 override fun onStart() {
                     // The server thread has bound the socket here, so the real port is known.
                     _boundPort.value = port
-                    boundPortReady.complete(true)
+                    if (!bound.isCompleted) bound.complete(true)
                 }
             }
             ws.setConnectionLostTimeout(0) // application-layer heartbeat is managed by the repository
             server = ws
             try {
                 ws.start()
-                return
             } catch (e: Exception) {
-                lastError = e
-                server = null
-                _boundPort.value = null
-                if (!boundPortReady.isCompleted) boundPortReady.complete(false)
+                if (!bound.isCompleted) bound.complete(false)
             }
+            // Await the real bind result (fast on both success and failure); a long stall is a
+            // safety net and falls through to the next port.
+            val ok = kotlinx.coroutines.withTimeoutOrNull(5_000) { bound.await() } ?: false
+            if (ok) return
+            _boundPort.value = null
+            server = null
+            runCatching { ws.stop(1_000) }
         }
-        if (!boundPortReady.isCompleted) boundPortReady.complete(false)
         _connectionEvents.tryEmit(RemoteTransportEvent.Disconnected(RemoteFailureReason.PortUnavailable))
     }
 

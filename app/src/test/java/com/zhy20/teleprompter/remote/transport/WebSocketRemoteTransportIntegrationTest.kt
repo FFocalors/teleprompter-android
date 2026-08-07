@@ -226,6 +226,36 @@ class WebSocketRemoteTransportIntegrationTest {
     }
 
     @Test
+    fun prompterServerFallsBackWhenRequestedPortIsTaken() = runRealTest {
+        // Regression for the "start waiting crashes" NPE: WebSocketServer reports a fatal bind
+        // error through onError(conn = null), which used to NPE because the Kotlin override
+        // declared conn non-null. The server must also fall through to the next candidate port
+        // instead of dying (the bind is asynchronous, so the old synchronous fallback never ran).
+        val blocker = java.net.ServerSocket(0)
+        val takenPort = blocker.localPort
+        try {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val transport = WebSocketRemoteTransport(bindPort = takenPort, scope = scope)
+            transport.setRole(WebSocketRemoteTransport.Role.Prompter)
+            transport.start()
+
+            val port = withTimeout(5_000) {
+                var candidate: Int? = null
+                while (candidate == null) {
+                    candidate = transport.boundPort.value
+                    if (candidate == null) kotlinx.coroutines.delay(50)
+                }
+                candidate
+            }
+            assertTrue("server must bind to a port, got $port", port > 0)
+            assertTrue("must fall back away from the held port $takenPort", port != takenPort)
+            transport.stop()
+        } finally {
+            blocker.close()
+        }
+    }
+
+    @Test
     fun codecRoundTripOverTheWireIsStable() {
         val message = RemoteMessage.ClientHello(
             protocolVersion = 2,
