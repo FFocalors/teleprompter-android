@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -122,5 +123,16 @@ class ControllerReadingViewportTest {
             cursor = RemoteReadingCursor(textRevision = 99L, absoluteOffset = 5.0, sequence = 2L, sentAtElapsedRealtimeMillis = 0L),
         )
         composeRule.onNodeWithTag(ControllerReadingViewportAreaTag).assertIsDisplayed()
+    }
+
+    @Test
+    fun windowReplacementSwapsTheRenderedText() {
+        // §30: replacing the window (a sliding update) must re-render the new text — the
+        // viewport must not keep displaying the initial window's content.
+        setViewport(widthDp = 360, window = window("这是窗口A的独特标记文字"))
+        composeRule.onNodeWithTag("readingViewport").assertTextContains("窗口A的独特标记文字")
+
+        setViewport(widthDp = 360, window = window("这是窗口B的独特标记文字", start = 60))
+        composeRule.onNodeWithTag("readingViewport").assertTextContains("窗口B的独特标记文字")
     }
 }

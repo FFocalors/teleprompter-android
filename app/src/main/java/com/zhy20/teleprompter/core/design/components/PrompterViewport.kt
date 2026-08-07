@@ -69,6 +69,8 @@ data class PrompterPreviewTarget(
  */
 private val canonicalTextRevisionCounter = java.util.concurrent.atomic.AtomicLong(0L)
 
+private const val PlaybackViewportTag = "PlaybackViewport"
+
 /** A cursor + window computed for the current frame (kept as one immutable value). */
 private data class ReadingFrame(
     val cursor: ReadingCursorSample,
@@ -171,6 +173,7 @@ fun PrompterViewport(
         // window at its own width, so visual lines are never used as a cross-device unit.
         val textRevision by remember(document) { mutableLongStateOf(canonicalTextRevisionCounter.incrementAndGet()) }
         val windowManager = remember(document) { ReadingWindowManager() }
+        var lastReportedWindowRevision by remember { mutableLongStateOf(-1L) }
         val readingAnchor = session?.readingAnchor
         val readingFrame = remember(
             mode,
@@ -196,10 +199,20 @@ fun PrompterViewport(
         // Push the cursor on every frame. The network layer is latest-only, so intermediate
         // per-frame values are dropped and only the most recent is transmitted at ~12–20 Hz.
         SideEffect { onReadingCursor(readingFrame?.cursor) }
-        // Report the window only when it actually changed: ReadingWindowManager returns the same
-        // instance while the window is stable, so this fires only on a window slide.
-        LaunchedEffect(readingFrame?.window) {
-            onReadingWindow(readingFrame?.window)
+        // Report the window on every frame too: AppState stores it by structural equality, so
+        // this is a no-op while the window is stable and guarantees a freshly slid window
+        // reaches the app/network layer the moment it is produced (no LaunchedEffect-key
+        // fragility that could freeze the window at its initial value).
+        SideEffect {
+            val w = readingFrame?.window
+            if (w != null && w.revision != lastReportedWindowRevision) {
+                lastReportedWindowRevision = w.revision
+                android.util.Log.d(
+                    PlaybackViewportTag,
+                    "ReadingWindow created: revision=${w.revision} textRevision=${w.textRevision} start=${w.startOffset} end=${w.endOffset}",
+                )
+            }
+            onReadingWindow(w)
         }
 
         Column(Modifier.fillMaxSize()) {

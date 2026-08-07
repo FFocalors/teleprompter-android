@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,8 @@ import com.zhy20.teleprompter.feature.prompter.reading.ControllerReadingViewport
 import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
 import com.zhy20.teleprompter.remote.model.RemoteReadingWindow
 import kotlin.math.abs
+
+private const val ControllerViewportTag = "ControllerReadingViewport"
 
 /** The controller viewport keeps the reading position near the top of the fixed area. */
 private const val ReadingAnchorFraction = 0.28f
@@ -96,15 +99,19 @@ fun ControllerReadingViewport(
                 // Reset the layout when the window changes so a stale layout is never mapped.
                 var textLayout by remember(window.windowRevision) { mutableStateOf<TextLayoutResult?>(null) }
                 val scroll = remember { Animatable(0f) }
+                var lastAppliedWindowRevision by remember { mutableLongStateOf(-1L) }
 
                 LaunchedEffect(window.windowRevision, cursor?.sequence, cursor?.absoluteOffset, textLayout) {
                     val w = window
                     val c = cursor
                     val layout = textLayout
                     if (w == null || c == null || layout == null) return@LaunchedEffect
-                    // Never apply a cursor that does not share the window's canonical text, or
-                    // that falls outside the current window (wait for the sliding window).
+                    // Never apply a cursor that does not share the window's canonical text.
                     if (c.textRevision != w.textRevision) return@LaunchedEffect
+                    // The cursor may briefly be outside the current window (window/cursor
+                    // reorder, or a seek whose covering window has not arrived yet). Hold the
+                    // last good translation — this is the controller's pending cursor; it is
+                    // applied the moment a covering window arrives.
                     if (c.absoluteOffset < w.startOffset || c.absoluteOffset > w.endOffset) return@LaunchedEffect
                     val target = ControllerReadingViewportMath.targetTranslationY(
                         layout = ComposeReadingLayout(layout),
@@ -115,8 +122,19 @@ fun ControllerReadingViewport(
                         anchorFraction = ReadingAnchorFraction,
                     )
                     val current = scroll.value
-                    if (abs(target - current) > snapThresholdPx) {
+                    val windowJustChanged = w.windowRevision != lastAppliedWindowRevision
+                    lastAppliedWindowRevision = w.windowRevision
+                    if (windowJustChanged || abs(target - current) > snapThresholdPx) {
+                        // A fresh window (or a seek) re-anchors immediately from the absolute
+                        // cursor, so the old window's local translation is never applied to the
+                        // new window and the reading line does not jump to the top/bottom.
                         scroll.snapTo(target)
+                        android.util.Log.d(
+                            ControllerViewportTag,
+                            "ReadingWindow applied: revision=${w.windowRevision} " +
+                                "relativeCursor=${(c.absoluteOffset - w.startOffset).toInt()} " +
+                                "targetY=${target.toInt()}",
+                        )
                     } else {
                         scroll.animateTo(target, tween(durationMillis = 70, easing = LinearEasing))
                     }

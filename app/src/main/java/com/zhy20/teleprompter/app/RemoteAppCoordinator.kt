@@ -40,7 +40,8 @@ class RemoteAppCoordinator(
     /** Monotonic snapshot revision for this session; persists across command handling. */
     private var revision = 0L
 
-    /** Outgoing reading-channel dedup so the window is sent once and identical cursors are skipped. */
+    /** Outgoing reading-channel dedup so a window is sent once and identical cursors are skipped. */
+    private var lastSentWindowTextRevision: Long? = null
     private var lastSentWindowRevision: Long? = null
     private var lastSentCursorOffset: Double? = null
 
@@ -195,7 +196,10 @@ class RemoteAppCoordinator(
      */
     fun pushReadingState(force: Boolean = false) {
         val window = appState.playbackReadingWindow
-        if (window != null && (force || window.revision != lastSentWindowRevision)) {
+        val windowChanged = force || window != null &&
+            (window.textRevision != lastSentWindowTextRevision || window.revision != lastSentWindowRevision)
+        if (window != null && windowChanged) {
+            lastSentWindowTextRevision = window.textRevision
             lastSentWindowRevision = window.revision
             repository.updateReadingWindow(
                 RemoteMessage.ReadingWindowUpdate(
@@ -228,6 +232,7 @@ class RemoteAppCoordinator(
 
     fun reset() {
         revision = 0L
+        lastSentWindowTextRevision = null
         lastSentWindowRevision = null
         lastSentCursorOffset = null
     }

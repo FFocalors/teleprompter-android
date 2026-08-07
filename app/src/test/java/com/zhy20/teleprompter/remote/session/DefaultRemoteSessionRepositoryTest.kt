@@ -851,6 +851,51 @@ class DefaultRemoteSessionRepositoryTest {
         assertEquals(2, transport.sentMessages.value.filterIsInstance<RemoteMessage.ReadingWindowUpdate>().size)
     }
 
+    @Test
+    fun controllerHoldsPendingCursorUntilACoveringWindowArrives() = runTest(UnconfinedTestDispatcher()) {
+        // §29: a cursor that arrives outside the current window (reorder or a seek) must be kept
+        // as the latest (pending) cursor, never dropped, and applied once a covering window lands.
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 1, 0, 700, "a".repeat(700)))
+        advanceUntilIdle()
+        // Cursor 760 is beyond the current window 0..700 — the repository keeps it (pending).
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 760.0, 1, 0))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 780.0, 2, 0))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 810.0, 3, 0))
+        advanceUntilIdle()
+        assertEquals(810.0, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+
+        // The covering window arrives later; the latest pending cursor must be applied.
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 2, 500, 1200, "b".repeat(700)))
+        advanceUntilIdle()
+        assertEquals(2L, repository.readingWindow.value?.windowRevision)
+        assertEquals(810.0, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+    }
+
+    @Test
+    fun controllerAppliesWindowEvenWhenCursorArrivesBetweenWindows() = runTest(UnconfinedTestDispatcher()) {
+        // A window update must be applied regardless of cursor interleaving, and a cursor that
+        // follows lands on the newest window.
+        val transport = FakeRemoteTransport()
+        val repository = connectedController(transport)
+
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 1, 0, 700, "a".repeat(700)))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 100.0, 1, 0))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingWindowUpdate(1, 2, 200, 900, "c".repeat(700)))
+        advanceUntilIdle()
+        transport.injectMessage(RemoteMessage.ReadingCursorUpdate(1, 300.0, 2, 0))
+        advanceUntilIdle()
+
+        assertEquals(2L, repository.readingWindow.value?.windowRevision)
+        assertEquals(300.0, repository.readingCursor.value?.absoluteOffset ?: -1.0, 1e-6)
+    }
+
     private fun cursor(textRevision: Long, absoluteOffset: Double, sequence: Long) =
         RemoteMessage.ReadingCursorUpdate(textRevision, absoluteOffset, sequence, 0L)
 }

@@ -94,6 +94,7 @@ class DefaultRemoteSessionRepository(
     private var lastCursorSequence = Long.MIN_VALUE
 
     /** Dedup + cursor gate state for the prompter's outgoing reading channel. */
+    private var lastSentWindowTextRevision: Long? = null
     private var lastSentWindowRevision: Long? = null
     private var lastSentCursorOffset: Double? = null
     private var cursorSequence = 0L
@@ -413,14 +414,22 @@ class DefaultRemoteSessionRepository(
     }
 
     /**
-     * Sends a reading window. The window is low-frequency: identical [RemoteMessage.ReadingWindowUpdate.windowRevision]
-     * values are never resent, so a fresh window is delivered once and the controller keeps it
-     * as its local re-layout cache until the next window slides.
+     * Sends a reading window. The window is low-frequency: a window that was already sent
+     * (same text revision + window revision) is never resent, so a fresh window is delivered
+     * once and the controller keeps it as its local re-layout cache until the next window slides.
+     * The dedup key is the (textRevision, windowRevision) pair: the window revision alone could
+     * collide if a document change restarts the prompter's window counter, silently dropping a
+     * fresh window.
      */
     override fun updateReadingWindow(update: RemoteMessage.ReadingWindowUpdate) {
         val state = sessionState.value
         if (state.status !is RemoteConnectionStatus.Connected) return
-        if (update.windowRevision == lastSentWindowRevision) return
+        if (update.textRevision == lastSentWindowTextRevision &&
+            update.windowRevision == lastSentWindowRevision
+        ) {
+            return
+        }
+        lastSentWindowTextRevision = update.textRevision
         lastSentWindowRevision = update.windowRevision
         scope.launch { transport.send(update) }
     }
@@ -452,6 +461,7 @@ class DefaultRemoteSessionRepository(
         _readingWindow.value = null
         _readingCursor.value = null
         lastCursorSequence = Long.MIN_VALUE
+        lastSentWindowTextRevision = null
         lastSentWindowRevision = null
         lastSentCursorOffset = null
         lastCursorSendNanos = 0L
@@ -660,6 +670,7 @@ class DefaultRemoteSessionRepository(
         )
         // A (re)connected controller must receive the current reading window + cursor afresh;
         // clear the outgoing dedup so the coordinator's next push re-sends both.
+        lastSentWindowTextRevision = null
         lastSentWindowRevision = null
         lastSentCursorOffset = null
         lastCursorSendNanos = 0L

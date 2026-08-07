@@ -39,6 +39,8 @@
 
 ### 修复
 
+- 修复控制端"当前朗读文本"的 ReadingWindow 只在初始化生效、后续正文不再补充的问题：提词端 `PrompterViewport` 改用每帧 `SideEffect` 上报最新窗口（不再依赖 `LaunchedEffect` 的窗口实例 key，杜绝窗口冻结在初始值）；`ReadingWindowManager` 按绝对游标的前后向滞后阈值（前进 72% / 后退 18%）持续生成下一窗口，窗口 revision 严格递增、独立于 textRevision；`ReadingWindowUpdate` 发送去重键改为 `(textRevision, windowRevision)` 对，避免文档变化导致窗口计数器重置后误丢新窗口。
+- 控制端 `ControllerReadingViewport` 支持 **pending cursor**：游标先于覆盖它的新窗口到达时暂存最新游标并保持上一帧翻译，等覆盖窗口到达后按绝对游标立即重锚定（新窗口应用时 snap 到正确位置，旧窗口局部坐标不会套用到新窗口），长台本可持续读到结尾、窗口切换不产生空白或回跳。
 - 修复提词端选择"开始等待连接"时 WebSocket Server 崩溃：`WebSocketServer` 在致命错误（最常见是端口绑定失败）时经 `handleFatal` 调用 `onError(conn = null, ex)`，Kotlin 覆写的非空 `conn` 参数触发空检查 NPE 导致进程退出；`onError` 签名改为可空 `WebSocket?`。同时把端口回退改为异步感知（每个候选端口用 `CompletableDeferred` 等待 `onStart`/`onError` 的真实绑定结果），`start()` 返回时即持有有效端口，二维码不再指向失效端口。
 - 修复旧"当前朗读文本"算法的五个根因：控制端仅显示约两行（视觉行窗口经手机重排后缩水）、文字越过阅读锚点后仍长时间滞留（`getLineForVerticalPosition` 在行间间隙的选择语义）、整块文本跳换（无连续滚动）、更新滞后（250 ms 快照节流）以及平板/手机视觉行不一致导致错位。
 - 提词设置页底部"控制端状态"卡片接入真实远控入口：整张卡片可点击（带按压反馈与无障碍 click action），点击前先经 `SetupViewModel.flush()` 保存当前播放设置，保存成功才导航到现有远控页，保存失败不导航且不丢设置；与"本机开始播放"复用同一套离开前保存逻辑。

@@ -284,6 +284,26 @@ class RemoteAppCoordinatorTest {
     }
 
     @Test
+    fun pushReadingStateSendsEveryWindowRevisionForTheSameTextRevision() {
+        // §9 regression: an unchanged canonical text (same textRevision) must NOT stop the
+        // coordinator from sending subsequent sliding windows — windowRevision is the slider key.
+        val state = appState()
+        val repository = StubRemoteSessionRepository(MutableSharedFlow())
+        val coordinator = RemoteAppCoordinator(state, repository, CoroutineScope(UnconfinedTestDispatcher()), RemoteStartPlaybackHandler())
+
+        for (revision in 1L..4L) {
+            state.updatePlaybackReadingWindow(window(revision))
+            state.updatePlaybackReadingCursor(cursor(5.0 + revision))
+            coordinator.pushReadingState()
+        }
+
+        assertEquals(4, repository.sentWindows.size)
+        assertEquals(listOf(1L, 2L, 3L, 4L), repository.sentWindows.map { it.windowRevision })
+        // All windows share the same text revision.
+        assertTrue(repository.sentWindows.all { it.textRevision == 1L })
+    }
+
+    @Test
     fun pushReadingStateForceResendsAfterReconnect() {
         val state = appState()
         state.updatePlaybackReadingWindow(window(1))
