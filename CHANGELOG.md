@@ -39,6 +39,7 @@
 
 ### 修复
 
+- 修复提词端选择"开始等待连接"时 WebSocket Server 崩溃：`WebSocketServer` 在致命错误（最常见是端口绑定失败）时经 `handleFatal` 调用 `onError(conn = null, ex)`，Kotlin 覆写的非空 `conn` 参数触发空检查 NPE 导致进程退出；`onError` 签名改为可空 `WebSocket?`。同时把端口回退改为异步感知（每个候选端口用 `CompletableDeferred` 等待 `onStart`/`onError` 的真实绑定结果），`start()` 返回时即持有有效端口，二维码不再指向失效端口。
 - 修复旧"当前朗读文本"算法的五个根因：控制端仅显示约两行（视觉行窗口经手机重排后缩水）、文字越过阅读锚点后仍长时间滞留（`getLineForVerticalPosition` 在行间间隙的选择语义）、整块文本跳换（无连续滚动）、更新滞后（250 ms 快照节流）以及平板/手机视觉行不一致导致错位。
 - 提词设置页底部"控制端状态"卡片接入真实远控入口：整张卡片可点击（带按压反馈与无障碍 click action），点击前先经 `SetupViewModel.flush()` 保存当前播放设置，保存成功才导航到现有远控页，保存失败不导航且不丢设置；与"本机开始播放"复用同一套离开前保存逻辑。
 - 控制端"提词线附近文字"更名为"当前朗读文本"（中英文资源与 Preview 同步更新），并从静态小窗口升级为结构化阅读窗口 `RemoteReadingText`（窗口文本 + 当前朗读 active 范围 + 绝对源 offset + layout revision）。
