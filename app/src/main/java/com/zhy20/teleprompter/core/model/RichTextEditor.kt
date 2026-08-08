@@ -1,6 +1,10 @@
 package com.zhy20.teleprompter.core.model
 
-/** Compose-independent selection so a future editor engine can reuse this state. */
+/**
+ * A character-range selection inside a document, kept Compose-independent so a future
+ * editor engine can reuse the same state. [start] and [end] may be in either order;
+ * use [min]/[max] for the normalized range and [coerceTo] to clamp it to a document.
+ */
 data class TextSelection(val start: Int, val end: Int) {
     val min: Int get() = kotlin.math.min(start, end)
     val max: Int get() = kotlin.math.max(start, end)
@@ -12,11 +16,21 @@ data class TextSelection(val start: Int, val end: Int) {
     )
 }
 
+/**
+ * An immutable point-in-time copy of a document and its selection, captured before a
+ * text or style change so the editor can restore it when undoing.
+ */
 data class RichTextSnapshot(
     val document: ScriptDocument,
     val selection: TextSelection,
 )
 
+/**
+ * The editor's working state: the current [document], the [selection], and a bounded
+ * [undoHistory] of snapshots taken before each edit. Mutations are pure — they route
+ * through [RichTextDocument] and return a new state — so edits are deterministic and
+ * the undo history always reflects the edits that actually happened.
+ */
 data class RichTextEditorState(
     val document: ScriptDocument,
     val selection: TextSelection = TextSelection(document.plainText().length, document.plainText().length),

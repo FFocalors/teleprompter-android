@@ -1,5 +1,11 @@
 package com.zhy20.teleprompter.core.model
 
+/**
+ * A single teleprompter script: title, rich-text body, folder membership and playback
+ * settings, plus derived metadata (plain-text preview, word count, estimated duration).
+ * The body is a [ScriptContent] document, so formatting survives without coupling the
+ * model to Compose or to an HTML representation.
+ */
 data class Script(
     val id: String,
     val title: String,
@@ -12,6 +18,10 @@ data class Script(
     val playbackSettings: PlaybackSettings,
 )
 
+/**
+ * A rich-text document consisting of [ScriptBlock]s. When flattened to plain text,
+ * paragraphs are joined by blank lines (see [plainText]).
+ */
 data class ScriptContent(val blocks: List<ScriptBlock>) {
     fun plainText(): String = blocks.joinToString("\n\n") { block ->
         when (block) {
@@ -20,7 +30,15 @@ data class ScriptContent(val blocks: List<ScriptBlock>) {
     }
 }
 
+/**
+ * One block of a [ScriptContent] document. Only [Paragraph] exists today; future block
+ * kinds (headings, lists) can be added without changing how inline spans are stored.
+ */
 sealed interface ScriptBlock {
+    /**
+     * A paragraph of inline [ScriptSpan]s. The [id] is stable within a document and
+     * survives serialization, so editors and the network layer can address a paragraph.
+     */
     data class Paragraph(val id: String, val spans: List<ScriptSpan>) : ScriptBlock
 }
 
@@ -30,6 +48,11 @@ sealed interface ScriptBlock {
  */
 enum class ScriptSpanStyle { Bold, Italic, Underline }
 
+/**
+ * An inline run of [text] that shares one set of [styles]. When a document is rebuilt,
+ * adjacent characters with identical style sets are merged into a single span, so a
+ * span is the smallest unit a consumer needs to render or persist.
+ */
 data class ScriptSpan(
     val text: String,
     val styles: Set<ScriptSpanStyle> = emptySet(),

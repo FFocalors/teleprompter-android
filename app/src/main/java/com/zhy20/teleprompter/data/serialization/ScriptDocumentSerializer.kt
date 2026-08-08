@@ -10,6 +10,11 @@ import java.util.logging.Logger
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Encodes a [ScriptDocument] to the versioned JSON persisted in the Room database and
+ * decodes it back. Malformed JSON or an unknown schema version degrades safely to an
+ * empty document instead of failing the caller.
+ */
 object ScriptDocumentSerializer {
     const val SchemaVersion = 1
     private val logger = Logger.getLogger("ScriptDocumentSerializer")
