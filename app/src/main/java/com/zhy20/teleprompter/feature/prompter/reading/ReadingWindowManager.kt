@@ -1,5 +1,6 @@
 package com.zhy20.teleprompter.feature.prompter.reading
 
+import com.zhy20.teleprompter.BuildConfig
 import kotlin.math.max
 import kotlin.math.min
 
@@ -53,6 +54,38 @@ class ReadingWindowManager(
 
     private var window: ReadingWindow? = null
 
+    // ---- DIAG (RemoteReadingDiag): debug-only, no behavior change ----
+
+    private val DIAG_TAG = "RemoteReadingDiag"
+    private var lastKeepDiagNanos = 0L
+
+    /** Debug-only; never logs text content. No-op in release and in unit tests (Log not mocked). */
+    private fun diag(message: String) {
+        if (!BuildConfig.DEBUG) return
+        try {
+            android.util.Log.d(DIAG_TAG, message)
+        } catch (_: RuntimeException) {
+            // JVM unit tests do not mock android.util.Log
+        }
+    }
+
+    /** Logs the real decision at the exact branch where it is made. KEEP is throttled to 500 ms. */
+    private fun diagEval(decision: String, current: ReadingWindow?, cursor: Double) {
+        if (!BuildConfig.DEBUG) return
+        val span = ((current?.endOffset ?: 1) - (current?.startOffset ?: 0)).coerceAtLeast(1)
+        val relative = cursor - (current?.startOffset ?: 0)
+        val ratio = relative / span
+        val now = System.nanoTime()
+        if (!decision.startsWith("KEEP") || now - lastKeepDiagNanos >= 500_000_000L) {
+            lastKeepDiagNanos = now
+            diag(
+                "WINDOW_EVAL rev=${current?.revision} start=${current?.startOffset} end=${current?.endOffset} " +
+                    "cursor=$cursor relative=$relative ratio=${"%.3f".format(ratio)} " +
+                    "forward=$forwardRatio backward=$backwardRatio decision=$decision",
+            )
+        }
+    }
+
     /** Current window, or null before the first update. */
     fun current(): ReadingWindow? = window
 
@@ -73,7 +106,14 @@ class ReadingWindowManager(
         val length = canonicalText.length
         val cursor = if (length <= 0) 0.0 else absoluteCursor.coerceIn(0.0, length.toDouble())
         if (length <= 0) {
-            return ReadingWindow(++revision, textRevision, 0, 0, "").also { window = it }
+            return buildWindow(
+                text = canonicalText,
+                textRevision = textRevision,
+                cursor = cursor,
+                length = length,
+                cursorRatio = cursorFrontRatio,
+                decision = "NEW",
+            )
         }
 
         val current = window
@@ -81,25 +121,43 @@ class ReadingWindowManager(
             val span = (current.endOffset - current.startOffset).coerceAtLeast(1)
             if (cursor >= current.startOffset && cursor <= current.endOffset) {
                 val relative = (cursor - current.startOffset) / span
-                if (relative < forwardRatio && relative > backwardRatio) return current
+                if (relative < forwardRatio && relative > backwardRatio) {
+                    diagEval("KEEP", current, cursor)
+                    return current
+                }
                 // Forward-crowding -> rebuild with the cursor near the front; backward-crowding
                 // -> rebuild with the cursor near 65% so the reader keeps context behind.
-                val ratio = if (relative <= backwardRatio) cursorBackRatio else cursorFrontRatio
-                val rebuilt = buildWindow(canonicalText, textRevision, cursor, length, ratio)
-                window = rebuilt
-                return rebuilt
+                val movingBackward = relative <= backwardRatio
+                return buildWindow(
+                    text = canonicalText,
+                    textRevision = textRevision,
+                    cursor = cursor,
+                    length = length,
+                    cursorRatio = if (movingBackward) cursorBackRatio else cursorFrontRatio,
+                    decision = if (movingBackward) "REPLACE_BACKWARD" else "REPLACE_FORWARD",
+                )
             }
             // The cursor jumped outside the current window (seek): forward jumps get room ahead,
             // backward jumps keep context behind.
-            val ratio = if (cursor < current.startOffset) cursorBackRatio else cursorFrontRatio
-            val rebuilt = buildWindow(canonicalText, textRevision, cursor, length, ratio)
-            window = rebuilt
-            return rebuilt
+            val seekingBackward = cursor < current.startOffset
+            return buildWindow(
+                text = canonicalText,
+                textRevision = textRevision,
+                cursor = cursor,
+                length = length,
+                cursorRatio = if (seekingBackward) cursorBackRatio else cursorFrontRatio,
+                decision = if (seekingBackward) "SEEK_BACKWARD" else "SEEK_FORWARD",
+            )
         }
 
-        val rebuilt = buildWindow(canonicalText, textRevision, cursor, length, cursorFrontRatio)
-        window = rebuilt
-        return rebuilt
+        return buildWindow(
+            text = canonicalText,
+            textRevision = textRevision,
+            cursor = cursor,
+            length = length,
+            cursorRatio = cursorFrontRatio,
+            decision = "NEW",
+        )
     }
 
     private fun buildWindow(
@@ -108,6 +166,7 @@ class ReadingWindowManager(
         cursor: Double,
         length: Int,
         cursorRatio: Double,
+        decision: String,
     ): ReadingWindow {
         val cursorInt = cursor.toInt().coerceIn(0, length)
         // Ideal window: cursor placed at [cursorRatio] of the window.
@@ -143,13 +202,38 @@ class ReadingWindowManager(
             end = safeUtf16End(text, min(length, start + 64), start)
         }
 
-        return ReadingWindow(
-            revision = ++revision,
+        val previous = window
+        if (previous != null &&
+            previous.textRevision == textRevision &&
+            previous.startOffset == start &&
+            previous.endOffset == end
+        ) {
+            // Document-edge clamping can make a requested forward/backward replacement resolve
+            // to exactly the current range. Keeping the existing instance is essential: callers
+            // use its revision as the low-frequency network/layout identity.
+            diagEval("KEEP_SAME_RANGE", previous, cursor)
+            return previous
+        }
+
+        diagEval(decision, previous, cursor)
+        val newRevision = ++revision
+        val built = ReadingWindow(
+            revision = newRevision,
             textRevision = textRevision,
             startOffset = start,
             endOffset = end,
             text = text.substring(start, end),
         )
+        // DIAG: log only genuinely new windows. Same-range candidates return above without
+        // allocating, incrementing the revision or reaching the network layer.
+        diag(
+            "WINDOW_CREATE oldRev=${previous?.revision} newRev=$newRevision " +
+                "old=${previous?.startOffset}..${previous?.endOffset} new=$start..$end " +
+                "cursor=$cursor textRev=$textRevision " +
+                "sameRange=${previous != null && previous.startOffset == start && previous.endOffset == end}",
+        )
+        window = built
+        return built
     }
 
     /** Returns the index just past the previous `\n` at or before [from], or [from] if none. */

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +25,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
@@ -35,6 +38,9 @@ import com.zhy20.teleprompter.feature.prompter.reading.ControllerReadingViewport
 import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
 import com.zhy20.teleprompter.remote.model.RemoteReadingWindow
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.StateFlow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 private const val ControllerViewportTag = "ControllerReadingViewport"
 
@@ -46,6 +52,19 @@ private const val SnapThresholdLines = 3f
 
 /** Test tag on the fixed-height area surface of [ControllerReadingViewport]. */
 const val ControllerReadingViewportAreaTag = "controllerReadingViewportArea"
+
+/** Debug/test metrics proving that the cached text is laid out beyond the clipped viewport. */
+val ControllerReadingWindowLengthKey = SemanticsPropertyKey<Int>("ControllerReadingWindowLength")
+val ControllerReadingLineCountKey = SemanticsPropertyKey<Int>("ControllerReadingLineCount")
+val ControllerReadingLayoutHeightKey = SemanticsPropertyKey<Int>("ControllerReadingLayoutHeight")
+val ControllerReadingViewportHeightKey = SemanticsPropertyKey<Int>("ControllerReadingViewportHeight")
+val ControllerReadingTranslationYKey = SemanticsPropertyKey<Int>("ControllerReadingTranslationY")
+
+private var SemanticsPropertyReceiver.controllerReadingWindowLength by ControllerReadingWindowLengthKey
+private var SemanticsPropertyReceiver.controllerReadingLineCount by ControllerReadingLineCountKey
+private var SemanticsPropertyReceiver.controllerReadingLayoutHeight by ControllerReadingLayoutHeightKey
+private var SemanticsPropertyReceiver.controllerReadingViewportHeight by ControllerReadingViewportHeightKey
+private var SemanticsPropertyReceiver.controllerReadingTranslationY by ControllerReadingTranslationYKey
 
 /**
  * The controller's "当前朗读文本" viewport.
@@ -64,10 +83,12 @@ const val ControllerReadingViewportAreaTag = "controllerReadingViewportArea"
 fun ControllerReadingViewport(
     window: RemoteReadingWindow?,
     cursor: RemoteReadingCursor?,
+    cursorUpdates: StateFlow<RemoteReadingCursor?>? = null,
     modifier: Modifier = Modifier,
     placeholder: String,
     semanticsTag: String,
 ) {
+    val streamedCursor = cursorUpdates?.collectAsStateWithLifecycle()?.value ?: cursor
     val density = LocalDensity.current
     val lineHeightPx = with(density) { MaterialTheme.typography.bodyLarge.lineHeight.toPx() }
     val snapThresholdPx = lineHeightPx * SnapThresholdLines
@@ -95,15 +116,28 @@ fun ControllerReadingViewport(
             } else {
                 // Rebuild the big AnnotatedString only when the window slides; cursor updates
                 // never touch it.
-                val annotated = remember(window.windowRevision) { AnnotatedString(window.text) }
+                val annotated = remember(window.textRevision, window.windowRevision) {
+                    AnnotatedString(window.text)
+                }
                 // Reset the layout when the window changes so a stale layout is never mapped.
-                var textLayout by remember(window.windowRevision) { mutableStateOf<TextLayoutResult?>(null) }
-                val scroll = remember { Animatable(0f) }
+                var textLayout by remember(window.textRevision, window.windowRevision) {
+                    mutableStateOf<TextLayoutResult?>(null)
+                }
+                // Translation is local to a specific laid-out window. A new window starts with
+                // fresh motion state and is snapped from its absolute cursor after layout.
+                val scroll = remember(window.textRevision, window.windowRevision) { Animatable(0f) }
+                var lastAppliedTextRevision by remember { mutableLongStateOf(-1L) }
                 var lastAppliedWindowRevision by remember { mutableLongStateOf(-1L) }
 
-                LaunchedEffect(window.windowRevision, cursor?.sequence, cursor?.absoluteOffset, textLayout) {
+                LaunchedEffect(
+                    window.textRevision,
+                    window.windowRevision,
+                    streamedCursor?.sequence,
+                    streamedCursor?.absoluteOffset,
+                    textLayout,
+                ) {
                     val w = window
-                    val c = cursor
+                    val c = streamedCursor
                     val layout = textLayout
                     if (w == null || c == null || layout == null) return@LaunchedEffect
                     // Never apply a cursor that does not share the window's canonical text.
@@ -122,7 +156,9 @@ fun ControllerReadingViewport(
                         anchorFraction = ReadingAnchorFraction,
                     )
                     val current = scroll.value
-                    val windowJustChanged = w.windowRevision != lastAppliedWindowRevision
+                    val windowJustChanged = w.textRevision != lastAppliedTextRevision ||
+                        w.windowRevision != lastAppliedWindowRevision
+                    lastAppliedTextRevision = w.textRevision
                     lastAppliedWindowRevision = w.windowRevision
                     if (windowJustChanged || abs(target - current) > snapThresholdPx) {
                         // A fresh window (or a seek) re-anchors immediately from the absolute
@@ -145,12 +181,37 @@ fun ControllerReadingViewport(
                         text = annotated,
                         modifier = Modifier
                             .fillMaxWidth()
+                            // The fixed outer Box is only an observation viewport. Remove its
+                            // max-height constraint while measuring the cached text so every
+                            // visual line participates in TextLayoutResult.
+                            .wrapContentHeight(unbounded = true)
                             .padding(horizontal = AppSpacing.md)
                             .graphicsLayer { translationY = scroll.value }
-                            .semantics { testTag = semanticsTag },
+                            .semantics {
+                                testTag = semanticsTag
+                                controllerReadingWindowLength = window.text.length
+                                controllerReadingLineCount = textLayout?.lineCount ?: 0
+                                controllerReadingLayoutHeight = textLayout?.size?.height ?: 0
+                                controllerReadingViewportHeight = viewportHeightPx.roundToInt()
+                                controllerReadingTranslationY = scroll.value.roundToInt()
+                            },
                         color = AppColors.TextPrimary,
                         style = MaterialTheme.typography.bodyLarge,
-                        onTextLayout = { textLayout = it },
+                        onTextLayout = { result ->
+                            val previous = textLayout
+                            textLayout = result
+                            if (previous?.lineCount != result.lineCount ||
+                                previous?.size?.height != result.size.height
+                            ) {
+                                android.util.Log.d(
+                                    ControllerViewportTag,
+                                    "ReadingWindow layout: revision=${window.windowRevision} " +
+                                        "windowLength=${window.text.length} lineCount=${result.lineCount} " +
+                                        "layoutHeight=${result.size.height} " +
+                                        "viewportHeight=${viewportHeightPx.roundToInt()}",
+                                )
+                            }
+                        },
                     )
                 }
             }

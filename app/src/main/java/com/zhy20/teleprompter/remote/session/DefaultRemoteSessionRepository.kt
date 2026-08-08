@@ -1,5 +1,6 @@
 package com.zhy20.teleprompter.remote.session
 
+import com.zhy20.teleprompter.BuildConfig
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemoteDeviceInfo
 import com.zhy20.teleprompter.remote.model.RemoteFailureReason
@@ -431,6 +432,11 @@ class DefaultRemoteSessionRepository(
         }
         lastSentWindowTextRevision = update.textRevision
         lastSentWindowRevision = update.windowRevision
+        // DIAG (RemoteReadingDiag): log at the real send boundary (after the outgoing dedup).
+        diag(
+            "WINDOW_PUSH rev=${update.windowRevision} start=${update.startOffset} end=${update.endOffset} " +
+                "textRev=${update.textRevision}",
+        )
         scope.launch { transport.send(update) }
     }
 
@@ -881,6 +887,17 @@ class DefaultRemoteSessionRepository(
     private fun transportBoundPort(): Int? =
         (transport as? WebSocketRemoteTransport)?.boundPort?.value
 
+    /** DIAG (RemoteReadingDiag): debug-only, never logs payload text. No-op in release and in
+     * unit tests (android.util.Log is not mocked there). */
+    private fun diag(message: String) {
+        if (!BuildConfig.DEBUG) return
+        try {
+            android.util.Log.d(REMOTE_READING_DIAG_TAG, message)
+        } catch (_: RuntimeException) {
+            // JVM unit tests do not mock android.util.Log
+        }
+    }
+
     private fun RemoteRejectReason.toFailureReason(): RemoteFailureReason = when (this) {
         RemoteRejectReason.ProtocolMismatch -> RemoteFailureReason.ProtocolMismatch
         RemoteRejectReason.TokenExpired,
@@ -900,6 +917,7 @@ class DefaultRemoteSessionRepository(
     )
 
     companion object {
+        private const val REMOTE_READING_DIAG_TAG = "RemoteReadingDiag"
         private const val HEARTBEAT_INTERVAL_MILLIS = 5_000L
         private const val HEARTBEAT_TIMEOUT_MILLIS = 15_000L
         private const val MAX_COMMAND_CACHE = 256

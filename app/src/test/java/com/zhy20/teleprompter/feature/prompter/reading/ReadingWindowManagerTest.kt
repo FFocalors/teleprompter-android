@@ -45,10 +45,60 @@ class ReadingWindowManagerTest {
         val cursor = first.startOffset + span * 0.75
         val second = manager.update(longText(), 1, cursor.toDouble())
         assertNotSame(first, second)
-        assertTrue(second.revision > first.revision)
+        assertEquals(first.revision + 1, second.revision)
         // The fresh window re-places the cursor near the front (~30%).
         val relative = (cursor - second.startOffset).toDouble() / (second.endOffset - second.startOffset)
         assertTrue("expected ~0.3, was $relative", relative in 0.15..0.45)
+    }
+
+    @Test
+    fun backwardThresholdAtDocumentStartKeepsRangeAndRevision() {
+        val manager = ReadingWindowManager()
+        val text = "字".repeat(460)
+        val first = manager.update(text, 1, 0.0)
+
+        // Still inside the backward threshold, but the existing window already starts at zero.
+        val same = manager.update(text, 1, 50.0)
+
+        assertSame(first, same)
+        assertEquals(0, same.startOffset)
+        assertEquals(460, same.endOffset)
+        assertEquals(1L, same.revision)
+    }
+
+    @Test
+    fun sameRangeCandidateKeepsCurrentInstance() {
+        val manager = ReadingWindowManager()
+        val text = "完整短台本。".repeat(60)
+        val first = manager.update(text, 7, 200.0)
+
+        // This requests a backward replacement, but both candidate edges are clamped to the
+        // same full-document range.
+        val same = manager.update(text, 7, 10.0)
+
+        assertSame(first, same)
+        assertEquals(first.revision, same.revision)
+    }
+
+    @Test
+    fun longTextSlidesAcrossSeveralDistinctWindows() {
+        val manager = ReadingWindowManager(targetChars = 180, hardCapChars = 240)
+        val text = (0 until 120).joinToString("\n") { "第${it}段" + "内容".repeat(12) }
+        var current = manager.update(text, 1, 0.0)
+        val starts = mutableListOf(current.startOffset)
+
+        repeat(8) {
+            val cursor = current.startOffset + (current.endOffset - current.startOffset) * 0.75
+            val next = manager.update(text, 1, cursor)
+            assertNotSame(current, next)
+            assertEquals(current.revision + 1, next.revision)
+            assertTrue(next.startOffset > current.startOffset)
+            starts += next.startOffset
+            current = next
+        }
+
+        assertEquals(starts.sorted(), starts)
+        assertEquals(starts.size, starts.distinct().size)
     }
 
     @Test
@@ -116,6 +166,8 @@ class ReadingWindowManagerTest {
         assertEquals(0, w.startOffset)
         assertEquals(0, w.endOffset)
         assertTrue(w.text.isEmpty())
+        assertSame(w, manager.update("", 1, 0.0))
+        assertEquals(1L, w.revision)
     }
 
     @Test

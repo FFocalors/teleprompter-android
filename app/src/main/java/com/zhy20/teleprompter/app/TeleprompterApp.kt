@@ -385,6 +385,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                 }
                 RemoteScreen(
                     state = remoteState,
+                    readingCursorUpdates = remoteViewModel.readingCursor,
                     onAction = remoteViewModel::handle,
                     onBack = { navController.popBackStack() },
                     scanError = remoteScanError,

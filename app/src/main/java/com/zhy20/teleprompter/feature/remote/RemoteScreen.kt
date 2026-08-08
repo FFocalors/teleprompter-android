@@ -68,9 +68,11 @@ import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemoteFailureReason
 import com.zhy20.teleprompter.remote.model.RemotePrompterSnapshot
+import com.zhy20.teleprompter.remote.model.RemoteReadingCursor
 import com.zhy20.teleprompter.remote.model.RemoteRole
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayload
 import com.zhy20.teleprompter.remote.pairing.RemotePairingPayloadCodec
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Pure presentation layer for the remote controller. It renders [RemoteUiState], forwards
@@ -84,6 +86,7 @@ const val NearbyTextTestTag = "remoteNearbyText"
 @Composable
 fun RemoteScreen(
     state: RemoteUiState,
+    readingCursorUpdates: StateFlow<RemoteReadingCursor?>? = null,
     onAction: (RemoteUiAction) -> Unit,
     onBack: () -> Unit,
     scanError: RemoteScanError? = null,
@@ -147,8 +150,12 @@ fun RemoteScreen(
                     RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel()
                     RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
                     RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
-                    RemoteUiSection.Playing -> snapshot?.let { PlayingRemotePanel(state, it, onAction, expanded) }
-                    RemoteUiSection.Paused -> snapshot?.let { PausedRemotePanel(state, it, onAction) }
+                    RemoteUiSection.Playing -> snapshot?.let {
+                        PlayingRemotePanel(state, it, onAction, expanded, readingCursorUpdates)
+                    }
+                    RemoteUiSection.Paused -> snapshot?.let {
+                        PausedRemotePanel(state, it, onAction, readingCursorUpdates)
+                    }
                     RemoteUiSection.Finished -> FinishedRemotePanel()
                 }
                 Spacer(Modifier.height(AppSpacing.lg))
@@ -430,15 +437,21 @@ private fun FinishedRemotePanel() {
 }
 
 @Composable
-private fun PlayingRemotePanel(state: RemoteUiState, snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit, expanded: Boolean) {
+private fun PlayingRemotePanel(
+    state: RemoteUiState,
+    snapshot: RemotePrompterSnapshot,
+    onAction: (RemoteUiAction) -> Unit,
+    expanded: Boolean,
+    readingCursorUpdates: StateFlow<RemoteReadingCursor?>?,
+) {
     if (expanded) {
         Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            NearbyTextCard(state, Modifier.weight(1.2f))
+            NearbyTextCard(state, readingCursorUpdates, Modifier.weight(1.2f))
             RemoteControls(snapshot, onAction, Modifier.weight(1f))
         }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            NearbyTextCard(state)
+            NearbyTextCard(state, readingCursorUpdates)
             RemoteControls(snapshot, onAction)
         }
     }
@@ -450,7 +463,11 @@ private fun PlayingRemotePanel(state: RemoteUiState, snapshot: RemotePrompterSna
  * the reading text, so the lower rows stay at a stable Y.
  */
 @Composable
-private fun NearbyTextCard(state: RemoteUiState, modifier: Modifier = Modifier) {
+private fun NearbyTextCard(
+    state: RemoteUiState,
+    readingCursorUpdates: StateFlow<RemoteReadingCursor?>?,
+    modifier: Modifier = Modifier,
+) {
     AppCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.nearby_text), color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
@@ -458,6 +475,7 @@ private fun NearbyTextCard(state: RemoteUiState, modifier: Modifier = Modifier) 
             ControllerReadingViewport(
                 window = state.readingWindow,
                 cursor = state.readingCursor,
+                cursorUpdates = readingCursorUpdates,
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = placeholder,
                 semanticsTag = NearbyTextTestTag,
@@ -584,8 +602,13 @@ private fun SpeedIconButton(
 }
 
 @Composable
-private fun PausedRemotePanel(state: RemoteUiState, snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit) {
-    NearbyTextCard(state)
+private fun PausedRemotePanel(
+    state: RemoteUiState,
+    snapshot: RemotePrompterSnapshot,
+    onAction: (RemoteUiAction) -> Unit,
+    readingCursorUpdates: StateFlow<RemoteReadingCursor?>?,
+) {
+    NearbyTextCard(state, readingCursorUpdates)
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Text(stringResource(R.string.paused), style = MaterialTheme.typography.headlineMedium)

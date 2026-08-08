@@ -59,6 +59,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // DIAG (RemoteReadingDiag): generate BuildConfig so debug-only diagnostics can be gated
+        // on BuildConfig.DEBUG (release never emits them). No algorithm/behavior change.
+        buildConfig = true
     }
     bundle {
         language {

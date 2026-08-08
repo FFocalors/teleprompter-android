@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zhy20.teleprompter.BuildConfig
 import com.zhy20.teleprompter.core.design.RichScriptText
 import com.zhy20.teleprompter.core.design.toComposeTextAlign
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
@@ -50,6 +51,7 @@ import com.zhy20.teleprompter.feature.prompter.reading.PlaybackReadingTracker
 import com.zhy20.teleprompter.feature.prompter.reading.ReadingCursorSample
 import com.zhy20.teleprompter.feature.prompter.reading.ReadingWindow
 import com.zhy20.teleprompter.feature.prompter.reading.ReadingWindowManager
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.min
 
@@ -70,6 +72,16 @@ data class PrompterPreviewTarget(
 private val canonicalTextRevisionCounter = java.util.concurrent.atomic.AtomicLong(0L)
 
 private const val PlaybackViewportTag = "PlaybackViewport"
+
+/**
+ * DIAG (RemoteReadingDiag): prompter-side real reading-cursor tracing. Plain @Volatile fields
+ * (NOT Compose state) so the throttle never causes a recomposition. Only active under
+ * BuildConfig.DEBUG; never logs text content, tokens, session or IP.
+ */
+private const val RemoteReadingDiagTag = "RemoteReadingDiag"
+@Volatile private var lastCursorDiagNanos = 0L
+@Volatile private var lastCursorDiagOffset = Double.NaN
+@Volatile private var lastCursorDiagState: String? = null
 
 /** A cursor + window computed for the current frame (kept as one immutable value). */
 private data class ReadingFrame(
@@ -198,7 +210,31 @@ fun PrompterViewport(
         }
         // Push the cursor on every frame. The network layer is latest-only, so intermediate
         // per-frame values are dropped and only the most recent is transmitted at ~12–20 Hz.
-        SideEffect { onReadingCursor(readingFrame?.cursor) }
+        // DIAG: log the REAL cursor (already fully computed by PlaybackReadingTracker) at most
+        // every 500 ms during normal playback, immediately on seek (offset jump >= 2.0), on
+        // playback-state change (pause/resume) and on window-revision change.
+        SideEffect {
+            val c = readingFrame?.cursor
+            onReadingCursor(c)
+            if (c != null && BuildConfig.DEBUG) {
+                val now = System.nanoTime()
+                val stateName = session?.playbackState.toString()
+                val offsetJump = lastCursorDiagOffset.isNaN() || abs(c.absoluteOffset - lastCursorDiagOffset) >= 2.0
+                val stateChanged = lastCursorDiagState != stateName
+                val windowChanged = readingFrame?.window?.revision != lastReportedWindowRevision
+                val throttled = (now - lastCursorDiagNanos) >= 500_000_000L
+                if (offsetJump || stateChanged || windowChanged || throttled) {
+                    lastCursorDiagNanos = now
+                    lastCursorDiagOffset = c.absoluteOffset
+                    lastCursorDiagState = stateName
+                    android.util.Log.d(
+                        RemoteReadingDiagTag,
+                        "CURSOR elapsed=${session?.elapsedTimeMillis} progress=${session?.currentSemanticProgress} " +
+                            "offset=${c.absoluteOffset} line=${c.lineIndex} textRev=${c.textRevision}",
+                    )
+                }
+            }
+        }
         // Report the window on every frame too: AppState stores it by structural equality, so
         // this is a no-op while the window is stable and guarantees a freshly slid window
         // reaches the app/network layer the moment it is produced (no LaunchedEffect-key

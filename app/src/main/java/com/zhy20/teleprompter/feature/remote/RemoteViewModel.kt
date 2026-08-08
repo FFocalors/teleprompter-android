@@ -83,17 +83,18 @@ class RemoteViewModel(
     private val _scanError = MutableStateFlow<RemoteScanError?>(null)
     val scanError: StateFlow<RemoteScanError?> = _scanError.asStateFlow()
 
+    /** High-frequency cursor stream, collected only by ControllerReadingViewport. */
+    val readingCursor: StateFlow<RemoteReadingCursor?> = repository.readingCursor
+
     val uiState: StateFlow<RemoteUiState> = combine(
         repository.sessionState,
         repository.snapshot,
         repository.readingWindow,
-        repository.readingCursor,
-    ) { session, snap, readingWindow, readingCursor ->
+    ) { session, snap, readingWindow ->
         RemoteUiState(
             status = session.status,
             snapshot = snap,
             readingWindow = readingWindow,
-            readingCursor = readingCursor,
             commandInFlight = session.commandInFlight,
             role = session.role,
             pairingPayload = session.pairingPayload,
