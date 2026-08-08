@@ -185,9 +185,11 @@ class AppStatePlaybackTest {
         val offsetBefore = state.playbackSession.currentScrollOffset
         val elapsedBefore = state.playbackSession.elapsedTimeMillis
         val remainingBefore = state.playbackSession.remainingTimeMillis
+        val cursorAnchorBefore = state.playbackSession.readingCursorAnchorFraction
 
         // Playing: move the guide line and toggle it off/on — must not touch the session.
         state.updateGuideOverlay(position = 0.7f)
+        assertEquals(cursorAnchorBefore, state.playbackSession.readingCursorAnchorFraction)
         assertEquals(progressBefore, state.progress, 0f)
         assertEquals(offsetBefore, state.playbackSession.currentScrollOffset, 0.01f)
         state.onPlaybackEvent(PlaybackEvent.ChangeGuideMode(GuideMode.Off))
@@ -207,8 +209,12 @@ class AppStatePlaybackTest {
         assertEquals(offsetBefore, state.playbackSession.currentScrollOffset, 0.01f)
         assertEquals(elapsedBefore, state.playbackSession.elapsedTimeMillis)
         assertEquals(remainingBefore, state.playbackSession.remainingTimeMillis)
+        assertEquals(0.5f, state.playbackSession.readingCursorAnchorFraction!!, 0f)
         assertEquals(state.playbackSettings.guideMode, GuideMode.Line)
         assertEquals(0.5f, state.playbackSettings.guideLinePosition, 0f)
+
+        state.onPlaybackEvent(PlaybackEvent.ResumeImmediately)
+        assertEquals(0.5f, state.playbackSession.readingCursorAnchorFraction!!, 0f)
     }
 
     @Test
@@ -235,7 +241,7 @@ class AppStatePlaybackTest {
 
     @Test
     fun guideOverlayChangesNeverMoveTheCapturedReadingAnchor() {
-        // The reading cursor is computed from the session's immutable readingAnchor, so moving
+        // Rendered text geometry is computed from the immutable session readingAnchor, so moving
         // or toggling the visual guide line during playback must not change it.
         var now = 0L
         val state = testState { now }

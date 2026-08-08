@@ -249,5 +249,44 @@ class PlaybackEngineTest {
         assertEquals(laidOut.startOffset, reconfigured.startOffset, 0.01f)
     }
 
+    @Test
+    fun readingCursorAnchorCanMoveWithoutChangingPlaybackGeometryOrTiming() {
+        val settings = PlaybackSettings(countdown = CountdownOption.Off)
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = 0.25f,
+            initialTextOffsetLines = 1.5f,
+            durationMillis = 100_000L,
+            normalDurationSeconds = 100,
+        )
+        val prepared = PlaybackEngine.prepare(settings, 100, readingAnchor = anchor)
+        val playing = PlaybackEngine.setPlaybackState(prepared, PlaybackState.Playing, 0L)
+        val laidOut = PlaybackEngine.updateLayout(
+            playing,
+            1_000f,
+            2_000f,
+            settings,
+            100,
+            0L,
+            lineHeightPx = 40f,
+        )
+        val paused = PlaybackEngine.setPlaybackState(
+            PlaybackEngine.tick(laidOut, seconds(10)),
+            PlaybackState.Paused,
+            seconds(10),
+        )
+
+        val updated = PlaybackEngine.updateReadingCursorAnchor(paused, 0.7f)
+
+        assertEquals(0.25f, paused.readingCursorAnchorFraction!!, 0f)
+        assertEquals(0.7f, updated.readingCursorAnchorFraction!!, 0f)
+        assertEquals(paused.readingAnchor, updated.readingAnchor)
+        assertEquals(paused.currentSemanticProgress, updated.currentSemanticProgress, 0f)
+        assertEquals(paused.currentScrollOffset, updated.currentScrollOffset, 0f)
+        assertEquals(paused.startOffset, updated.startOffset, 0f)
+        assertEquals(paused.endOffset, updated.endOffset, 0f)
+        assertEquals(paused.elapsedTimeMillis, updated.elapsedTimeMillis)
+        assertEquals(paused.remainingTimeMillis, updated.remainingTimeMillis)
+    }
+
     private fun seconds(value: Long): Long = value * 1_000_000_000L
 }

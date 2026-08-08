@@ -176,9 +176,9 @@ fun PrompterViewport(
             }
         }
 
-        // Real reading-position source. The reading anchor is the STABLE one captured at
-        // session start (session.readingAnchor), never the live guideLinePosition — so moving
-        // or toggling the visual guide line during playback cannot move the reading cursor.
+        // Real reading-position source. Text geometry always uses the stable session-start
+        // readingAnchor. The cursor has an independent viewport anchor so moving an enabled
+        // guide while paused can update the controller without shifting the rendered text.
         // The cursor is a continuous absolute UTF-16 offset into the canonical text
         // (PlaybackReadingTracker); the window is a large contiguous slice of that same text
         // (ReadingWindowManager) that slides with hysteresis. The controller re-flows the
@@ -187,10 +187,12 @@ fun PrompterViewport(
         val windowManager = remember(document) { ReadingWindowManager() }
         var lastReportedWindowRevision by remember { mutableLongStateOf(-1L) }
         val readingAnchor = session?.readingAnchor
+        val readingCursorAnchorFraction = session?.readingCursorAnchorFraction
         val readingFrame = remember(
             mode,
             playbackTextLayout,
             readingAnchor,
+            readingCursorAnchorFraction,
             contentOffset,
             contentHeightPx,
             document,
@@ -198,7 +200,7 @@ fun PrompterViewport(
             if (mode != PrompterViewportMode.Playback) return@remember null
             val layout = playbackTextLayout ?: return@remember null
             if (contentHeightPx <= 0) return@remember null
-            val anchorFraction = readingAnchor?.viewportFraction ?: 0.25f
+            val anchorFraction = readingCursorAnchorFraction ?: readingAnchor?.viewportFraction ?: 0.25f
             // The text is offset by contentOffset (graphicsLayer translationY), so the reading
             // anchor's text-local Y is exactly anchorViewportY - contentOffset.
             val anchorViewportY = contentHeightPx * anchorFraction.coerceIn(0f, 1f)

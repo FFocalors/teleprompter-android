@@ -102,10 +102,15 @@ data class PlaybackEngineState(
     /** True only for a newly-created playback, never for pause/resume countdowns. */
     val isStartingFromBeginning: Boolean = false,
     /**
-     * Logical reading anchor captured when this session started. Immutable for the life of
-     * the session: later guide-line moves/toggles never re-anchor the text.
+     * Layout anchor captured when this session started. Immutable for the life of the session:
+     * later guide-line moves/toggles never re-anchor the rendered text.
      */
     val readingAnchor: PlaybackReadingAnchor? = null,
+    /**
+     * Viewport anchor used only to locate the reading cursor sent to a remote controller.
+     * While paused it may follow the visual guide line without changing text layout/progress.
+     */
+    val readingCursorAnchorFraction: Float? = null,
     internal val segmentStartedAtNanos: Long? = null,
     internal val segmentStartProgress: Float = 0f,
     internal val segmentStartElapsedMillis: Long = 0L,
@@ -139,6 +144,7 @@ object PlaybackEngine {
             configuredTargetDurationMillis = settings.targetDurationSeconds.coerceAtLeast(1) * 1_000L,
             actualScrollDurationMillis = durationMillis(settings, normalDurationSeconds),
             readingAnchor = readingAnchor,
+            readingCursorAnchorFraction = readingAnchor?.viewportFraction,
         )
 
     fun updateLayout(
@@ -206,6 +212,11 @@ object PlaybackEngine {
             segmentStartProgress = current.currentSemanticProgress,
             segmentStartElapsedMillis = current.elapsedTimeMillis,
         )
+    }
+
+    fun updateReadingCursorAnchor(state: PlaybackEngineState, viewportFraction: Float): PlaybackEngineState {
+        if (!viewportFraction.isFinite()) return state
+        return state.copy(readingCursorAnchorFraction = viewportFraction.coerceIn(0.15f, 0.75f))
     }
 
     fun tick(state: PlaybackEngineState, nowNanos: Long): PlaybackEngineState {

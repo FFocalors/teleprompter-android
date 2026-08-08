@@ -211,10 +211,11 @@ class AppState(
     }
 
     /**
-     * Updates only the visual guide overlay (mode/position) and persists it to the current
-     * script settings. Unlike [updatePlaybackSettings], this never reconfigures the
-     * PlaybackEngine: the text start, progress, elapsed/remaining and scroll distance are
-     * untouched, so the reading position cannot jump when the user moves or toggles the line.
+     * Updates the visual guide overlay (mode/position) and persists it to the current script
+     * settings. Unlike [updatePlaybackSettings], this never reconfigures text layout: start,
+     * progress, elapsed/remaining and scroll distance stay untouched. While paused, the remote
+     * reading cursor alone follows an enabled guide so the controller reflects the newly chosen
+     * reading position.
      */
     fun updateGuideOverlay(
         mode: GuideMode = playbackSettings.guideMode,
@@ -225,6 +226,12 @@ class AppState(
             guideLinePosition = position.coerceIn(0.15f, 0.75f),
         )
         playbackSettings = updated.normalizedToDisplayPreset()
+        if (playbackSession.playbackState == PlaybackState.Paused && playbackSettings.guideMode != GuideMode.Off) {
+            playbackSession = PlaybackEngine.updateReadingCursorAnchor(
+                playbackSession,
+                playbackSettings.guideLinePosition,
+            )
+        }
         val id = selectedScriptId
         val old = script(id)
         val persisted = old.copy(playbackSettings = playbackSettings, lastModifiedAt = System.currentTimeMillis())
