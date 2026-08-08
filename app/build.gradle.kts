@@ -59,6 +59,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // DIAG (RemoteReadingDiag): generate BuildConfig so debug-only diagnostics can be gated
+        // on BuildConfig.DEBUG (release never emits them). No algorithm/behavior change.
+        buildConfig = true
     }
     bundle {
         language {
@@ -83,6 +86,8 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.java.websocket)
+    implementation(libs.zxing.android.embedded)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)

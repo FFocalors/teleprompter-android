@@ -2,6 +2,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- 局域网远控：提词端 WebSocket Server 与控制端 WebSocket Client 需要网络访问。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 读取当前活动网络以获取局域网 IPv4 地址。 -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 控制端扫码需要相机；仅在用户点击“扫码连接”后动态请求。 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 相机不是应用必需硬件：无相机的设备仍可手动输入连接信息。 -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <application
         android:name=".app.TeleprompterApplication"
         android:allowBackup="true"

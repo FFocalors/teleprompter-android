@@ -13,7 +13,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -29,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppTheme
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.CountdownOption
@@ -47,12 +51,15 @@ import com.zhy20.teleprompter.feature.library.LibraryScreen
 import com.zhy20.teleprompter.feature.library.LibraryViewModel
 import com.zhy20.teleprompter.feature.prompter.PrompterScreen
 import com.zhy20.teleprompter.feature.remote.RemoteScreen
+import com.zhy20.teleprompter.feature.remote.RemoteViewModel
 import com.zhy20.teleprompter.feature.settings.LanguageScreen
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.settings.SettingsViewModel
 import com.zhy20.teleprompter.feature.setup.SetupScreen
 import com.zhy20.teleprompter.feature.setup.SetupViewModel
 import com.zhy20.teleprompter.feature.setup.PersistentSetupScreen
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import java.util.Locale
 
 @Composable
@@ -160,6 +167,27 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
         if (uri != null) pendingImportUri = uri
     }
 
+    // The remote-control QR scan needs the same hoisting rule: the controller "scan to
+    // connect" launchers live here (above NavHost), and the scanned string travels through a
+    // pending state that the Remote destination's RemoteViewModel consumes.
+    var pendingScannedUri by remember { mutableStateOf<String?>(null) }
+    var pendingCameraDenied by remember { mutableStateOf(false) }
+    val scanPrompt = stringResource(R.string.scan_pairing_prompt)
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) pendingScannedUri = result.contents
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val options = ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                setPrompt(scanPrompt)
+            }
+            scanLauncher.launch(options)
+        } else {
+            pendingCameraDenied = true
+        }
+    }
+
     val baseConfiguration = LocalConfiguration.current
     val localizedConfiguration = remember(baseConfiguration, appState.selectedLanguage) {
         Configuration(baseConfiguration).apply {
@@ -176,6 +204,44 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
     ) {
         AppTheme {
         val navController = rememberNavController()
+        val coordinatorScope = rememberCoroutineScope()
+        val startPlaybackHandler = remember { RemoteStartPlaybackHandler() }
+        val remoteCoordinator = remember(container, appState) {
+            RemoteAppCoordinator(
+                appState = appState,
+                repository = container.remoteSessionRepository,
+                scope = coordinatorScope,
+                startPlaybackHandler = startPlaybackHandler,
+            )
+        }
+        // Publish a fresh snapshot whenever the real app state changes while a controller is
+        // connected, so the remote page always reflects the true prompter state.
+        val remoteSessionState by container.remoteSessionRepository.sessionState.collectAsStateWithLifecycle()
+        val isRemoteConnected = remoteSessionState.isConnected
+        LaunchedEffect(
+            isRemoteConnected,
+            appState.prompterSurface,
+            appState.selectedScriptId,
+            appState.playbackState,
+            appState.playbackSession.currentSemanticProgress,
+            appState.playbackSession.elapsedTimeMillis,
+            appState.playbackSettings.speedMultiplier,
+        ) {
+            if (isRemoteConnected) remoteCoordinator.publishSnapshot()
+        }
+        // Reading sync: while a controller is connected and the prompter page is live, push the
+        // latest reading window + cursor at a bounded cadence. Reading the latest AppState value
+        // each tick makes the cursor channel latest-only; the repository's gate throttles
+        // ordinary motion to ~12–20 Hz and lets seek jumps pass immediately.
+        LaunchedEffect(isRemoteConnected, appState.prompterSurface) {
+            if (!isRemoteConnected || appState.prompterSurface != PrompterSurface.Prompter) return@LaunchedEffect
+            // Fresh (re)connect: re-send the current window + cursor even if unchanged locally.
+            remoteCoordinator.pushReadingState(force = true)
+            while (isActive && isRemoteConnected) {
+                remoteCoordinator.pushReadingState()
+                delay(60)
+            }
+        }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             NavHost(navController = navController, startDestination = AppRoutes.Library) {
             composable(AppRoutes.Library) { entry ->
@@ -225,6 +291,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     onSetup = { id -> appState.selectScript(id); navController.navigate(AppRoutes.setup(id)) },
                     onRemote = { navController.navigate(AppRoutes.Remote) },
                     onSettings = { navController.navigate(AppRoutes.Settings) },
+                    remoteConnectionStatus = remoteSessionState.status,
                     uiState = libraryState,
                     importState = importState,
                     onImportErrorDismiss = libraryViewModel::clearImportError,
@@ -262,9 +329,11 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                 PersistentSetupScreen(
                     viewModel = setupViewModel,
                     appState = appState,
+                    remoteConnectionStatus = remoteSessionState.status,
                     onBack = { navController.popBackStack() },
-                    onRemote = { navController.navigate(AppRoutes.Remote) },
                     onStart = { scriptId -> navController.navigate(AppRoutes.prompter(scriptId)) },
+                    onRemote = { navController.navigate(AppRoutes.Remote) },
+                    startPlaybackHandler = startPlaybackHandler,
                 )
             }
             composable(AppRoutes.Prompter) { entry ->
@@ -284,6 +353,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                         appState,
                         onExit = { navController.popBackStack() },
                         scriptOverride = scriptState.script,
+                        remoteConnectionStatus = remoteSessionState.status,
                     )
                 } else if (!scriptState.isLoading) {
                     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -291,7 +361,38 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     }
                 }
             }
-            composable(AppRoutes.Remote) { RemoteScreen(appState, onBack = { navController.popBackStack() }) }
+            composable(AppRoutes.Remote) { entry ->
+                val factory = remember(entry, container) {
+                    viewModelFactory {
+                        initializer {
+                            RemoteViewModel(container.remoteSessionRepository)
+                        }
+                    }
+                }
+                val remoteViewModel: RemoteViewModel = viewModel(viewModelStoreOwner = entry, factory = factory)
+                val remoteState by remoteViewModel.uiState.collectAsStateWithLifecycle()
+                val remoteScanError by remoteViewModel.scanError.collectAsStateWithLifecycle()
+                LaunchedEffect(pendingScannedUri) {
+                    val contents = pendingScannedUri ?: return@LaunchedEffect
+                    pendingScannedUri = null
+                    remoteViewModel.onScannedContents(contents)
+                }
+                LaunchedEffect(pendingCameraDenied) {
+                    if (pendingCameraDenied) {
+                        pendingCameraDenied = false
+                        remoteViewModel.onCameraDenied()
+                    }
+                }
+                RemoteScreen(
+                    state = remoteState,
+                    readingCursorUpdates = remoteViewModel.readingCursor,
+                    onAction = remoteViewModel::handle,
+                    onBack = { navController.popBackStack() },
+                    scanError = remoteScanError,
+                    onScanRequested = { cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA) },
+                    onScanErrorDismiss = remoteViewModel::dismissScanError,
+                )
+            }
             composable(AppRoutes.Settings) {
                 SettingsScreen(
                     appState,

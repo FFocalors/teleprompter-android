@@ -68,6 +68,116 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 
 播放页根据设置请求 Activity 方向，进入播放时隐藏系统栏并使用临时覆盖行为；状态区和控制栏使用固定布局，不因系统栏短暂出现而重新排版。正文镜像只作用于脚本文本，状态信息、控制浮层、提词辅助和触摸语义保持正常方向。
 
+## 手机远控（一对一同局域网）
+
+远控层位于 `remote/` 和 `feature/remote/`。本阶段已经实现真实的一对一局域网 WebSocket 通信、二维码配对、握手、心跳、断线重连、状态快照同步和播放控制。
+
+### 职责边界
+
+- 提词端是唯一真实状态源：脚本、页面、播放设置和播放引擎都由提词端持有；控制端只发送命令请求，提词端校验、执行并返回最新快照。
+- 远控模块不复制播放逻辑：控制命令经 `RemoteAppCoordinator` 转换为现有 `PlaybackEvent`/业务方法，快照从 `AppState` 与 `PlaybackEngineState` 派生。
+- 页面与业务解耦：`RemoteScreen` 只接收 `RemoteUiState` 并发送 `RemoteUiAction`，不再直接修改 `AppState`。
+- 网络层通过接口隔离：`RemoteTransport` 接口不暴露 WebSocket 类型；`WebSocketRemoteTransport` 是唯一接触 Java-WebSocket 的地方；`FakeRemoteTransport` 仅用于 JVM 单元测试和 Preview，不进入生产路径。
+
+### 目录与数据流
+
+```text
+remote/model/      角色、连接状态（密封）、设备、会话状态、提词端快照、阅读窗口/游标
+remote/protocol/   协议版本、消息（ClientHello/ServerAccepted/ServerRejected/CommandRequest/
+                   CommandResult/SnapshotUpdate/ReadingWindowUpdate/ReadingCursorUpdate/
+                   HeartbeatPing/Pong/DisconnectNotice/ProtocolError）、命令校验、
+                   RemoteJsonCodec（org.json 显式编解码）
+remote/pairing/    配对载荷模型 + URI 编解码 + 安全随机凭据生成
+remote/network/    LocalNetworkAddressProvider（ConnectivityManager 取当前局域网 IPv4）
+remote/transport/  RemoteTransport 接口 + WebSocketRemoteTransport（Server/Client）+ FakeRemoteTransport
+remote/session/    RemoteSessionRepository + DefaultRemoteSessionRepository + 快照工厂 + 会话凭据
+feature/remote/    RemoteViewModel（UI 状态/动作）、RemoteScreen、RemoteUiMapper、RemoteQrGenerator、
+                   ControllerReadingViewport（本地重排版 + 平滑滚动）
+feature/prompter/reading/  PlaybackReadingTracker（绝对阅读游标）、ReadingWindowManager（阅读窗口）、
+                   ControllerReadingViewportMath（控制端映射），均为纯 JVM 可测逻辑
+app/               RemoteAppCoordinator（命令→业务方法→结果、pushReadingState 阅读同步）、
+                   RemoteStartPlaybackHandler、AppContainer 注入（生产用真实 WebSocket Transport）
+```
+
+控制端命令的完整链路：
+
+```text
+RemoteScreen → RemoteViewModel → RemoteSessionRepository → WebSocketRemoteTransport
+  → JSON 编解码 → Repository incoming command → RemoteAppCoordinator
+  → 状态校验 → AppState / Setup 保存门控 / 导航
+  → CommandResult + 新快照 → Repository → RemoteScreen
+```
+
+### 配对与握手
+
+- 提词端 `startWaiting`：生成安全随机的 `sessionId` 与至少 128 bit 的 `pairingToken`（仅存内存），启动 WebSocket Server，把 `host + port + session + token + 过期时间` 编码成 `teleprompter://pair?...` 二维码（默认 5 分钟有效）。
+- 控制端扫码：二维码扫描与相机权限的 ActivityResult launcher 创建在 NavHost 之上（与文件导入选择器一致，因为 NavHost 目的地不提供 `LocalActivityResultRegistryOwner`），扫码字符串经应用层待处理状态交给 `RemoteViewModel.onScannedContents`，由 `RemotePairingPayloadCodec` 校验 scheme、IPv4、端口、token、session、版本与过期时间；相机权限被拒绝时可手动输入。
+- 提词端校验 `ClientHello`：协议版本 → session → token → 过期 → 单控制端 → 设备信息；失败返回 `ServerRejected` 并关闭该连接，不改变当前会话。
+- 握手成功：提词端返回 `ServerAccepted`（唯一 `connectionId` + 内存 `resumeToken` + 当前快照），并立即消费配对 token（旧二维码失效）；控制端收到接受前不允许发送命令。
+- 单控制端：已有控制端时新连接返回 `AlreadyConnected` 拒绝。
+
+### 心跳、断线与重连
+
+- 应用层心跳 5 秒一次；连续 15 秒未收到对端有效消息判定连接丢失。心跳不进入命令执行层，随连接生命周期取消。
+- 提词端断线：本机播放不暂停、不退出、不返回台本库，仅更新连接状态；宽限期内保留原控制端身份与恢复凭据。
+- 控制端断线：使用 `sessionId + resumeToken` 以 1s/2s/4s/8s 指数退避自动重连，总窗口不超过 30 秒；重连成功立即收到完整快照。
+
+### 主动断开（区别于意外掉线）
+
+三种情况明确区分：
+
+- **意外掉线**：进入自动重连，保留恢复凭据，控制端显示"正在重连"。
+- **控制端主动断开**（`disconnectFromPrompter`）：发送 `DisconnectNotice` → 停止客户端 → 设置 `userInitiatedDisconnect` → 禁止自动重连 → 清除 `connectionId`/`resumeToken`/旧快照 → 返回扫码页面。
+- **提词端主动断开**：
+  - `disconnectController`（断开当前控制端）：发 `DisconnectNotice`、关闭旧连接、销毁旧凭据；Server 继续运行并轮换新 `sessionId`/`pairingToken`，生成新二维码回到等待状态；本机播放不受影响。
+  - `stopHosting`（停止远控）：断开控制端、关闭 Server、停止心跳与等待任务、清除配对数据，返回 Disabled。
+
+实现要点：`userInitiatedDisconnect` 标志在显式断开时置位并在新一次扫码/等待时重置；`sessionGeneration` 单调递增用于过滤旧连接的迟到回调；心跳与重连 Job 都在断开路径取消；`DisconnectNotice` 发送失败不阻止本地关闭。
+
+### 状态快照与命令执行
+
+- 每次页面/台本/播放状态/倒计时/速度变化立即发布快照；播放中逐帧更新限制为每 250 ms 一次。`revision` 单调递增，控制端忽略小于或等于当前 revision 的快照。
+- 每条命令都有唯一 `commandId`，提词端去重（重复命令返回上次结果，缓存上限 256 条）。
+- 命令按当前播放状态校验（如 `PausePlayback` 仅在 Playing 时执行），非法状态返回结构化 `CommandResult`，不强行改页面。
+- 开始播放接入 Setup 保存门控：控制端 `StartPlayback` → 协调器校验位于对应 Setup 页 → `RemoteStartPlaybackHandler` 转发给可见的 `PersistentSetupScreen` → `SetupViewModel.flushNow()` 保存成功后才 `beginPlayback` + 导航；保存失败不导航并返回 `SetupSaveFailed`。
+
+### 当前朗读文本（绝对阅读游标 + 阅读窗口）
+
+控制端用户可见标题为"当前朗读文本"（内部仍保留旧字段名 `nearbyText`/`readingText`，已标记废弃且不再填充）。阅读同步分两层，全部基于**同一份 canonical 文本**（`RichScriptText` 渲染的 `TextLayoutResult.layoutInput.text`，即 `ScriptContent.plainText()`），字符 offset 一律为该文本的 **UTF-16 code unit offset**：
+
+- **ReadingCursor**：`PlaybackReadingTracker` 从正式播放的真实排版与本次 Session 启动时锁定的固定 `PlaybackReadingAnchor` 计算**全文绝对阅读游标**。当前阅读行定义为"第一个 `lineBottom` 越过阅读锚点 Y 的视觉行"（对 `lineBottom` 二分查找，锚点位于两行/两段间隙时上一行已读完、当前行进度归零，不再依赖 `getLineForVerticalPosition` 的选择语义）；行内用 `(anchorLocalY - lineTop) / (lineBottom - lineTop)` 得到亚字符进度，因此游标是连续的 `Double`（如 186.2、186.8、187.4），不是整行跳变。该游标只用于远控显示，不代表逐字匀速朗读。
+- **ReadingWindow**：`ReadingWindowManager` 维护**低频滑动阅读窗口**——canonical 文本的较大连续切片（目标约 700 字符、硬上限 1100）。窗口不是"只初始化一次"的静态缓存：每次游标更新都会调用 `update(canonicalText, textRevision, absoluteCursor)`，按**绝对游标在窗口内的相对比例**做前后向滞后切换——前进到约 72%（`forwardRatio`）生成下一窗口并把游标放回约 30%（`cursorFrontRatio`），后退到约 18%（`backwardRatio`）以下重排窗口让游标回到约 68%（`cursorBackRatio`）；游标越出当前窗口（Seek）时直接生成覆盖新游标的窗口，不做逐窗口步进。**windowRevision 在每次真正生成窗口时严格递增且独立于 textRevision**（textRevision 只表示是否属于同一篇正文版本）。窗口起止优先对齐自然换行/段落边界，且**永不切断 surrogate pair**；到达文档结尾生成 `endOffset == text.length` 的终态窗口后不再滑动。它不是控制端屏幕显示的 5–6 行，而是控制端本地重新排版的缓存。
+- **提词端上报**：`PrompterViewport` 每帧用 `SideEffect` 上报最新窗口与游标（AppState 按结构相等去重，窗口变化即写入），`RemoteAppCoordinator.pushReadingState` 按 `(textRevision, windowRevision)` 去重后发送，窗口与游标在传输层经 WebSocket 有序送达。
+- **协议**：低频 `ReadingWindowUpdate`（仅在窗口变化时发送）与高频 `ReadingCursorUpdate`（约 12–20 Hz、latest-only：相同游标不重发、普通连续移动按 60 ms 节流、Seek 跳变立即发送；`sequence` 单调，控制端忽略乱序/过期游标）拆分为两类独立消息，与普通快照的 250 ms 节流解耦。`RemoteJsonCodec` 显式编解码并对文本长度、offset 范围与 `end-start==text.length` 做结构化校验。提词端经 `RemoteAppCoordinator.pushReadingState` 读取 `AppState` 的当前窗口/游标并推送（重连后先发窗口再发游标）。
+- **控制端**：`RemoteViewModel` 暴露 `readingWindow`/`readingCursor` 两个 StateFlow；`RemoteScreen` 的 `ControllerReadingViewport` 持有窗口并用**控制端自己的 `TextLayoutResult`** 重新排版（不保留平板视觉折行、保留原文换行与段落），通过 `ControllerReadingViewportMath` 把绝对游标映射到本机布局得到连续 cursorY（`floor` 后的 offset 做 surrogate 安全处理，行内亚字符进度映射为连续 Y），再用 `Animatable` 平滑滚动（普通更新约 70 ms 线性、Seek 大跳 snap）把阅读位置稳定在固定阅读锚点（约 28% 高度）。**支持 pending cursor**：游标先于覆盖它的新窗口到达时暂存最新游标并保持上一帧翻译，等覆盖窗口到达后按绝对游标立即重锚定；新窗口应用时 snap 到正确位置（旧窗口的局部 translation 绝不套用到新窗口），窗口切换不产生空白或回跳，长台本可持续读到结尾。区域高度固定约 5–6 行，短文本不缩小、长文本不撑高；控制端不建立第二播放时钟。
+
+### 播放初始位置（正式播放 vs 预览）
+
+- `PlaybackLayoutCalculator` 显式区分 `PlaybackLayoutMode.Preview`（经典底部进入，`0.82` 起始）与 `PlaybackLayoutMode.LivePlayback`（使用捕获的 `PlaybackReadingAnchor`）。
+- 正式播放开始：提词线开启 → 第一行位于锚点线下约 1.5 个真实行高处（按实测 `lineHeight` 计算）；提词线关闭 → 第一行位于正文视口顶部约四分之一处。
+- 锚点在 Session 中不可变：后续移动/开关提词线只更新视觉辅助层与台本设置，不调用 `PlaybackEngine.reconfigure`，正文 progress/elapsed/remaining/scrollDistance 全部保持不变。
+- 样式设置页实时预览仍走 Preview 路径，第一行位置、提词线逻辑、横竖屏画布均与修改前一致。
+
+### 连接入口
+
+- 首页/台本库保留进入远控页面的入口（`RemoteStatusEntryCard`）。
+- 远控页首屏选择角色：本机作为提词端（显示二维码等待）或本机作为控制端（扫码/手动输入）。
+- 样式设置页只显示只读连接状态卡片（`RemoteStatusReadOnlyCard`）。
+- 播放页在断线/重连时显示"本机继续播放"提示。
+
+### 安全与边界
+
+- 局域网 WebSocket 当前明文传输，UI 和文档提示仅在可信 Wi-Fi 或个人热点使用；不把台本全文传输给控制端。
+- 配对 token、resume token、connection id 都只保存在内存，不写入 Room/DataStore，不记录到日志。
+- 控制端不支持多控制端、公网、云端、后台常驻；本阶段不新增前台服务。
+- 未来升级 `targetSdk 37` 时需要重新适配局域网运行时权限。
+
+### 当前边界
+
+- 仅支持一对一、仅 IPv4、不支持 mDNS 自动发现、不支持公网/云端。
+- 应用退到后台不承诺长期保持连接；回到前台后按当前状态尝试恢复。
+- 双设备人工实测尚未在本仓库完成（需要两台 Android 设备）；真实 localhost WebSocket 集成测试已通过。
+
 ## 文件导入
 
 文件导入走独立管道：Composable 仅启动系统文件选择器（`ActivityResultContracts.OpenDocument`，类型 `text/plain`、`application/octet-stream`、`application/msword`、Word OpenXML MIME、`text/markdown`、`text/x-markdown`）并把 `Uri` 交给 `LibraryViewModel`。ViewModel 通过 `UriFileMetadataReader` 读取 `OpenableColumns` 元信息和流，然后 `ScriptImportCoordinator` 调用 `ScriptImportManager` 选择 importer、校验大小、解析内容，最后 `ScriptRepository.createFromDocument()` 原子创建完整台本。
@@ -84,9 +194,11 @@ Preferences DataStore 保存全局默认播放设置和语言标签。读取异�
 ## 测试
 
 - JVM 测试覆盖模型、中文语速、富文本映射、序列化、编辑器保存、播放引擎、播放布局和触控策略。
-- AndroidTest 覆盖 Room 内存数据库、Compose 视口、提词辅助和播放触控。
+- 远控 JVM 测试覆盖 JSON Codec（含 `ReadingWindowUpdate`/`ReadingCursorUpdate` 编解码与非法字段拒绝）、配对载荷、握手校验、Repository 会话、命令去重与结果、UI 状态映射、Setup 保存门控，以及**真实 localhost WebSocket 集成**（Server/Client 经真实 Socket 完成握手、命令、快照和断开）。
+- 阅读同步 JVM 测试覆盖 `PlaybackReadingTracker`（行底判定、行间间隙、连续游标、空行/emoji/中英混排）、`ReadingWindowManager`（初始/前进/向后 Seek/硬上限/surrogate/段落对齐/文本 revision 变化）、`ControllerReadingViewportMath`（亚字符映射、锚点保持、窗口切换连续性）以及提词端游标通道的 latest-only/去重/60 ms 节流/Seek 立即发送、控制端窗口/游标接收与 sequence/textRevision 过滤、重连重置与重发。
+- AndroidTest 覆盖 Room 内存数据库、Compose 视口、提词辅助、播放触控、控制端 `ControllerReadingViewport` 的固定区域高度、长文本不撑高与窄屏排版。
 - Preview 使用 `data/fake` 中的统一 Mock 数据，不访问真实数据库或网络。
 
 ## 当前边界
 
-TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。真实局域网发现、二维码配对、WebSocket/TCP/UDP、远控同步、语音识别、账号和云端均未接入。控制端页面目前是本地 Mock 状态，后续可在不改变页面模型和事件接口的前提下替换为真实 Repository/Session。
+TXT、DOCX、DOC 与 Markdown（纯文字子集）文件导入已完成，Word 仅提取普通正文段落（样式、表格、图片、目录、字段等均跳过）；更完整的 Markdown 语法支持尚未实现。手机远控已实现一对一局域网 WebSocket、二维码配对、握手、心跳、断线重连、单控制端限制、状态快照同步和真实播放命令，并接入 Setup 保存后启动；仅支持 IPv4 与单控制端，不支持公网/云端/mDNS 自动发现，局域网 WebSocket 当前不加密，双设备人工实测尚未在本仓库完成。

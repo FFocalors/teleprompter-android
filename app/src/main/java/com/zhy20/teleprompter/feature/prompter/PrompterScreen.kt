@@ -54,13 +54,13 @@ import com.zhy20.teleprompter.core.design.components.PrompterViewportMode
 import com.zhy20.teleprompter.core.model.PlaybackEvent
 import com.zhy20.teleprompter.core.model.PlaybackOrientation
 import com.zhy20.teleprompter.core.model.PlaybackState
-import com.zhy20.teleprompter.core.model.RemoteConnectionState
 import com.zhy20.teleprompter.core.model.Script
 import com.zhy20.teleprompter.core.model.activeDisplayPreset
 import com.zhy20.teleprompter.core.model.guideLineColorForBackground
 import com.zhy20.teleprompter.core.util.PlaybackEngineState
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.core.util.requestedActivityOrientation
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -75,6 +75,7 @@ fun PrompterScreen(
     appState: AppState,
     onExit: () -> Unit,
     scriptOverride: Script? = null,
+    remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
 ) {
     val view = LocalView.current
     val activity = view.context.findActivity()
@@ -85,6 +86,8 @@ fun PrompterScreen(
     val script = scriptOverride ?: appState.script(scriptId)
     val settings = appState.playbackSettings
     val session = appState.playbackSession
+    val connectionLost = remoteConnectionStatus is RemoteConnectionStatus.Reconnecting ||
+        remoteConnectionStatus is RemoteConnectionStatus.Failed
 
     DisposableEffect(view, activity) {
         val window = activity?.window
@@ -107,6 +110,15 @@ fun PrompterScreen(
         activity?.requestedOrientation = settings.orientation.requestedActivityOrientation()
     }
     BackHandler { appState.resetPlayback(); onExit() }
+
+    // Clear the reported reading cursor/window when leaving the prompter page so the controller
+    // never keeps a stale reading position on Library/Editor/Setup.
+    DisposableEffect(Unit) {
+        onDispose {
+            appState.updatePlaybackReadingCursor(null)
+            appState.updatePlaybackReadingWindow(null)
+        }
+    }
 
     LaunchedEffect(appState.playbackState) {
         val state = appState.playbackState
@@ -178,7 +190,11 @@ fun PrompterScreen(
                 modifier = Modifier.fillMaxSize(),
                 scriptTestTag = PlaybackScriptTestTag,
                 onLayoutMeasured = { metrics ->
-                    appState.updatePlaybackLayout(metrics.contentViewportHeightPx, metrics.textMeasuredHeightPx)
+                    appState.updatePlaybackLayout(
+                        metrics.contentViewportHeightPx,
+                        metrics.textMeasuredHeightPx,
+                        lineHeightPx = metrics.lineHeightPx,
+                    )
                 },
                 statusContent = { _, viewportScale ->
                     PlaybackStatus(
@@ -187,9 +203,15 @@ fun PrompterScreen(
                         viewportScale = viewportScale,
                     )
                 },
+                onReadingCursor = { cursor ->
+                    appState.updatePlaybackReadingCursor(cursor)
+                },
+                onReadingWindow = { window ->
+                    appState.updatePlaybackReadingWindow(window)
+                },
             )
 
-            if (appState.remoteConnectionState == RemoteConnectionState.ConnectionLost) {
+            if (connectionLost) {
                 Surface(
                     Modifier.align(Alignment.BottomCenter).padding(AppSpacing.lg),
                     color = AppColors.Surface.copy(alpha = .92f),

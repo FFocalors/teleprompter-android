@@ -174,5 +174,119 @@ class PlaybackEngineTest {
         return PlaybackEngine.updateLayout(playing, 1_000f, textHeight, settings, 100, 0L)
     }
 
+    // ---- reading anchor: live playback initial position ----
+
+    @Test
+    fun livePlaybackWithGuideAnchorPlacesFirstLineBelowTheGuide() {
+        val settings = PlaybackSettings(countdown = CountdownOption.Off)
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = 0.25f,
+            initialTextOffsetLines = 1.5f,
+            durationMillis = 100_000L,
+            normalDurationSeconds = 100,
+        )
+        val prepared = PlaybackEngine.prepare(settings, 100, readingAnchor = anchor)
+        val playing = PlaybackEngine.setPlaybackState(prepared, PlaybackState.Playing, 0L)
+        val laidOut = PlaybackEngine.updateLayout(playing, 1_000f, 2_000f, settings, 100, 0L, lineHeightPx = 40f)
+
+        // First line at 25% of the viewport + 1.5 lines (60px).
+        assertEquals(310f, laidOut.currentScrollOffset, 0.01f)
+        assertEquals(310f, laidOut.startOffset, 0.01f)
+        assertEquals(0f, laidOut.currentSemanticProgress, 0f)
+    }
+
+    @Test
+    fun livePlaybackWithGuideOffPlacesFirstLineAtTopQuarter() {
+        val settings = PlaybackSettings(countdown = CountdownOption.Off)
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = 0.25f,
+            initialTextOffsetLines = 0f,
+            durationMillis = 100_000L,
+            normalDurationSeconds = 100,
+        )
+        val prepared = PlaybackEngine.prepare(settings, 100, readingAnchor = anchor)
+        val playing = PlaybackEngine.setPlaybackState(prepared, PlaybackState.Playing, 0L)
+        val laidOut = PlaybackEngine.updateLayout(playing, 1_000f, 2_000f, settings, 100, 0L, lineHeightPx = 40f)
+
+        assertEquals(250f, laidOut.currentScrollOffset, 0.01f)
+        assertEquals(0f, laidOut.currentSemanticProgress, 0f)
+    }
+
+    @Test
+    fun legacyPreviewLayoutStillUsesBottomEntryRule() {
+        // No anchor → the classic 0.82 rule; this is the setup preview behavior.
+        val layout = PlaybackLayoutCalculator.calculate(viewportHeightPx = 1_000f, textHeightPx = 2_000f)
+        assertEquals(820f, layout.startOffsetPx, 0.01f)
+        assertEquals(670f, layout.endOffsetPx + layout.textHeightPx, 0.01f)
+    }
+
+    @Test
+    fun guideOverlayChangesNeverReanchorTheSession() {
+        val settings = PlaybackSettings(countdown = CountdownOption.Off)
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = 0.25f,
+            initialTextOffsetLines = 1.5f,
+            durationMillis = 100_000L,
+            normalDurationSeconds = 100,
+        )
+        val prepared = PlaybackEngine.prepare(settings, 100, readingAnchor = anchor)
+        val playing = PlaybackEngine.setPlaybackState(prepared, PlaybackState.Playing, 0L)
+        val laidOut = PlaybackEngine.updateLayout(playing, 1_000f, 2_000f, settings, 100, 0L, lineHeightPx = 40f)
+        val moved = PlaybackEngine.tick(laidOut, seconds(10))
+        val progressBefore = moved.currentSemanticProgress
+        val offsetBefore = moved.currentScrollOffset
+
+        // Simulating a guide overlay change: reconfigure with a different guideLinePosition.
+        // The anchor is captured, so the layout must NOT change.
+        val reconfigured = PlaybackEngine.updateLayout(
+            moved, 1_000f, 2_000f,
+            settings.copy(guideLinePosition = 0.7f),
+            100, seconds(10), lineHeightPx = 40f,
+        )
+
+        assertEquals(progressBefore, reconfigured.currentSemanticProgress, 0f)
+        assertEquals(offsetBefore, reconfigured.currentScrollOffset, 0.01f)
+        assertEquals(laidOut.startOffset, reconfigured.startOffset, 0.01f)
+    }
+
+    @Test
+    fun readingCursorAnchorCanMoveWithoutChangingPlaybackGeometryOrTiming() {
+        val settings = PlaybackSettings(countdown = CountdownOption.Off)
+        val anchor = PlaybackReadingAnchor(
+            viewportFraction = 0.25f,
+            initialTextOffsetLines = 1.5f,
+            durationMillis = 100_000L,
+            normalDurationSeconds = 100,
+        )
+        val prepared = PlaybackEngine.prepare(settings, 100, readingAnchor = anchor)
+        val playing = PlaybackEngine.setPlaybackState(prepared, PlaybackState.Playing, 0L)
+        val laidOut = PlaybackEngine.updateLayout(
+            playing,
+            1_000f,
+            2_000f,
+            settings,
+            100,
+            0L,
+            lineHeightPx = 40f,
+        )
+        val paused = PlaybackEngine.setPlaybackState(
+            PlaybackEngine.tick(laidOut, seconds(10)),
+            PlaybackState.Paused,
+            seconds(10),
+        )
+
+        val updated = PlaybackEngine.updateReadingCursorAnchor(paused, 0.7f)
+
+        assertEquals(0.25f, paused.readingCursorAnchorFraction!!, 0f)
+        assertEquals(0.7f, updated.readingCursorAnchorFraction!!, 0f)
+        assertEquals(paused.readingAnchor, updated.readingAnchor)
+        assertEquals(paused.currentSemanticProgress, updated.currentSemanticProgress, 0f)
+        assertEquals(paused.currentScrollOffset, updated.currentScrollOffset, 0f)
+        assertEquals(paused.startOffset, updated.startOffset, 0f)
+        assertEquals(paused.endOffset, updated.endOffset, 0f)
+        assertEquals(paused.elapsedTimeMillis, updated.elapsedTimeMillis)
+        assertEquals(paused.remainingTimeMillis, updated.remainingTimeMillis)
+    }
+
     private fun seconds(value: Long): Long = value * 1_000_000_000L
 }

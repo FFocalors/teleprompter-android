@@ -81,6 +81,12 @@ class SetupViewModel(
         viewModelScope.launch { onComplete(saveLatest()) }
     }
 
+    /** Suspends until the pending save completes and returns whether it succeeded. */
+    suspend fun flushNow(): Boolean {
+        saveJob?.cancel()
+        return saveLatest()
+    }
+
     private suspend fun saveLatest(): Boolean = saveMutex.withLock {
         val snapshot = _uiState.value
         if (!snapshot.isDirty) return@withLock true

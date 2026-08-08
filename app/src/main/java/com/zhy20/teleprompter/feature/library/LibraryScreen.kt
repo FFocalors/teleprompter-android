@@ -77,7 +77,7 @@ import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
-import com.zhy20.teleprompter.core.design.components.RemoteStatusCard
+import com.zhy20.teleprompter.core.design.components.RemoteStatusEntryCard
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
 import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.model.Script
@@ -87,6 +87,7 @@ import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.core.util.formatModifiedAt
 import com.zhy20.teleprompter.data.importer.ScriptImportError
 import com.zhy20.teleprompter.data.importer.ScriptImportState
+import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +109,7 @@ fun LibraryScreen(
     onMoveScript: (String, String?) -> Unit = { _, _ -> },
     onDeleteScript: (String) -> Unit = {},
     onClearError: () -> Unit = {},
+    remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
 ) {
     val state = uiState ?: LibraryUiState(
         loadState = if (appState.scripts.isEmpty() && appState.folders.isEmpty()) LibraryLoadState.Empty else LibraryLoadState.Content,
@@ -174,6 +176,7 @@ fun LibraryScreen(
                     onFolderAction = { action = it },
                     onSettings = onSettings,
                     onRemote = onRemote,
+                    remoteConnectionStatus = remoteConnectionStatus,
                 )
                 LibraryContent(
                     title = currentFolderTitle,
@@ -226,7 +229,7 @@ fun LibraryScreen(
                         }
                         item { FilterChipLabel(stringResource(R.string.new_folder), false) { action = LibraryAction.NewFolder } }
                     }
-                    RemoteStatusCard(appState.remoteConnectionState, onRemote, Modifier.padding(horizontal = AppSpacing.md))
+                    RemoteStatusEntryCard(remoteConnectionStatus, onRemote, Modifier.padding(horizontal = AppSpacing.md))
                     LibraryGrid(
                         scripts = visibleScripts,
                         folders = state.folders,
@@ -303,6 +306,7 @@ private fun LibrarySidebar(
     onFolderAction: (LibraryAction) -> Unit,
     onSettings: () -> Unit,
     onRemote: () -> Unit,
+    remoteConnectionStatus: RemoteConnectionStatus,
 ) {
     Surface(color = AppColors.Surface, border = BorderStroke(1.dp, AppColors.Border)) {
         Column(Modifier.width(268.dp).fillMaxHeight().padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
@@ -339,7 +343,7 @@ private fun LibrarySidebar(
             SidebarGroupTitle(stringResource(R.string.management_group))
             SidebarItem(stringResource(R.string.new_folder), false, Icons.Default.Add, onNewFolder)
             SidebarItem(stringResource(R.string.settings), false, Icons.Default.Settings, onSettings)
-            RemoteStatusCard(appState.remoteConnectionState, onRemote)
+            RemoteStatusEntryCard(remoteConnectionStatus, onRemote)
         }
     }
 }

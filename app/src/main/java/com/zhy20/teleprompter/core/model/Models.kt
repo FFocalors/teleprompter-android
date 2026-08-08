@@ -231,7 +231,6 @@ fun guideModeFromLegacy(enabled: Boolean, highlighted: Boolean): GuideMode = whe
     highlighted -> GuideMode.HighlightBar
     else -> GuideMode.Line
 }
-enum class RemoteConnectionState { Disconnected, Waiting, Connected, ConnectionLost }
 enum class PrompterSurface { Library, Editor, Setup, Prompter }
 enum class SaveState { Initial, Saving, Saved, Error }
 
