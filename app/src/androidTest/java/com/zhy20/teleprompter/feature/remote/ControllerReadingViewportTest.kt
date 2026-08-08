@@ -12,6 +12,8 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.zhy20.teleprompter.core.design.AppTheme
@@ -99,6 +101,13 @@ class ControllerReadingViewportTest {
         return (bounds.bottom - bounds.top).value
     }
 
+    private fun textLayoutResult(): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        val node = composeRule.onNodeWithTag("readingViewport").fetchSemanticsNode()
+        node.config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.single()
+    }
+
     @Test
     fun placeholderShownWhenNoReadingState() {
         setViewport(widthDp = 360, window = null)
@@ -156,6 +165,67 @@ class ControllerReadingViewportTest {
             composeRule.onNodeWithTag("readingViewport").fetchSemanticsNode()
                 .config.getOrElse(ControllerReadingTranslationYKey) { 0 } < 0
         }
+    }
+
+    @Test
+    fun initialCursorKeepsDocumentStartInsideViewport() {
+        val text = "正文".repeat(240)
+        val cursor = RemoteReadingCursor(
+            textRevision = 1L,
+            absoluteOffset = 0.0,
+            sequence = 1L,
+            sentAtElapsedRealtimeMillis = 0L,
+        )
+        setViewport(widthDp = 360, window = window(text), cursor = cursor)
+
+        composeRule.waitUntil(5_000) {
+            composeRule.onNodeWithTag("readingViewport").fetchSemanticsNode()
+                .config.getOrElse(ControllerReadingTranslationYKey) { 0 } > 0
+        }
+        val viewportBounds = composeRule.onNodeWithTag(ControllerReadingViewportAreaTag)
+            .getUnclippedBoundsInRoot()
+        val textBounds = composeRule.onNodeWithTag("readingViewport").getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "cursor 0 must keep the document start inside the viewport: " +
+                "textTop=${textBounds.top}, viewportTop=${viewportBounds.top}",
+            textBounds.top >= viewportBounds.top,
+        )
+        assertTrue(textBounds.top < viewportBounds.bottom)
+    }
+
+    @Test
+    fun middleCursorIsRenderedAtReadingAnchorWithoutHiddenCenterOffset() {
+        val lines = (0 until 30).map { "第${it}行正文" }
+        val text = lines.joinToString("\n")
+        val targetLine = 15
+        val absoluteOffset = lines.take(targetLine).sumOf { it.length + 1 }.toDouble()
+        val cursor = RemoteReadingCursor(
+            textRevision = 1L,
+            absoluteOffset = absoluteOffset,
+            sequence = 1L,
+            sentAtElapsedRealtimeMillis = 0L,
+        )
+        setViewport(widthDp = 360, window = window(text), cursor = cursor)
+
+        composeRule.waitUntil(5_000) {
+            composeRule.onNodeWithTag("readingViewport").fetchSemanticsNode()
+                .config.getOrElse(ControllerReadingTranslationYKey) { 0 } < 0
+        }
+        val viewportBounds = composeRule.onNodeWithTag(ControllerReadingViewportAreaTag)
+            .getUnclippedBoundsInRoot()
+        val textBounds = composeRule.onNodeWithTag("readingViewport").getUnclippedBoundsInRoot()
+        val layout = textLayoutResult()
+        val localLine = layout.getLineForOffset(absoluteOffset.toInt())
+        val density = composeRule.activity.resources.displayMetrics.density
+        val actualCursorY = textBounds.top.value + layout.getLineTop(localLine) / density
+        val expectedAnchorY = viewportBounds.top.value +
+            (viewportBounds.bottom.value - viewportBounds.top.value) * 0.28f
+
+        assertTrue(
+            "cursor must stay at the reading anchor: actual=$actualCursorY expected=$expectedAnchorY",
+            abs(actualCursorY - expectedAnchorY) <= 2f,
+        )
     }
 
     @Test

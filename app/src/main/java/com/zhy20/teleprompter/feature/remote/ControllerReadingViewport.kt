@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
@@ -139,7 +140,7 @@ fun ControllerReadingViewport(
                     val w = window
                     val c = streamedCursor
                     val layout = textLayout
-                    if (w == null || c == null || layout == null) return@LaunchedEffect
+                    if (c == null || layout == null) return@LaunchedEffect
                     // Never apply a cursor that does not share the window's canonical text.
                     if (c.textRevision != w.textRevision) return@LaunchedEffect
                     // The cursor may briefly be outside the current window (window/cursor
@@ -184,7 +185,7 @@ fun ControllerReadingViewport(
                             // The fixed outer Box is only an observation viewport. Remove its
                             // max-height constraint while measuring the cached text so every
                             // visual line participates in TextLayoutResult.
-                            .wrapContentHeight(unbounded = true)
+                            .wrapContentHeight(align = Alignment.Top, unbounded = true)
                             .padding(horizontal = AppSpacing.md)
                             .graphicsLayer { translationY = scroll.value }
                             .semantics {
