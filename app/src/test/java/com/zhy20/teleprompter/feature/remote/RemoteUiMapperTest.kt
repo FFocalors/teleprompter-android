@@ -45,6 +45,26 @@ class RemoteUiMapperTest {
     }
 
     @Test
+    fun disabledWithPrompterRoleShowsPrompterReady() {
+        // After stop-waiting / stop-hosting the prompter keeps its role: it should land back on
+        // the start-waiting panel, not the role picker.
+        assertEquals(
+            RemoteUiSection.PrompterReady,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Disabled, null, RemoteRole.Prompter, false),
+        )
+    }
+
+    @Test
+    fun disabledWithControllerRoleShowsControllerReady() {
+        // After an explicit disconnect the controller keeps its role: it should land back on the
+        // scan/manual-connect panel so it can reconnect, not the role picker.
+        assertEquals(
+            RemoteUiSection.ControllerReady,
+            RemoteUiMapper.sectionOf(RemoteConnectionStatus.Disabled, null, RemoteRole.Controller, false),
+        )
+    }
+
+    @Test
     fun waitingShowsPrompterWaiting() {
         assertEquals(
             RemoteUiSection.PrompterWaiting,

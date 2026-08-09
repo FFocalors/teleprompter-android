@@ -18,19 +18,34 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -49,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -64,6 +80,7 @@ import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.ConnectionStatusLabel
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
+import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 import com.zhy20.teleprompter.remote.model.RemoteFailureReason
@@ -101,8 +118,8 @@ fun RemoteScreen(
             Row(Modifier.fillMaxWidth().padding(AppSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.remote_controller), style = MaterialTheme.typography.titleLarge)
-                    ConnectionStatusLabel(state.status)
+                    Text(stringResource(R.string.remote_control_title), style = MaterialTheme.typography.titleLarge)
+                    RemoteHeaderSubtitle(state.role, state.status)
                 }
                 // Controller-side explicit disconnect entry: a narrow icon button that never
                 // squeezes the title or status.
@@ -147,7 +164,7 @@ fun RemoteScreen(
                         onAction,
                     )
                     RemoteUiSection.ConnectionLost -> ReconnectingPanel(onAction)
-                    RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel()
+                    RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel(state)
                     RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
                     RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
                     RemoteUiSection.Playing -> snapshot?.let {
@@ -164,6 +181,206 @@ fun RemoteScreen(
     }
 }
 
+/**
+ * The header subtitle: the current role next to the live connection status. Showing the role
+ * here ("提词端" / "控制端") keeps the two phones unambiguous on every panel, since the screen
+ * title itself is the neutral "远程控制".
+ */
+@Composable
+private fun RemoteHeaderSubtitle(role: RemoteRole?, status: RemoteConnectionStatus) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (role != null) {
+            val roleLabel = stringResource(
+                when (role) {
+                    RemoteRole.Prompter -> R.string.role_prompter_label
+                    RemoteRole.Controller -> R.string.role_controller_label
+                },
+            )
+            Text(roleLabel, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
+            Text("  ·  ", color = AppColors.TextWeak, style = MaterialTheme.typography.labelMedium)
+        }
+        ConnectionStatusLabel(status)
+    }
+}
+
+/**
+ * A centered "hero" block shared by every connection-flow panel: a tinted circular icon badge
+ * over a title and an optional description. Using one visual template across the waiting,
+ * connecting, failed and connected states keeps the whole flow visually consistent.
+ */
+@Composable
+private fun PanelHeader(
+    icon: ImageVector,
+    title: String,
+    modifier: Modifier = Modifier,
+    iconTint: Color = AppColors.Primary,
+    description: String? = null,
+) {
+    Column(
+        modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+    ) {
+        Surface(Modifier.size(64.dp), shape = CircleShape, color = iconTint.copy(alpha = 0.14f)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp), tint = iconTint)
+            }
+        }
+        Text(title, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        if (description != null) {
+            Text(description, color = AppColors.TextSecondary, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/**
+ * A de-emphasized tertiary action (full-width text button). Used for secondary paths such as
+ * "choose role again", "cancel" or the destructive "stop hosting", so the one primary action on
+ * each panel keeps the visual focus.
+ */
+@Composable
+private fun QuietButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = AppColors.TextSecondary,
+) {
+    TextButton(onClick = onClick, modifier = modifier.height(48.dp)) {
+        Text(text, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+    }
+}
+
+// ---- role selection ----
+
+@Composable
+private fun RoleSelectionPanel(onAction: (RemoteUiAction) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        Column(
+            Modifier.fillMaxWidth().padding(bottom = AppSpacing.xs),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+        ) {
+            Text(
+                stringResource(R.string.remote_role_title),
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                stringResource(R.string.remote_role_hint),
+                color = AppColors.TextSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
+        RoleCard(
+            icon = Icons.Default.Slideshow,
+            title = stringResource(R.string.remote_role_prompter),
+            description = stringResource(R.string.role_prompter_desc),
+            onClick = { onAction(RemoteUiAction.SelectPrompterRole) },
+        )
+        RoleCard(
+            icon = Icons.Default.PhoneAndroid,
+            title = stringResource(R.string.remote_role_controller),
+            description = stringResource(R.string.role_controller_desc),
+            onClick = { onAction(RemoteUiAction.SelectControllerRole) },
+        )
+    }
+}
+
+/** A full-width tappable card describing one role; the chevron signals it navigates forward. */
+@Composable
+private fun RoleCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AppCard(modifier.fillMaxWidth(), onClick = onClick) {
+        Row(
+            Modifier.fillMaxWidth().padding(AppSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            Surface(Modifier.size(48.dp), shape = CircleShape, color = AppColors.Primary.copy(alpha = 0.14f)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(26.dp), tint = AppColors.Primary)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppSpacing.xxs)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(description, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppColors.TextWeak)
+        }
+    }
+}
+
+// ---- prompter flow ----
+
+@Composable
+private fun PrompterReadyPanel(onAction: (RemoteUiAction) -> Unit) {
+    AppCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            PanelHeader(
+                icon = Icons.Default.Slideshow,
+                title = stringResource(R.string.prompter_ready_title),
+                description = stringResource(R.string.prompter_role_description),
+            )
+            PrimaryButton(stringResource(R.string.start_waiting), { onAction(RemoteUiAction.StartWaiting) }, Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.QrCodeScanner, null)
+            }
+            QuietButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun PrompterWaitingPanel(payload: RemotePairingPayload?, onAction: (RemoteUiAction) -> Unit) {
+    AppCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            Text(
+                stringResource(R.string.prompter_waiting_title),
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center,
+            )
+            if (payload != null) {
+                val qrText = RemotePairingPayloadCodec.encode(payload)
+                val bitmap = remember(qrText) { RemoteQrGenerator.encode(qrText) }
+                // A white mat keeps the (black-on-white) QR scannable against the dark card.
+                Surface(color = Color.White, shape = MaterialTheme.shapes.medium) {
+                    Image(
+                        bitmap.asImageBitmap(),
+                        stringResource(R.string.pairing_qr_desc),
+                        Modifier.padding(AppSpacing.md).size(220.dp),
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Wifi, contentDescription = null, modifier = Modifier.size(16.dp), tint = AppColors.TextSecondary)
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(
+                        stringResource(R.string.prompter_address_format, payload.host, payload.port),
+                        color = AppColors.TextSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Text(
+                    stringResource(R.string.pairing_expires_hint),
+                    color = AppColors.TextWeak,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                CircularProgressIndicator(Modifier.size(40.dp), color = AppColors.Primary)
+                Text(stringResource(R.string.pairing_initializing), color = AppColors.TextSecondary)
+            }
+            SecondaryButton(stringResource(R.string.regenerate_qr), { onAction(RemoteUiAction.StartWaiting) }, Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Refresh, null)
+            }
+            QuietButton(stringResource(R.string.cancel), { onAction(RemoteUiAction.CancelWaiting) }, Modifier.fillMaxWidth())
+        }
+    }
+}
+
 @Composable
 private fun PrompterConnectedPanel(state: RemoteUiState, onAction: (RemoteUiAction) -> Unit) {
     var showDisconnectConfirm by remember { mutableStateOf(false) }
@@ -172,23 +389,22 @@ private fun PrompterConnectedPanel(state: RemoteUiState, onAction: (RemoteUiActi
 
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.device_connected), style = MaterialTheme.typography.headlineMedium)
-            Text(
-                controllerName?.let { stringResource(R.string.connected_controller, it) }
-                    ?: stringResource(R.string.device_connected),
-                color = AppColors.TextSecondary,
-                textAlign = TextAlign.Center,
+            PanelHeader(
+                icon = Icons.Default.CheckCircle,
+                iconTint = AppColors.Success,
+                title = stringResource(R.string.prompter_connected_title),
+                description = controllerName?.let { stringResource(R.string.connected_controller, it) },
             )
-            Text(stringResource(R.string.prompter_connected_hint), color = AppColors.TextWeak, textAlign = TextAlign.Center)
-            PrimaryButton(
+            SecondaryButton(
                 stringResource(R.string.disconnect_controller),
                 { showDisconnectConfirm = true },
                 Modifier.fillMaxWidth(),
             )
-            SecondaryButton(
+            QuietButton(
                 stringResource(R.string.stop_hosting),
                 { showStopConfirm = true },
                 Modifier.fillMaxWidth(),
+                color = AppColors.Danger,
             )
         }
     }
@@ -227,52 +443,13 @@ private fun PrompterConnectedPanel(state: RemoteUiState, onAction: (RemoteUiActi
     }
 }
 
-@Composable
-private fun RoleSelectionPanel(onAction: (RemoteUiAction) -> Unit) {
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Icon(Icons.Default.QrCode2, null, Modifier.size(96.dp), tint = AppColors.Primary)
-            Text(stringResource(R.string.remote_role_title), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
-            Text(stringResource(R.string.remote_role_hint), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
-            PrimaryButton(stringResource(R.string.remote_role_prompter), { onAction(RemoteUiAction.SelectPrompterRole) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.remote_role_controller), { onAction(RemoteUiAction.SelectControllerRole) }, Modifier.fillMaxWidth())
-        }
-    }
-}
+// ---- controller flow ----
 
-@Composable
-private fun PrompterReadyPanel(onAction: (RemoteUiAction) -> Unit) {
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.connection_title), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(R.string.prompter_role_description), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
-            PrimaryButton(stringResource(R.string.start_waiting), { onAction(RemoteUiAction.StartWaiting) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
-        }
-    }
-}
-
-@Composable
-private fun PrompterWaitingPanel(payload: RemotePairingPayload?, onAction: (RemoteUiAction) -> Unit) {
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.waiting_connection), style = MaterialTheme.typography.headlineMedium)
-            if (payload != null) {
-                val qrText = RemotePairingPayloadCodec.encode(payload)
-                val bitmap = remember(qrText) { RemoteQrGenerator.encode(qrText) }
-                Image(bitmap.asImageBitmap(), stringResource(R.string.demo_qr), Modifier.size(230.dp).clip(MaterialTheme.shapes.medium))
-                Text(stringResource(R.string.prompter_address_format, payload.host, payload.port), color = AppColors.TextSecondary)
-                Text(stringResource(R.string.pairing_expires_hint), color = AppColors.TextWeak)
-            } else {
-                Text(stringResource(R.string.pairing_initializing), color = AppColors.TextSecondary)
-            }
-            SecondaryButton(stringResource(R.string.regenerate_qr), { onAction(RemoteUiAction.StartWaiting) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.cancel), { onAction(RemoteUiAction.CancelWaiting) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
-        }
-    }
-}
-
+/**
+ * The controller "scan to connect" page. The scan action is the single primary CTA; manual
+ * connect is a collapsed secondary card and role-switching a quiet tertiary action, so the
+ * hierarchy stays obvious. Scan/permission errors surface as a contextual banner under the CTA.
+ */
 @Composable
 private fun ControllerReadyPanel(
     scanError: RemoteScanError?,
@@ -280,77 +457,147 @@ private fun ControllerReadyPanel(
     onScanErrorDismiss: () -> Unit,
     onAction: (RemoteUiAction) -> Unit,
 ) {
-    var manualOpen by remember { mutableStateOf(false) }
-    var manualError by remember { mutableStateOf<String?>(null) }
-    var manualHost by remember { mutableStateOf("") }
-    var manualPort by remember { mutableStateOf("8765") }
-    var manualToken by remember { mutableStateOf("") }
-
-    val manualInvalidText = stringResource(R.string.manual_invalid)
-    val scanErrorText = when (scanError) {
-        RemoteScanError.InvalidPairing -> stringResource(R.string.pairing_invalid)
-        RemoteScanError.ExpiredPairing -> stringResource(R.string.pairing_expired)
-        RemoteScanError.CameraDenied -> stringResource(R.string.camera_permission_denied)
-        null -> null
-    }
-
-    AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.controller_role_title), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(R.string.controller_role_description), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
-            PrimaryButton(stringResource(R.string.scan_qr_code), onScanRequested, Modifier.fillMaxWidth()) { Icon(Icons.Default.QrCode2, null) }
-            SecondaryButton(stringResource(R.string.manual_connect), { manualOpen = true }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
-
-            scanErrorText?.let { error ->
-                Text(error, color = AppColors.Danger)
-                SecondaryButton(stringResource(R.string.close), onScanErrorDismiss, Modifier.fillMaxWidth())
+    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        AppCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+                PanelHeader(
+                    icon = Icons.Default.QrCodeScanner,
+                    title = stringResource(R.string.controller_role_title),
+                    description = stringResource(R.string.controller_role_description),
+                )
+                PrimaryButton(stringResource(R.string.scan_qr_code), onScanRequested, Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.QrCodeScanner, null)
+                }
+                if (scanError != null) {
+                    ScanErrorBanner(scanError, onScanErrorDismiss)
+                }
             }
+        }
+        ManualConnectCard(onAction)
+        QuietButton(
+            stringResource(R.string.choose_role_again),
+            { onAction(RemoteUiAction.ResetRole) },
+            Modifier.fillMaxWidth(),
+        )
+    }
+}
 
-            if (manualOpen) {
-                OutlinedTextField(
-                    value = manualHost,
-                    onValueChange = { manualHost = it },
-                    label = { Text(stringResource(R.string.manual_host)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = manualPort,
-                    onValueChange = { manualPort = it },
-                    label = { Text(stringResource(R.string.manual_port)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = manualToken,
-                    onValueChange = { manualToken = it },
-                    label = { Text(stringResource(R.string.manual_token)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                manualError?.let { Text(it, color = AppColors.Danger) }
-                PrimaryButton(stringResource(R.string.connect), {
-                    val port = manualPort.toIntOrNull()
-                    if (manualHost.isBlank() || port == null || port !in 1..65535 || manualToken.isBlank()) {
-                        manualError = manualInvalidText
-                    } else {
-                        onAction(RemoteUiAction.ConnectManual(manualHost, port, "manual", manualToken))
-                    }
-                }, Modifier.fillMaxWidth())
+/** Contextual error banner shown under the scan button after a failed scan / denied permission. */
+@Composable
+private fun ScanErrorBanner(error: RemoteScanError, onDismiss: () -> Unit) {
+    val messageRes = when (error) {
+        RemoteScanError.InvalidPairing -> R.string.pairing_invalid
+        RemoteScanError.ExpiredPairing -> R.string.pairing_expired
+        RemoteScanError.CameraDenied -> R.string.camera_permission_denied
+    }
+    Surface(
+        color = AppColors.Danger.copy(alpha = 0.12f),
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, AppColors.Danger.copy(alpha = 0.5f)),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(AppSpacing.md), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+            Icon(
+                Icons.Default.ErrorOutline,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = AppColors.Danger,
+            )
+            Text(
+                stringResource(messageRes),
+                modifier = Modifier.weight(1f),
+                color = AppColors.Danger,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(18.dp), tint = AppColors.TextWeak)
             }
         }
     }
 }
 
+/** Collapsed-by-default manual-connect card; expands to reveal the host/port/token form. */
+@Composable
+private fun ManualConnectCard(onAction: (RemoteUiAction) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    var manualError by remember { mutableStateOf<String?>(null) }
+    var manualHost by remember { mutableStateOf("") }
+    var manualPort by remember { mutableStateOf("8765") }
+    var manualToken by remember { mutableStateOf("") }
+    val manualInvalidText = stringResource(R.string.manual_invalid)
+
+    AppCard(Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .roundedClickable(shape = MaterialTheme.shapes.large) { expanded = !expanded }
+                    .padding(AppSpacing.lg),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md),
+            ) {
+                Icon(Icons.Default.Keyboard, contentDescription = null, tint = AppColors.TextSecondary)
+                Text(
+                    stringResource(R.string.manual_connect),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = AppColors.TextWeak,
+                )
+            }
+            if (expanded) {
+                Column(
+                    Modifier.padding(start = AppSpacing.lg, end = AppSpacing.lg, bottom = AppSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                ) {
+                    OutlinedTextField(
+                        value = manualHost,
+                        onValueChange = { manualHost = it },
+                        label = { Text(stringResource(R.string.manual_host)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = manualPort,
+                        onValueChange = { manualPort = it },
+                        label = { Text(stringResource(R.string.manual_port)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        value = manualToken,
+                        onValueChange = { manualToken = it },
+                        label = { Text(stringResource(R.string.manual_token)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    manualError?.let { Text(it, color = AppColors.Danger, style = MaterialTheme.typography.bodyMedium) }
+                    PrimaryButton(stringResource(R.string.connect), {
+                        val port = manualPort.toIntOrNull()
+                        if (manualHost.isBlank() || port == null || port !in 1..65535 || manualToken.isBlank()) {
+                            manualError = manualInvalidText
+                        } else {
+                            onAction(RemoteUiAction.ConnectManual(manualHost, port, "manual", manualToken))
+                        }
+                    }, Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
+// ---- shared connection states ----
+
 @Composable
 private fun ConnectingPanel(onAction: (RemoteUiAction) -> Unit) {
     AppCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.connecting), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(R.string.connection_hint), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
-            SecondaryButton(stringResource(R.string.cancel), { onAction(RemoteUiAction.Disconnect) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
+            CircularProgressIndicator(Modifier.size(44.dp), color = AppColors.Primary)
+            Text(stringResource(R.string.connecting), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+            QuietButton(stringResource(R.string.cancel), { onAction(RemoteUiAction.Disconnect) }, Modifier.fillMaxWidth())
         }
     }
 }
@@ -358,12 +605,17 @@ private fun ConnectingPanel(onAction: (RemoteUiAction) -> Unit) {
 @Composable
 private fun FailedPanel(reason: RemoteFailureReason, lastCommandError: String?, onAction: (RemoteUiAction) -> Unit) {
     AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.connection_lost), style = MaterialTheme.typography.headlineMedium, color = AppColors.Danger)
-            Text(lastCommandError ?: failureText(reason), color = AppColors.TextSecondary)
-            SecondaryButton(stringResource(R.string.retry), { onAction(RemoteUiAction.RetryConnection) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.disconnect), { onAction(RemoteUiAction.Disconnect) }, Modifier.fillMaxWidth())
-            SecondaryButton(stringResource(R.string.choose_role_again), { onAction(RemoteUiAction.ResetRole) }, Modifier.fillMaxWidth())
+        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            PanelHeader(
+                icon = Icons.Default.ErrorOutline,
+                iconTint = AppColors.Danger,
+                title = stringResource(R.string.connection_failed),
+                description = lastCommandError ?: failureText(reason),
+            )
+            PrimaryButton(stringResource(R.string.retry), { onAction(RemoteUiAction.RetryConnection) }, Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Refresh, null)
+            }
+            QuietButton(stringResource(R.string.back), { onAction(RemoteUiAction.Disconnect) }, Modifier.fillMaxWidth())
         }
     }
 }
@@ -371,23 +623,38 @@ private fun FailedPanel(reason: RemoteFailureReason, lastCommandError: String?, 
 @Composable
 private fun ReconnectingPanel(onAction: (RemoteUiAction) -> Unit) {
     AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.remote_reconnecting), style = MaterialTheme.typography.headlineMedium, color = AppColors.Danger)
-            Text(stringResource(R.string.connection_lost_continue), color = AppColors.TextSecondary)
-            SecondaryButton(stringResource(R.string.retry), { onAction(RemoteUiAction.RetryConnection) }, Modifier.fillMaxWidth())
+        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            PanelHeader(
+                icon = Icons.Default.Sync,
+                iconTint = AppColors.Warning,
+                title = stringResource(R.string.remote_reconnecting),
+                description = stringResource(R.string.reconnecting_hint),
+            )
+            SecondaryButton(stringResource(R.string.retry), { onAction(RemoteUiAction.RetryConnection) }, Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Refresh, null)
+            }
+            QuietButton(stringResource(R.string.disconnect), { onAction(RemoteUiAction.Disconnect) }, Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable
-private fun ConnectedWaitingPanel() {
+private fun ConnectedWaitingPanel(state: RemoteUiState) {
+    val prompterName = (state.status as? RemoteConnectionStatus.Connected)?.device?.displayName
     AppCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(AppSpacing.xl), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            Text(stringResource(R.string.device_connected), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.waiting_for_setup), color = AppColors.TextSecondary)
+        Column(Modifier.padding(AppSpacing.xl), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            PanelHeader(
+                icon = Icons.Default.CheckCircle,
+                iconTint = AppColors.Success,
+                title = stringResource(R.string.controller_connected_title),
+                description = prompterName?.let { stringResource(R.string.connected_device_name, it) },
+            )
+            Text(stringResource(R.string.waiting_for_setup), color = AppColors.TextSecondary, textAlign = TextAlign.Center)
         }
     }
 }
+
+// ---- controller playback surface (unchanged behavior) ----
 
 @Composable
 private fun ReadyPanel(snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit) {

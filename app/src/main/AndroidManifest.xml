@@ -25,6 +25,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Teleprompter">
         <activity
+            android:name=".feature.remote.scanner.PairingCaptureActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Teleprompter.Scanner" />
+        <activity
             android:name=".testing.PlaybackGestureTestActivity"
             android:exported="false"
             android:theme="@style/Theme.Teleprompter" />

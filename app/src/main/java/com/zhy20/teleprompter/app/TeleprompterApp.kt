@@ -52,6 +52,7 @@ import com.zhy20.teleprompter.feature.library.LibraryViewModel
 import com.zhy20.teleprompter.feature.prompter.PrompterScreen
 import com.zhy20.teleprompter.feature.remote.RemoteScreen
 import com.zhy20.teleprompter.feature.remote.RemoteViewModel
+import com.zhy20.teleprompter.feature.remote.scanner.PairingCaptureActivity
 import com.zhy20.teleprompter.feature.settings.LanguageScreen
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.settings.SettingsViewModel
@@ -173,6 +174,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
     var pendingScannedUri by remember { mutableStateOf<String?>(null) }
     var pendingCameraDenied by remember { mutableStateOf(false) }
     val scanPrompt = stringResource(R.string.scan_pairing_prompt)
+    val scanTitle = stringResource(R.string.scan_qr_code)
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         if (result.contents != null) pendingScannedUri = result.contents
     }
@@ -181,6 +183,8 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             val options = ScanOptions().apply {
                 setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                 setPrompt(scanPrompt)
+                setCaptureActivity(PairingCaptureActivity::class.java)
+                addExtra(PairingCaptureActivity.EXTRA_TITLE, scanTitle)
             }
             scanLauncher.launch(options)
         } else {

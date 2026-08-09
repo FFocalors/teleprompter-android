@@ -80,6 +80,14 @@ class RemoteViewModel(
 
     private var commandCounter = 0L
 
+    /**
+     * The controller's most recent connect attempt, kept so the failed/reconnecting "重试"
+     * button can actually re-issue it. The session state's `pairingPayload` is only ever set on
+     * the prompter, so without this a controller retry would be a no-op. This stays in the
+     * ViewModel — it never touches the repository, protocol or transport.
+     */
+    private var retryControllerConnect: (suspend () -> Unit)? = null
+
     private val _scanError = MutableStateFlow<RemoteScanError?>(null)
     val scanError: StateFlow<RemoteScanError?> = _scanError.asStateFlow()
 
@@ -109,26 +117,41 @@ class RemoteViewModel(
 
     fun handle(action: RemoteUiAction) {
         when (action) {
-            RemoteUiAction.SelectPrompterRole -> viewModelScope.launch { repository.prepare(RemoteRole.Prompter) }
-            RemoteUiAction.SelectControllerRole -> viewModelScope.launch { repository.prepare(RemoteRole.Controller) }
+            RemoteUiAction.SelectPrompterRole -> viewModelScope.launch {
+                retryControllerConnect = null
+                repository.prepare(RemoteRole.Prompter)
+            }
+            RemoteUiAction.SelectControllerRole -> viewModelScope.launch {
+                retryControllerConnect = null
+                repository.prepare(RemoteRole.Controller)
+            }
             RemoteUiAction.StartWaiting -> viewModelScope.launch { repository.startWaiting() }
             RemoteUiAction.CancelWaiting -> viewModelScope.launch { repository.stopWaiting() }
             RemoteUiAction.RetryConnection -> viewModelScope.launch {
                 when (uiState.value.role) {
                     RemoteRole.Prompter -> repository.startWaiting()
-                    RemoteRole.Controller -> uiState.value.pairingPayload?.let { repository.connectToPrompter(it) }
+                    RemoteRole.Controller -> retryControllerConnect?.invoke()
                     null -> Unit
                 }
             }
-            is RemoteUiAction.ConnectToPrompter -> viewModelScope.launch { repository.connectToPrompter(action.payload) }
+            is RemoteUiAction.ConnectToPrompter -> viewModelScope.launch {
+                retryControllerConnect = { repository.connectToPrompter(action.payload) }
+                repository.connectToPrompter(action.payload)
+            }
             is RemoteUiAction.ConnectManual -> viewModelScope.launch {
+                retryControllerConnect = {
+                    repository.connectManual(action.host, action.port, action.sessionId, action.token)
+                }
                 repository.connectManual(action.host, action.port, action.sessionId, action.token)
             }
             RemoteUiAction.Disconnect -> viewModelScope.launch { repository.disconnect() }
             RemoteUiAction.DisconnectController -> viewModelScope.launch { repository.disconnectController() }
             RemoteUiAction.DisconnectFromPrompter -> viewModelScope.launch { repository.disconnectFromPrompter() }
             RemoteUiAction.StopHosting -> viewModelScope.launch { repository.stopHosting() }
-            RemoteUiAction.ResetRole -> viewModelScope.launch { repository.resetRole() }
+            RemoteUiAction.ResetRole -> viewModelScope.launch {
+                retryControllerConnect = null
+                repository.resetRole()
+            }
 
             RemoteUiAction.StartPlayback -> sendCommand(
                 RemoteCommand.StartPlayback(
@@ -159,6 +182,7 @@ class RemoteViewModel(
             return
         }
         _scanError.value = null
+        retryControllerConnect = { repository.connectToPrompter(parsed) }
         viewModelScope.launch { repository.connectToPrompter(parsed) }
     }
 

@@ -179,8 +179,8 @@ fun ConnectionStatusLabel(state: RemoteConnectionStatus) {
         -> stringResource(R.string.waiting_connection) to AppColors.Warning
 
         is RemoteConnectionStatus.Connected -> stringResource(R.string.connected) to AppColors.Success
-        is RemoteConnectionStatus.Reconnecting -> stringResource(R.string.connection_lost) to AppColors.Danger
-        is RemoteConnectionStatus.Failed -> stringResource(R.string.connection_lost) to AppColors.Danger
+        is RemoteConnectionStatus.Reconnecting -> stringResource(R.string.remote_reconnecting) to AppColors.Warning
+        is RemoteConnectionStatus.Failed -> stringResource(R.string.connection_failed) to AppColors.Danger
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = color) {}
@@ -199,6 +199,7 @@ fun RemoteStatusEntryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val deviceLabel = (state as? RemoteConnectionStatus.Connected)?.device?.displayName
     AppCard(modifier = modifier.fillMaxWidth(), onClick = onClick) {
         Column(
             modifier = Modifier.padding(AppSpacing.md),
@@ -224,9 +225,11 @@ fun RemoteStatusEntryCard(
                 }
             }
             Text(
-                stringResource(
-                    if (state is RemoteConnectionStatus.Connected) R.string.device_connected else R.string.connect_remote,
-                ),
+                when {
+                    deviceLabel != null -> stringResource(R.string.connected_device_name, deviceLabel)
+                    state is RemoteConnectionStatus.Connected -> stringResource(R.string.connected)
+                    else -> stringResource(R.string.connect_remote)
+                },
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -270,7 +273,7 @@ fun RemoteStatusReadOnlyCard(
             }
             Text(
                 deviceLabel?.let { stringResource(R.string.connected_device_name, it) }
-                    ?: stringResource(if (state is RemoteConnectionStatus.Connected) R.string.device_connected else R.string.connect_remote),
+                    ?: stringResource(if (state is RemoteConnectionStatus.Connected) R.string.connected else R.string.connect_remote),
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )

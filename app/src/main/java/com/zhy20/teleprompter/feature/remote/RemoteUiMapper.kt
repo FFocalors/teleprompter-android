@@ -57,13 +57,18 @@ object RemoteUiMapper {
         reconnecting && status is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
         role == null -> RemoteUiSection.RoleSelection
         else -> when (status) {
-            RemoteConnectionStatus.Ready -> when (role) {
+            // Disabled and Ready both mean "a role is chosen but nothing is in flight": land on
+            // that role's ready panel, not the role picker. This is what makes an explicit
+            // disconnect return the controller to the scan screen (and the prompter to its
+            // start-waiting screen) instead of dumping the user back at role selection.
+            RemoteConnectionStatus.Disabled,
+            RemoteConnectionStatus.Ready,
+            -> when (role) {
                 RemoteRole.Prompter -> RemoteUiSection.PrompterReady
                 RemoteRole.Controller -> RemoteUiSection.ControllerReady
             }
             RemoteConnectionStatus.WaitingForController -> RemoteUiSection.PrompterWaiting
             RemoteConnectionStatus.Connecting -> RemoteUiSection.Connecting
-            RemoteConnectionStatus.Disabled -> RemoteUiSection.RoleSelection
             is RemoteConnectionStatus.Failed -> RemoteUiSection.ConnectionFailed
             is RemoteConnectionStatus.Reconnecting -> RemoteUiSection.ConnectionLost
             is RemoteConnectionStatus.Connected -> {
