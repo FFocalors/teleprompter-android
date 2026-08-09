@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.zhy20.teleprompter.core.design.components.MotionTextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,15 +75,15 @@ internal fun LibraryActionDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.delete_script)) },
             text = { Text(stringResource(R.string.delete_script_confirm, current.script.title)) },
-            confirmButton = { TextButton(onClick = { onDeleteScript(current.script.id); onDismiss() }) { Text(stringResource(R.string.delete)) } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { MotionTextButton(onClick = { onDeleteScript(current.script.id); onDismiss() }) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { MotionTextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         )
         is LibraryAction.DeleteFolder -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.delete_folder)) },
             text = { Text(stringResource(R.string.delete_folder_confirm, current.folder.name)) },
-            confirmButton = { TextButton(onClick = { onDeleteFolder(current.folder.id); onDismiss() }) { Text(stringResource(R.string.delete)) } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { MotionTextButton(onClick = { onDeleteFolder(current.folder.id); onDismiss() }) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { MotionTextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         )
         is LibraryAction.MoveScript -> AlertDialog(
             onDismissRequest = onDismiss,
@@ -101,7 +101,7 @@ internal fun LibraryActionDialog(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { MotionTextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -120,14 +120,14 @@ private fun NameDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = { TextField(value, { value = it }, label = { Text(label) }, singleLine = true) },
-        confirmButton = { TextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        confirmButton = { MotionTextButton(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text(confirmLabel) } },
+        dismissButton = { MotionTextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
 @Composable
 private fun MoveTarget(label: String, current: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = !current, modifier = Modifier.fillMaxWidth()) {
+    MotionTextButton(onClick = onClick, enabled = !current, modifier = Modifier.fillMaxWidth()) {
         Text(if (current) stringResource(R.string.current_folder_format, label) else label)
     }
 }

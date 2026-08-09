@@ -1,9 +1,18 @@
 package com.zhy20.teleprompter.feature.remote
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -47,13 +56,13 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.zhy20.teleprompter.core.design.components.MotionTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,11 +84,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppColors
+import com.zhy20.teleprompter.core.design.AppMotion
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.ConnectionStatusLabel
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
+import com.zhy20.teleprompter.core.design.components.motionPress
 import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.util.formatDuration
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
@@ -116,7 +127,7 @@ fun RemoteScreen(
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Surface(color = AppColors.Surface) {
             Row(Modifier.fillMaxWidth().padding(AppSpacing.sm), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                MotionIconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.remote_control_title), style = MaterialTheme.typography.titleLarge)
                     RemoteHeaderSubtitle(state.role, state.status)
@@ -126,7 +137,7 @@ fun RemoteScreen(
                 if (state.role == RemoteRole.Controller &&
                     state.status is RemoteConnectionStatus.Connected
                 ) {
-                    IconButton(
+                    MotionIconButton(
                         onClick = { onAction(RemoteUiAction.DisconnectFromPrompter) },
                         modifier = Modifier.semantics { contentDescription = disconnectFromPrompterDesc },
                     ) {
@@ -146,34 +157,54 @@ fun RemoteScreen(
                     .windowInsetsPadding(WindowInsets.navigationBars),
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
-                when (section) {
-                    RemoteUiSection.RoleSelection -> RoleSelectionPanel(onAction)
-                    RemoteUiSection.PrompterReady -> PrompterReadyPanel(onAction)
-                    RemoteUiSection.PrompterWaiting -> PrompterWaitingPanel(state.pairingPayload, onAction)
-                    RemoteUiSection.PrompterConnected -> PrompterConnectedPanel(state, onAction)
-                    RemoteUiSection.ControllerReady -> ControllerReadyPanel(
-                        scanError = scanError,
-                        onScanRequested = onScanRequested,
-                        onScanErrorDismiss = onScanErrorDismiss,
-                        onAction = onAction,
-                    )
-                    RemoteUiSection.Connecting -> ConnectingPanel(onAction)
-                    RemoteUiSection.ConnectionFailed -> FailedPanel(
-                        (state.status as RemoteConnectionStatus.Failed).reason,
-                        state.lastCommandError,
-                        onAction,
-                    )
-                    RemoteUiSection.ConnectionLost -> ReconnectingPanel(onAction)
-                    RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel(state)
-                    RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
-                    RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
-                    RemoteUiSection.Playing -> snapshot?.let {
-                        PlayingRemotePanel(state, it, onAction, expanded, readingCursorUpdates)
+                AnimatedContent(
+                    targetState = section,
+                    transitionSpec = {
+                        if (!AppMotion.animationsEnabled()) {
+                            (EnterTransition.None togetherWith ExitTransition.None).using(null)
+                        } else {
+                            (
+                                fadeIn(AppMotion.pageEnterSpec()) +
+                                    scaleIn(
+                                        animationSpec = AppMotion.pageEnterSpec(),
+                                        initialScale = AppMotion.PageEnterInitialScale,
+                                    )
+                                ) togetherWith fadeOut(AppMotion.pageExitSpec())
+                        }.using(null)
+                    },
+                    label = "remoteSectionTransition",
+                ) { targetSection ->
+                    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+                        when (targetSection) {
+                            RemoteUiSection.RoleSelection -> RoleSelectionPanel(onAction)
+                            RemoteUiSection.PrompterReady -> PrompterReadyPanel(onAction)
+                            RemoteUiSection.PrompterWaiting -> PrompterWaitingPanel(state.pairingPayload, onAction)
+                            RemoteUiSection.PrompterConnected -> PrompterConnectedPanel(state, onAction)
+                            RemoteUiSection.ControllerReady -> ControllerReadyPanel(
+                                scanError = scanError,
+                                onScanRequested = onScanRequested,
+                                onScanErrorDismiss = onScanErrorDismiss,
+                                onAction = onAction,
+                            )
+                            RemoteUiSection.Connecting -> ConnectingPanel(onAction)
+                            RemoteUiSection.ConnectionFailed -> FailedPanel(
+                                (state.status as RemoteConnectionStatus.Failed).reason,
+                                state.lastCommandError,
+                                onAction,
+                            )
+                            RemoteUiSection.ConnectionLost -> ReconnectingPanel(onAction)
+                            RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel(state)
+                            RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
+                            RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
+                            RemoteUiSection.Playing -> snapshot?.let {
+                                PlayingRemotePanel(state, it, onAction, expanded, readingCursorUpdates)
+                            }
+                            RemoteUiSection.Paused -> snapshot?.let {
+                                PausedRemotePanel(state, it, onAction, readingCursorUpdates)
+                            }
+                            RemoteUiSection.Finished -> FinishedRemotePanel()
+                        }
                     }
-                    RemoteUiSection.Paused -> snapshot?.let {
-                        PausedRemotePanel(state, it, onAction, readingCursorUpdates)
-                    }
-                    RemoteUiSection.Finished -> FinishedRemotePanel()
                 }
                 Spacer(Modifier.height(AppSpacing.lg))
             }
@@ -245,7 +276,7 @@ private fun QuietButton(
     modifier: Modifier = Modifier,
     color: Color = AppColors.TextSecondary,
 ) {
-    TextButton(onClick = onClick, modifier = modifier.height(48.dp)) {
+    MotionTextButton(onClick = onClick, modifier = modifier.height(48.dp)) {
         Text(text, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
     }
 }
@@ -415,13 +446,13 @@ private fun PrompterConnectedPanel(state: RemoteUiState, onAction: (RemoteUiActi
             title = { Text(stringResource(R.string.disconnect_controller)) },
             text = { Text(stringResource(R.string.disconnect_controller_confirm)) },
             confirmButton = {
-                TextButton(onClick = {
+                MotionTextButton(onClick = {
                     showDisconnectConfirm = false
                     onAction(RemoteUiAction.DisconnectController)
                 }) { Text(stringResource(R.string.disconnect_controller)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDisconnectConfirm = false }) { Text(stringResource(R.string.cancel)) }
+                MotionTextButton(onClick = { showDisconnectConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -431,13 +462,13 @@ private fun PrompterConnectedPanel(state: RemoteUiState, onAction: (RemoteUiActi
             title = { Text(stringResource(R.string.stop_hosting)) },
             text = { Text(stringResource(R.string.stop_hosting_confirm)) },
             confirmButton = {
-                TextButton(onClick = {
+                MotionTextButton(onClick = {
                     showStopConfirm = false
                     onAction(RemoteUiAction.StopHosting)
                 }) { Text(stringResource(R.string.stop_hosting)) }
             },
             dismissButton = {
-                TextButton(onClick = { showStopConfirm = false }) { Text(stringResource(R.string.cancel)) }
+                MotionTextButton(onClick = { showStopConfirm = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -509,7 +540,7 @@ private fun ScanErrorBanner(error: RemoteScanError, onDismiss: () -> Unit) {
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+            MotionIconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                 Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close), modifier = Modifier.size(18.dp), tint = AppColors.TextWeak)
             }
         }
@@ -781,6 +812,8 @@ private fun NearbyTextCard(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RemoteControls(snapshot: RemotePrompterSnapshot, onAction: (RemoteUiAction) -> Unit, modifier: Modifier = Modifier) {
+    val endInteractionSource = remember { MutableInteractionSource() }
+    val indication = LocalIndication.current
     AppCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
             // Speed control: two equal square icon buttons + the centered speed value only.
@@ -824,8 +857,14 @@ private fun RemoteControls(snapshot: RemotePrompterSnapshot, onAction: (RemoteUi
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
+                    .motionPress(endInteractionSource)
                     .clip(MaterialTheme.shapes.medium)
-                    .combinedClickable(onClick = {}, onLongClick = { onAction(RemoteUiAction.EndPlayback) }),
+                    .combinedClickable(
+                        interactionSource = endInteractionSource,
+                        indication = indication,
+                        onClick = {},
+                        onLongClick = { onAction(RemoteUiAction.EndPlayback) },
+                    ),
                 color = Color.Transparent,
                 border = BorderStroke(1.dp, AppColors.Danger.copy(alpha = .6f)),
                 shape = MaterialTheme.shapes.medium,
@@ -850,8 +889,10 @@ private fun SpeedIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val indication = LocalIndication.current
     Surface(
-        modifier = modifier.height(52.dp).clip(MaterialTheme.shapes.medium),
+        modifier = modifier.motionPress(interactionSource).height(52.dp).clip(MaterialTheme.shapes.medium),
         color = AppColors.Secondary.copy(alpha = .45f),
         shape = MaterialTheme.shapes.medium,
         border = BorderStroke(1.dp, AppColors.Border),
@@ -860,7 +901,12 @@ private fun SpeedIconButton(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxSize()
-                .combinedClickable(onClick = onClick, onLongClick = onClick)
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = indication,
+                    onClick = onClick,
+                    onLongClick = onClick,
+                )
                 .semantics { this.contentDescription = contentDescription },
         ) {
             icon()

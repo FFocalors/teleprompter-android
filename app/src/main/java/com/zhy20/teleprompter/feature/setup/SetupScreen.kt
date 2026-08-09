@@ -23,7 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
@@ -146,7 +146,7 @@ private fun SetupTopBar(onBack: () -> Unit) {
             Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
+            MotionIconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
             }
             Text(stringResource(R.string.prompt_settings), style = MaterialTheme.typography.headlineMedium)

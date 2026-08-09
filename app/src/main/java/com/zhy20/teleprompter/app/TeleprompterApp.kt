@@ -5,6 +5,11 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +39,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppTheme
+import com.zhy20.teleprompter.core.design.AppMotion
 import com.zhy20.teleprompter.core.model.PrompterSurface
 import com.zhy20.teleprompter.core.model.CountdownOption
 import com.zhy20.teleprompter.core.model.GuideMode
@@ -247,7 +253,46 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
             }
         }
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            NavHost(navController = navController, startDestination = AppRoutes.Library) {
+            NavHost(
+                navController = navController,
+                startDestination = AppRoutes.Library,
+                enterTransition = {
+                    if (!AppMotion.animationsEnabled()) {
+                        EnterTransition.None
+                    } else {
+                        fadeIn(AppMotion.pageEnterSpec()) +
+                            scaleIn(
+                                animationSpec = AppMotion.pageEnterSpec(),
+                                initialScale = AppMotion.PageEnterInitialScale,
+                            )
+                    }
+                },
+                exitTransition = {
+                    if (!AppMotion.animationsEnabled()) {
+                        ExitTransition.None
+                    } else {
+                        fadeOut(AppMotion.pageExitSpec())
+                    }
+                },
+                popEnterTransition = {
+                    if (!AppMotion.animationsEnabled()) {
+                        EnterTransition.None
+                    } else {
+                        fadeIn(AppMotion.pageEnterSpec()) +
+                            scaleIn(
+                                animationSpec = AppMotion.pageEnterSpec(),
+                                initialScale = AppMotion.PageEnterInitialScale,
+                            )
+                    }
+                },
+                popExitTransition = {
+                    if (!AppMotion.animationsEnabled()) {
+                        ExitTransition.None
+                    } else {
+                        fadeOut(AppMotion.pageExitSpec())
+                    }
+                },
+            ) {
             composable(AppRoutes.Library) { entry ->
                 val factory = remember(container) {
                     viewModelFactory {

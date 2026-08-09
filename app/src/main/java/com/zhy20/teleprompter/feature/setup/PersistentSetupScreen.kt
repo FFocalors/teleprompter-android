@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.zhy20.teleprompter.core.design.components.MotionTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -73,7 +73,7 @@ fun PersistentSetupScreen(
         state.script == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(if (state.error == SetupError.ScriptNotFound) R.string.script_not_found else R.string.load_failed))
-                TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+                MotionTextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
             }
         }
         else -> SetupScreen(

@@ -37,7 +37,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -218,7 +218,7 @@ internal fun EditorHeader(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                 ) {
-                    IconButton(
+                    MotionIconButton(
                         onClick = onBack,
                         modifier = Modifier.testTag(EditorHeaderBackTag),
                     ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
@@ -229,7 +229,7 @@ internal fun EditorHeader(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
+                        MotionIconButton(
                             onClick = onBack,
                             modifier = Modifier.testTag(EditorHeaderBackTag),
                         ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
@@ -282,7 +282,7 @@ private fun EditorTools(
 ) {
     val canFormat = !editorState.selection.isCollapsed
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onUndo, enabled = editorState.canUndo) {
+        MotionIconButton(onClick = onUndo, enabled = editorState.canUndo) {
             Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.undo))
         }
         StyleToggle(ScriptSpanStyle.Bold, { Icon(Icons.Default.FormatBold, stringResource(R.string.bold)) }, editorState, canFormat, onToggleStyle)
@@ -312,7 +312,7 @@ private fun SaveStateIcon(state: SaveState, savedAfterEdit: Boolean, onRetry: ()
         SaveIconTone.Error -> AppColors.Danger
     }
     if (presentation.retryEnabled) {
-        IconButton(onClick = onRetry) { Icon(icon, description, tint = color) }
+        MotionIconButton(onClick = onRetry) { Icon(icon, description, tint = color) }
     } else {
         Icon(icon, description, tint = color)
     }

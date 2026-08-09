@@ -24,7 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -69,7 +69,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                MotionIconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                 Column {
                     Text(stringResource(R.string.global_defaults), style = MaterialTheme.typography.headlineMedium)
                     Text(stringResource(R.string.global_defaults_hint), color = AppColors.TextWeak, style = MaterialTheme.typography.bodyMedium)
@@ -167,7 +167,7 @@ fun LanguageScreen(
     val updateLanguage: (String) -> Unit = onLanguageChange ?: { appState.selectedLanguage = it }
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+            MotionIconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
             Text(stringResource(R.string.language_settings), style = MaterialTheme.typography.headlineMedium)
         }
         Text(stringResource(R.string.language_hint), color = AppColors.TextSecondary)

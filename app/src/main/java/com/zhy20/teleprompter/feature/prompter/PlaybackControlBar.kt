@@ -27,7 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -287,7 +287,7 @@ private fun PlaybackPrimaryAction(mode: ControlBarMode, onClick: () -> Unit) {
         shape = CircleShape,
         color = if (enabled) AppColors.Primary else AppColors.SurfaceRaised,
     ) {
-        IconButton(onClick = onClick, enabled = enabled) {
+        MotionIconButton(onClick = onClick, enabled = enabled) {
             Icon(icon, contentDescription = label, tint = if (enabled) AppColors.OnPrimary else AppColors.TextWeak)
         }
     }
@@ -471,7 +471,7 @@ private fun CompactControl(
     label: String,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+    MotionIconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
         Icon(icon, contentDescription = label, tint = AppColors.TextPrimary)
     }
 }

@@ -85,7 +85,7 @@ fun PersistentEditorScreen(
             state.errorMessage == EditorError.ScriptNotFound || state.errorMessage == EditorError.LoadFailed -> {
                 Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(if (state.errorMessage == EditorError.ScriptNotFound) R.string.script_not_found else R.string.load_failed))
-                    androidx.compose.material3.TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+                    com.zhy20.teleprompter.core.design.components.MotionTextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
                 }
             }
             else -> PersistentEditorContent(

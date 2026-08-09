@@ -22,10 +22,18 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -39,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppElevation
+import com.zhy20.teleprompter.core.design.AppMotion
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
 
@@ -93,7 +102,7 @@ fun PrimaryButton(
     val shape = MaterialTheme.shapes.medium
     Button(
         onClick = onClick,
-        modifier = modifier.clip(shape).height(52.dp),
+        modifier = modifier.motionPress(interactionSource, enabled).clip(shape).height(52.dp),
         enabled = enabled,
         interactionSource = interactionSource,
         shape = shape,
@@ -121,11 +130,13 @@ fun SecondaryButton(
     enabled: Boolean = true,
     leading: (@Composable RowScope.() -> Unit)? = null,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     val shape = MaterialTheme.shapes.medium
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.clip(shape).height(52.dp),
+        modifier = modifier.motionPress(interactionSource, enabled).clip(shape).height(52.dp),
         enabled = enabled,
+        interactionSource = interactionSource,
         shape = shape,
         border = BorderStroke(1.dp, AppColors.Border),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary),
@@ -137,6 +148,40 @@ fun SecondaryButton(
         }
         Text(text, fontWeight = FontWeight.SemiBold, maxLines = 2)
     }
+}
+
+@Composable
+fun MotionIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.motionPress(interactionSource, enabled),
+        enabled = enabled,
+        interactionSource = interactionSource,
+        content = content,
+    )
+}
+
+@Composable
+fun MotionTextButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    TextButton(
+        onClick = onClick,
+        modifier = modifier.motionPress(interactionSource, enabled),
+        enabled = enabled,
+        interactionSource = interactionSource,
+        content = content,
+    )
 }
 
 @Composable
@@ -182,10 +227,23 @@ fun ConnectionStatusLabel(state: RemoteConnectionStatus) {
         is RemoteConnectionStatus.Reconnecting -> stringResource(R.string.remote_reconnecting) to AppColors.Warning
         is RemoteConnectionStatus.Failed -> stringResource(R.string.connection_failed) to AppColors.Danger
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = color) {}
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = color, style = MaterialTheme.typography.labelMedium)
+    AnimatedContent(
+        targetState = label to color,
+        transitionSpec = {
+            if (AppMotion.animationsEnabled()) {
+                fadeIn(AppMotion.defaultSpec()) togetherWith
+                    fadeOut(AppMotion.defaultSpec(easing = AppMotion.Power1In))
+            } else {
+                EnterTransition.None togetherWith ExitTransition.None
+            }.using(null)
+        },
+        label = "connectionStatusTransition",
+    ) { (targetLabel, targetColor) ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(modifier = Modifier.size(7.dp), shape = CircleShape, color = targetColor) {}
+            Spacer(Modifier.width(6.dp))
+            Text(targetLabel, color = targetColor, style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 

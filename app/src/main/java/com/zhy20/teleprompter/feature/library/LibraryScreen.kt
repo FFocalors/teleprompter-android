@@ -46,14 +46,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.zhy20.teleprompter.core.design.components.MotionIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.zhy20.teleprompter.core.design.components.MotionTextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -201,10 +201,10 @@ fun LibraryScreen(
                     TopAppBar(
                         title = { Text(currentFolderTitle, fontWeight = FontWeight.Bold) },
                         actions = {
-                            TextButton(onClick = onRemote, modifier = Modifier.clip(MaterialTheme.shapes.medium)) {
+                            MotionTextButton(onClick = onRemote, modifier = Modifier.clip(MaterialTheme.shapes.medium)) {
                                 Text(stringResource(R.string.remote_controller))
                             }
-                            IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
+                            MotionIconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.Surface),
                     )
@@ -277,7 +277,7 @@ private fun FolderFilterLabel(
     Row(verticalAlignment = Alignment.CenterVertically) {
         FilterChipLabel(folder.name, selected, onClick)
         Box {
-            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
+            MotionIconButton(onClick = { menuOpen = true }, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions))
             }
             DropdownMenu(menuOpen, { menuOpen = false }) {
@@ -368,7 +368,7 @@ private fun FolderSidebarItem(
             Spacer(Modifier.width(AppSpacing.sm))
             Text(folder.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Box {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
+                MotionIconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
                 DropdownMenu(menuOpen, { menuOpen = false }) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; onRename() }, leadingIcon = { Icon(Icons.Default.Edit, null) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menuOpen = false; onDelete() }, leadingIcon = { Icon(Icons.Default.Delete, null) })
@@ -573,7 +573,7 @@ private fun ScriptCard(
                     }
                 }
                 Box {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
+                    MotionIconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more_actions)) }
                     DropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menuOpen = false; onAction(LibraryAction.RenameScript(script)) }, leadingIcon = { Icon(Icons.Default.Edit, null) })
                         DropdownMenuItem(text = { Text(stringResource(R.string.move_script)) }, onClick = { menuOpen = false; onAction(LibraryAction.MoveScript(script)) }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, null) })
