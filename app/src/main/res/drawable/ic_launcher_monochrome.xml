@@ -9,6 +9,7 @@
             android:antialias="true"
             android:filter="true"
             android:gravity="fill"
-            android:src="@drawable/ic_launcher_mark" />
+            android:src="@drawable/ic_launcher_monochrome_mark"
+            android:tint="#FFFFFFFF" />
     </item>
 </layer-list>

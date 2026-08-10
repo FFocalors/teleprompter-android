@@ -44,12 +44,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.annotation.StringRes
 import com.zhy20.teleprompter.R
 import com.zhy20.teleprompter.core.design.AppColors
 import com.zhy20.teleprompter.core.design.AppElevation
 import com.zhy20.teleprompter.core.design.AppMotion
 import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
+import com.zhy20.teleprompter.remote.model.RemoteRole
 
 @Composable
 fun AppCard(
@@ -256,8 +258,10 @@ fun RemoteStatusEntryCard(
     state: RemoteConnectionStatus,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    role: RemoteRole? = null,
 ) {
     val deviceLabel = (state as? RemoteConnectionStatus.Connected)?.device?.displayName
+    val title = stringResource(remoteEntryTitleRes(state, role))
     AppCard(modifier = modifier.fillMaxWidth(), onClick = onClick) {
         Column(
             modifier = Modifier.padding(AppSpacing.md),
@@ -269,7 +273,7 @@ fun RemoteStatusEntryCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.PhoneAndroid, null, tint = AppColors.Primary)
                             Spacer(Modifier.width(AppSpacing.xs))
-                            Text(stringResource(R.string.remote_controller), fontWeight = FontWeight.Bold, maxLines = 2)
+                            Text(title, fontWeight = FontWeight.Bold, maxLines = 2)
                         }
                         ConnectionStatusLabel(state)
                     }
@@ -277,7 +281,7 @@ fun RemoteStatusEntryCard(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PhoneAndroid, null, tint = AppColors.Primary)
                         Spacer(Modifier.width(AppSpacing.xs))
-                        Text(stringResource(R.string.remote_controller), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(title, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         ConnectionStatusLabel(state)
                     }
                 }
@@ -286,12 +290,22 @@ fun RemoteStatusEntryCard(
                 when {
                     deviceLabel != null -> stringResource(R.string.connected_device_name, deviceLabel)
                     state is RemoteConnectionStatus.Connected -> stringResource(R.string.connected)
-                    else -> stringResource(R.string.connect_remote)
+                    else -> stringResource(R.string.open_device_remote)
                 },
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
+    }
+}
+
+@StringRes
+fun remoteEntryTitleRes(state: RemoteConnectionStatus, role: RemoteRole?): Int {
+    if (state !is RemoteConnectionStatus.Connected) return R.string.device_remote
+    return when (role) {
+        RemoteRole.Prompter -> R.string.role_prompter_label
+        RemoteRole.Controller -> R.string.role_controller_label
+        null -> R.string.device_remote
     }
 }
 

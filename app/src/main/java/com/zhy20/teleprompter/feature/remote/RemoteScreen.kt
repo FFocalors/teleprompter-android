@@ -111,6 +111,26 @@ import kotlinx.coroutines.flow.StateFlow
 const val SpeedDecreaseTestTag = "remoteSpeedDecrease"
 const val SpeedIncreaseTestTag = "remoteSpeedIncrease"
 const val NearbyTextTestTag = "remoteNearbyText"
+
+/**
+ * AnimatedContent keeps outgoing content alive while the next panel enters. Keeping the UI state
+ * in the animation target prevents that outgoing panel from reading a newer, incompatible status.
+ */
+internal data class RemotePanelRenderState(
+    val section: RemoteUiSection,
+    val uiState: RemoteUiState,
+    val scanError: RemoteScanError?,
+)
+
+internal fun remotePanelRenderState(
+    state: RemoteUiState,
+    scanError: RemoteScanError?,
+): RemotePanelRenderState = RemotePanelRenderState(
+    section = RemoteUiMapper.sectionOf(state.status, state.snapshot, state.role, state.reconnecting),
+    uiState = state,
+    scanError = scanError,
+)
+
 @Composable
 fun RemoteScreen(
     state: RemoteUiState,
@@ -121,8 +141,7 @@ fun RemoteScreen(
     onScanRequested: () -> Unit = {},
     onScanErrorDismiss: () -> Unit = {},
 ) {
-    val snapshot = state.snapshot
-    val section = RemoteUiMapper.sectionOf(state.status, snapshot, state.role, state.reconnecting)
+    val panelRenderState = remotePanelRenderState(state, scanError)
     val disconnectFromPrompterDesc = stringResource(R.string.disconnect_from_prompter)
     Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Surface(color = AppColors.Surface) {
@@ -158,7 +177,8 @@ fun RemoteScreen(
                 verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
             ) {
                 AnimatedContent(
-                    targetState = section,
+                    targetState = panelRenderState,
+                    contentKey = { it.section },
                     transitionSpec = {
                         if (!AppMotion.animationsEnabled()) {
                             (EnterTransition.None togetherWith ExitTransition.None).using(null)
@@ -173,34 +193,37 @@ fun RemoteScreen(
                         }.using(null)
                     },
                     label = "remoteSectionTransition",
-                ) { targetSection ->
+                ) { panel ->
+                    val panelState = panel.uiState
+                    val panelSnapshot = panelState.snapshot
                     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-                        when (targetSection) {
+                        when (panel.section) {
                             RemoteUiSection.RoleSelection -> RoleSelectionPanel(onAction)
                             RemoteUiSection.PrompterReady -> PrompterReadyPanel(onAction)
-                            RemoteUiSection.PrompterWaiting -> PrompterWaitingPanel(state.pairingPayload, onAction)
-                            RemoteUiSection.PrompterConnected -> PrompterConnectedPanel(state, onAction)
+                            RemoteUiSection.PrompterWaiting -> PrompterWaitingPanel(panelState.pairingPayload, onAction)
+                            RemoteUiSection.PrompterConnected -> PrompterConnectedPanel(panelState, onAction)
                             RemoteUiSection.ControllerReady -> ControllerReadyPanel(
-                                scanError = scanError,
+                                scanError = panel.scanError,
                                 onScanRequested = onScanRequested,
                                 onScanErrorDismiss = onScanErrorDismiss,
                                 onAction = onAction,
                             )
                             RemoteUiSection.Connecting -> ConnectingPanel(onAction)
-                            RemoteUiSection.ConnectionFailed -> FailedPanel(
-                                (state.status as RemoteConnectionStatus.Failed).reason,
-                                state.lastCommandError,
-                                onAction,
-                            )
-                            RemoteUiSection.ConnectionLost -> ReconnectingPanel(onAction)
-                            RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel(state)
-                            RemoteUiSection.Ready -> snapshot?.let { ReadyPanel(it, onAction) }
-                            RemoteUiSection.Countdown -> snapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
-                            RemoteUiSection.Playing -> snapshot?.let {
-                                PlayingRemotePanel(state, it, onAction, expanded, readingCursorUpdates)
+                            RemoteUiSection.ConnectionFailed -> {
+                                val failed = panelState.status as? RemoteConnectionStatus.Failed
+                                if (failed != null) {
+                                    FailedPanel(failed.reason, panelState.lastCommandError, onAction)
+                                }
                             }
-                            RemoteUiSection.Paused -> snapshot?.let {
-                                PausedRemotePanel(state, it, onAction, readingCursorUpdates)
+                            RemoteUiSection.ConnectionLost -> ReconnectingPanel(onAction)
+                            RemoteUiSection.ConnectedWaiting -> ConnectedWaitingPanel(panelState)
+                            RemoteUiSection.Ready -> panelSnapshot?.let { ReadyPanel(it, onAction) }
+                            RemoteUiSection.Countdown -> panelSnapshot?.let { CountdownRemotePanel(it.countdownSecondsRemaining ?: 0) }
+                            RemoteUiSection.Playing -> panelSnapshot?.let {
+                                PlayingRemotePanel(panelState, it, onAction, expanded, readingCursorUpdates)
+                            }
+                            RemoteUiSection.Paused -> panelSnapshot?.let {
+                                PausedRemotePanel(panelState, it, onAction, readingCursorUpdates)
                             }
                             RemoteUiSection.Finished -> FinishedRemotePanel()
                         }

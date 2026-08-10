@@ -60,6 +60,8 @@ import com.zhy20.teleprompter.feature.remote.RemoteScreen
 import com.zhy20.teleprompter.feature.remote.RemoteViewModel
 import com.zhy20.teleprompter.feature.remote.scanner.PairingCaptureActivity
 import com.zhy20.teleprompter.feature.settings.LanguageScreen
+import com.zhy20.teleprompter.feature.settings.AboutScreen
+import com.zhy20.teleprompter.feature.settings.DefaultPlaybackSettingsScreen
 import com.zhy20.teleprompter.feature.settings.SettingsScreen
 import com.zhy20.teleprompter.feature.settings.SettingsViewModel
 import com.zhy20.teleprompter.feature.setup.SetupScreen
@@ -341,6 +343,7 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                     onRemote = { navController.navigate(AppRoutes.Remote) },
                     onSettings = { navController.navigate(AppRoutes.Settings) },
                     remoteConnectionStatus = remoteSessionState.status,
+                    remoteRole = remoteSessionState.role,
                     uiState = libraryState,
                     importState = importState,
                     onImportErrorDismiss = libraryViewModel::clearImportError,
@@ -446,20 +449,31 @@ fun TeleprompterApp(appState: AppState = rememberAppState()) {
                 SettingsScreen(
                     appState,
                     onBack = { navController.popBackStack() },
+                    onPlaybackDefaults = { navController.navigate(AppRoutes.PlaybackDefaults) },
                     onLanguage = { navController.navigate(AppRoutes.Language) },
-                    defaultsOverride = persistedSettings.playbackDefaults,
+                    onAbout = { navController.navigate(AppRoutes.About) },
                     languageOverride = persistedSettings.languageTag,
+                )
+            }
+            composable(AppRoutes.PlaybackDefaults) {
+                DefaultPlaybackSettingsScreen(
+                    appState,
+                    onBack = { navController.popBackStack() },
+                    defaultsOverride = persistedSettings.playbackDefaults,
                     onDefaultsChange = settingsViewModel::updateDefaults,
                 )
             }
-                composable(AppRoutes.Language) {
-                    LanguageScreen(
-                        appState,
-                        onBack = { navController.popBackStack() },
-                        languageOverride = persistedSettings.languageTag,
-                        onLanguageChange = settingsViewModel::updateLanguage,
-                    )
-                }
+            composable(AppRoutes.Language) {
+                LanguageScreen(
+                    appState,
+                    onBack = { navController.popBackStack() },
+                    languageOverride = persistedSettings.languageTag,
+                    onLanguageChange = settingsViewModel::updateLanguage,
+                )
+            }
+            composable(AppRoutes.About) {
+                AboutScreen(onBack = { navController.popBackStack() })
+            }
             }
         }
     }

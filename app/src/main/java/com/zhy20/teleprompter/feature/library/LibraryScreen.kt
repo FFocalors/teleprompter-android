@@ -78,6 +78,7 @@ import com.zhy20.teleprompter.core.design.AppSpacing
 import com.zhy20.teleprompter.core.design.components.AppCard
 import com.zhy20.teleprompter.core.design.components.PrimaryButton
 import com.zhy20.teleprompter.core.design.components.RemoteStatusEntryCard
+import com.zhy20.teleprompter.core.design.components.remoteEntryTitleRes
 import com.zhy20.teleprompter.core.design.components.SecondaryButton
 import com.zhy20.teleprompter.core.design.components.roundedClickable
 import com.zhy20.teleprompter.core.model.Script
@@ -88,6 +89,7 @@ import com.zhy20.teleprompter.core.util.formatModifiedAt
 import com.zhy20.teleprompter.data.importer.ScriptImportError
 import com.zhy20.teleprompter.data.importer.ScriptImportState
 import com.zhy20.teleprompter.remote.model.RemoteConnectionStatus
+import com.zhy20.teleprompter.remote.model.RemoteRole
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,6 +112,7 @@ fun LibraryScreen(
     onDeleteScript: (String) -> Unit = {},
     onClearError: () -> Unit = {},
     remoteConnectionStatus: RemoteConnectionStatus = RemoteConnectionStatus.Disabled,
+    remoteRole: RemoteRole? = null,
 ) {
     val state = uiState ?: LibraryUiState(
         loadState = if (appState.scripts.isEmpty() && appState.folders.isEmpty()) LibraryLoadState.Empty else LibraryLoadState.Content,
@@ -177,6 +180,7 @@ fun LibraryScreen(
                     onSettings = onSettings,
                     onRemote = onRemote,
                     remoteConnectionStatus = remoteConnectionStatus,
+                    remoteRole = remoteRole,
                 )
                 LibraryContent(
                     title = currentFolderTitle,
@@ -202,7 +206,7 @@ fun LibraryScreen(
                         title = { Text(currentFolderTitle, fontWeight = FontWeight.Bold) },
                         actions = {
                             MotionTextButton(onClick = onRemote, modifier = Modifier.clip(MaterialTheme.shapes.medium)) {
-                                Text(stringResource(R.string.remote_controller))
+                                Text(stringResource(remoteEntryTitleRes(remoteConnectionStatus, remoteRole)))
                             }
                             MotionIconButton(onClick = onSettings) { Icon(Icons.Default.Settings, stringResource(R.string.settings)) }
                         },
@@ -229,7 +233,12 @@ fun LibraryScreen(
                         }
                         item { FilterChipLabel(stringResource(R.string.new_folder), false) { action = LibraryAction.NewFolder } }
                     }
-                    RemoteStatusEntryCard(remoteConnectionStatus, onRemote, Modifier.padding(horizontal = AppSpacing.md))
+                    RemoteStatusEntryCard(
+                        state = remoteConnectionStatus,
+                        onClick = onRemote,
+                        modifier = Modifier.padding(horizontal = AppSpacing.md),
+                        role = remoteRole,
+                    )
                     LibraryGrid(
                         scripts = visibleScripts,
                         folders = state.folders,
@@ -307,6 +316,7 @@ private fun LibrarySidebar(
     onSettings: () -> Unit,
     onRemote: () -> Unit,
     remoteConnectionStatus: RemoteConnectionStatus,
+    remoteRole: RemoteRole?,
 ) {
     Surface(color = AppColors.Surface, border = BorderStroke(1.dp, AppColors.Border)) {
         Column(Modifier.width(268.dp).fillMaxHeight().padding(AppSpacing.lg), verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
@@ -343,7 +353,7 @@ private fun LibrarySidebar(
             SidebarGroupTitle(stringResource(R.string.management_group))
             SidebarItem(stringResource(R.string.new_folder), false, Icons.Default.Add, onNewFolder)
             SidebarItem(stringResource(R.string.settings), false, Icons.Default.Settings, onSettings)
-            RemoteStatusEntryCard(remoteConnectionStatus, onRemote)
+            RemoteStatusEntryCard(remoteConnectionStatus, onRemote, role = remoteRole)
         }
     }
 }

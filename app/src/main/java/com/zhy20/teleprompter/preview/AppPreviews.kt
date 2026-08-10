@@ -193,4 +193,13 @@ private fun RemotePlayingPreview() {
 }
 
 @Preview(name = "设置页", widthDp = 900, heightDp = 800, showBackground = true)
-@Composable private fun SettingsPreview() = PreviewState { SettingsScreen(it, {}, {}) }
+@Composable
+private fun SettingsPreview() = PreviewState {
+    SettingsScreen(
+        appState = it,
+        onBack = {},
+        onPlaybackDefaults = {},
+        onLanguage = {},
+        onAbout = {},
+    )
+}
