@@ -53,6 +53,13 @@ git clone https://github.com/FFocalors/teleprompter-android.git
 cd teleprompter-android
 ```
 
+国内网络也可以从 GitCode 镜像克隆：
+
+```bash
+git clone https://gitcode.com/FFocalors/teleprompter-android.git
+cd teleprompter-android
+```
+
 Windows PowerShell：
 
 ```powershell

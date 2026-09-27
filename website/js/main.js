@@ -35,6 +35,11 @@ function bindConfigData() {
   document.querySelectorAll("a[data-bind-href='githubReleasesUrl']").forEach((el) => {
     el.href = config.githubReleasesUrl;
   });
+
+  // 绑定 GitCode 国内下载链接
+  document.querySelectorAll("a[data-bind-href='gitcodeReleaseUrl']").forEach((el) => {
+    el.href = config.gitcodeReleaseUrl;
+  });
 }
 
 /**
@@ -71,6 +76,7 @@ function initDownloadHandlers() {
   const modalOk = document.getElementById("modalOkBtn");
 
   if (gitcodeBtn) {
+    gitcodeBtn.href = window.APP_CONFIG?.gitcodeReleaseUrl || "javascript:void(0);";
     gitcodeBtn.addEventListener("click", (e) => {
       const config = window.APP_CONFIG;
       if (!config.gitcodeReleaseUrl || config.gitcodeReleaseUrl.trim() === "") {
@@ -236,4 +242,3 @@ function initHeroStageInteractive() {
     }
   });
 }
-

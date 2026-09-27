@@ -31,8 +31,8 @@ const APP_CONFIG = {
   githubRepoUrl: "https://github.com/FFocalors/teleprompter-android",
   githubReleasesUrl: "https://github.com/FFocalors/teleprompter-android/releases",
   
-  // 国内下载渠道配置（当前未上线时留空，页面将弹出友好提示，绝不虚构 404 地址）
-  gitcodeReleaseUrl: "", // 例如后续填入: "https://gitcode.com/FFocalors/teleprompter-android/releases"
+  // 国内下载渠道
+  gitcodeReleaseUrl: "https://gitcode.com/FFocalors/teleprompter-android/releases",
   
   // 核心功能点统计或提炼
   highlights: [

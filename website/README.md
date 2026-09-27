@@ -45,7 +45,7 @@ const APP_CONFIG = {
   minAndroidVersion: "Android 8.0 (API 26) 及以上",
   githubRepoUrl: "https://github.com/FFocalors/teleprompter-android",
   githubReleasesUrl: "https://github.com/FFocalors/teleprompter-android/releases",
-  gitcodeReleaseUrl: "", // 在此填入国内 Release 地址即可全站生效
+  gitcodeReleaseUrl: "https://gitcode.com/FFocalors/teleprompter-android/releases",
 };
 ```
 
