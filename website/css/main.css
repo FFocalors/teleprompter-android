@@ -534,3 +534,37 @@ img, svg {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+
+/* 全局移动端布局与导航微调 */
+@media (max-width: 768px) {
+  :root {
+    --header-height: 58px;
+  }
+  .container {
+    padding: 0 16px;
+  }
+  .site-header {
+    height: var(--header-height);
+  }
+  .brand-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .brand-name {
+    font-size: 0.95rem;
+  }
+  .brand-en {
+    font-size: 0.68rem;
+  }
+  .footer-grid {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}

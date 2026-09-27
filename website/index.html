@@ -6,9 +6,11 @@
   <title>映辞 · Elocue - 专为创作者打造的干净好用的开源提词器</title>
   <meta name="description" content="映辞 (Elocue) 是一款面向 Android 手机和平板的开源提词器，不用注册登录，文稿不传云端，没有开屏广告。支持 Word/Markdown 文档直接导入、专业分光镜镜像与两台手机扫码无线遥控。">
   
-  <!-- 矢量 Favicon -->
+  <!-- 官方应用图标与 Favicon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/logo.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/logo.png">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="alternate icon" href="assets/logo.png">
+  <link rel="shortcut icon" href="assets/favicon.ico">
 
   <!-- 样式表 -->
   <link rel="stylesheet" href="css/main.css">
@@ -75,7 +77,7 @@
           <div class="hero-copy">
             <div class="hero-pill-badge">
               <span class="pill-dot green"></span>
-              <span>开源提词器</span>
+              <span>仅支持 Android</span>
               <span style="opacity: 0.3;">&middot;</span>
               <span>纯本地运行</span>
               <span style="opacity: 0.3;">&middot;</span>
@@ -103,11 +105,11 @@
             </div>
 
             <div class="hero-meta-row">
-              <span>完全免费开源</span>
+              <span style="color: var(--brand-orange);">仅限 Android 端</span>
               <span>&middot;</span>
-              <span>手机与平板均已适配</span>
+              <span>安卓手机与平板均已适配</span>
               <span>&middot;</span>
-              <span>遵循 Apache-2.0 协议</span>
+              <span>暂不支持 iOS / 苹果端</span>
             </div>
           </div>
 
@@ -345,9 +347,9 @@
           </div>
 
           <div class="spec-ledger-item">
-            <div class="spec-ledger-k">RESPONSIVE</div>
-            <div class="spec-ledger-v">手机平板都好用</div>
-            <div class="spec-ledger-sub">手机竖屏握持舒适，平板横屏自动切换双栏视野，大字看得很清楚。</div>
+            <div class="spec-ledger-k">ANDROID ONLY</div>
+            <div class="spec-ledger-v">仅支持安卓端</div>
+            <div class="spec-ledger-sub">专为 Android 8.0+ 手机与平板原生适配，暂不支持 iOS (iPhone/iPad) 苹果端。</div>
           </div>
         </div>
       </div>
@@ -368,8 +370,13 @@
 
           <h2 class="terminal-title">获取映辞 · Elocue</h2>
           <p class="terminal-subtitle">
-            面向 Android 8.0 及以上系统的安卓手机与平板设备。完全开源，遵循 Apache-2.0 协议。
+            专为 Android 系统开发，支持 Android 8.0 及以上版本的安卓手机与平板设备。完全开源，遵循 Apache-2.0 协议。
           </p>
+
+          <!-- 明确平台声明提示 -->
+          <div class="terminal-platform-notice">
+            <strong>支持平台提示：</strong>本项目目前仅针对 Android (安卓) 原生系统开发，支持 Android 手机与平板设备；暂不提供 iOS (iPhone/iPad) 苹果版本或电脑端。
+          </div>
 
           <div class="terminal-buttons">
             <a href="https://gitcode.com/FFocalors/teleprompter-android/releases" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg" id="btnDownloadGitcode" data-bind-href="gitcodeReleaseUrl">
@@ -398,8 +405,7 @@
         <button class="modal-close" id="modalCloseBtn" aria-label="关闭">&times;</button>
       </div>
       <div class="modal-text">
-        当前项目处于开发阶段，尚未发布正式 Release 安装包。
-        您可以前往 GitHub 仓库关注最新动态，或通过克隆源码直接构建 APK 安装包。
+        当前项目处于开发阶段，专为 Android (安卓) 端打造（暂不支持 iOS / 苹果设备）。尚未发布正式 Release 安装包，您可以前往 GitHub 仓库关注最新动态，或通过克隆源码直接构建 APK 安装包。
       </div>
       <div class="modal-footer">
         <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" data-bind-href="githubRepoUrl">

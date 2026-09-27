@@ -344,50 +344,234 @@
     0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
-/* 响应式断点处理 */
+/* ==========================================================================
+   响应式断点处理 (Mobile & Tablet Refinement)
+   移动端专属优化：精巧微缩双机演播台，绝不上下一坨大黑砖垂直堆叠
+   ========================================================================== */
 @media (max-width: 900px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
   .hero-stage-container {
-    padding-top: 24px;
-    padding-bottom: 30px;
+    padding-top: 14px;
+    padding-bottom: 28px;
     padding-right: 0;
+    max-width: 540px;
+    margin: 0 auto;
   }
   .stage-phone-mockup {
-    width: 175px;
-    right: -15px;
+    width: 160px;
+    right: -12px;
     bottom: -20px;
   }
   .hero-stage-container.mode-controller .stage-phone-mockup {
-    transform: translate(-30px, -20px) scale(1.15);
+    transform: translate(-40px, -24px) scale(1.15);
   }
 }
 
-@media (max-width: 640px) {
-  .hero-stage-container {
-    display: flex;
+@media (max-width: 768px) {
+  .hero-split-section {
+    padding: 24px 0 36px;
+  }
+  
+  .hero-grid {
+    gap: 28px;
+  }
+
+  .hero-pill-badge {
+    margin-bottom: 14px;
+    padding: 4px 12px;
+    font-size: 0.74rem;
+  }
+
+  .hero-headline {
+    font-size: 2.15rem;
+    line-height: 1.18;
+    margin-bottom: 14px;
+  }
+
+  .hero-subhead {
+    font-size: 0.94rem;
+    line-height: 1.6;
+    margin-bottom: 22px;
+    max-width: 100%;
+  }
+
+  .hero-cta-group {
     flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    padding-top: 10px;
-    padding-bottom: 0;
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .hero-cta-group .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 18px;
+    font-size: 0.92rem;
+  }
+
+  .hero-meta-row {
+    font-size: 0.72rem;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  /* 移动端微缩双机演播台：大屏为主，手持小手机浮在右下角，高度紧凑约 240px */
+  .hero-stage-container {
+    padding-top: 8px;
+    padding-bottom: 20px;
     padding-right: 0;
-  }
-  .stage-mode-switcher {
-    margin-bottom: 10px;
-  }
-  .stage-phone-mockup {
+    max-width: 420px;
+    margin: 0 auto;
     position: relative;
-    right: auto;
-    bottom: auto;
-    width: 205px;
-    margin-top: -20px;
-    z-index: 5;
+    width: 100%;
   }
-  .hero-stage-container.mode-controller .stage-phone-mockup {
-    transform: none;
+
+  /* 主屏提词平板 (横屏微缩监视器) */
+  .stage-monitor-chassis {
+    width: 90%;
+    margin-right: auto;
+    border-radius: 14px;
+    padding: 6px 6px 7px 6px;
+    box-shadow: 
+      0 20px 48px -12px rgba(0, 0, 0, 0.9),
+      0 8px 18px -4px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .stage-monitor-header {
+    height: 16px;
+    padding: 0 8px;
+    margin-bottom: 4px;
+  }
+
+  .stage-monitor-dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  .stage-monitor-status {
+    font-size: 0.58rem;
+    gap: 4px;
+  }
+
+  .stage-monitor-status .pulse-dot {
+    width: 4px;
+    height: 4px;
+  }
+
+  .stage-monitor-screen {
+    border-radius: 8px;
+  }
+
+  /* 配角控制端手机：精致微缩，悬浮在平板右下角 (宽度 124px) */
+  .stage-phone-mockup {
+    position: absolute;
+    right: -4px;
+    bottom: -8px;
+    width: 124px;
+    z-index: 5;
     margin-top: 0;
   }
+
+  .phone-chassis {
+    border-radius: 20px;
+    padding: 4px 4px 5px 4px;
+    box-shadow: 
+      0 20px 40px -8px rgba(0, 0, 0, 0.95),
+      0 8px 16px -4px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+
+  .phone-camera-hole {
+    width: 5px;
+    height: 5px;
+    margin: 1px auto 3px;
+  }
+
+  .phone-screen {
+    border-radius: 16px;
+  }
+
+  /* 移动端点击特写状态 */
+  .hero-stage-container.mode-prompter .stage-monitor-chassis {
+    width: 100%;
+    transform: scale(1.02);
+  }
+
   .hero-stage-container.mode-prompter .stage-phone-mockup {
-    display: none;
+    transform: translate(40px, 15px) scale(0.7);
+    opacity: 0.15;
+  }
+
+  .hero-stage-container.mode-controller .stage-monitor-chassis {
+    transform: scale(0.92);
+    opacity: 0.25;
+    filter: blur(2px);
+  }
+
+  .hero-stage-container.mode-controller .stage-phone-mockup {
+    width: 165px;
+    right: 50%;
+    transform: translate(50%, -24px);
+    z-index: 25;
+    opacity: 1;
+  }
+
+  /* 工作流区域移动端精修 */
+  .workflow-section {
+    padding: 40px 0 56px;
+  }
+  .workflow-header {
+    margin-bottom: 28px;
+  }
+  .workflow-title {
+    font-size: 1.5rem;
+  }
+  .workflow-row {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    margin-bottom: 40px;
+  }
+  .workflow-row.reversed {
+    direction: ltr;
+  }
+  .workflow-panel {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  .remote-console-card {
+    padding: 14px;
+    gap: 10px;
+  }
+  .remote-sync-text-box {
+    padding: 10px 12px;
+  }
+  .spec-ledger-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .spec-ledger-item {
+    padding: 18px 16px;
+  }
+  .terminal-box {
+    padding: 28px 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .hero-headline {
+    font-size: 1.85rem;
+  }
+  .stage-monitor-chassis {
+    width: 88%;
+  }
+  .stage-phone-mockup {
+    width: 112px;
+    right: -6px;
+    bottom: -6px;
   }
 }
 
@@ -768,8 +952,27 @@
   font-size: 0.98rem;
   color: var(--text-secondary);
   max-width: 480px;
-  margin: 0 auto 32px;
+  margin: 0 auto 24px;
   line-height: 1.6;
+}
+
+.terminal-platform-notice {
+  display: inline-block;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-md);
+  padding: 10px 18px;
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 auto 28px;
+  max-width: 560px;
+  text-align: center;
+}
+
+.terminal-platform-notice strong {
+  color: #fbbf24;
+  font-weight: 600;
 }
 
 .terminal-buttons {
@@ -784,3 +987,4 @@
 .terminal-buttons .btn {
   min-width: 190px;
 }
+

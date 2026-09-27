@@ -6,9 +6,11 @@
   <title>技术档案与架构规范 - 映辞 · Elocue</title>
   <meta name="description" content="深入了解映辞 (Elocue) Android 开源提词器的技术路线、分层架构、数据存储、局域网双机远控算法、权限使用与隐私安全规范。">
 
-  <!-- 矢量 Favicon -->
+  <!-- 官方应用图标与 Favicon -->
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/logo.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/logo.png">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="alternate icon" href="assets/logo.png">
+  <link rel="shortcut icon" href="assets/favicon.ico">
 
   <!-- 样式 -->
   <link rel="stylesheet" href="css/main.css">
@@ -119,6 +121,7 @@
           <div>&middot; <strong>原生响应式排版</strong>：全栈采用 Jetpack Compose 构建，统一测量视口，手机单手与平板大屏双栏兼顾。</div>
           <div>&middot; <strong>单调时钟推进</strong>：采用单调时间轴与锚点位移，杜绝刷新率波动引起的抖动与丢行。</div>
           <div>&middot; <strong>无中继局域网直连</strong>：基于原生 WebSocket 实现同网段点对点通信，杜绝第三方公网中转。</div>
+          <div>&middot; <strong>原生 Android 专注</strong>：专为 Android 原生生态打造，全面适配 Android 手机与平板设备。暂不支持 iOS (iPhone/iPad) 苹果系统或桌面端。</div>
         </div>
       </div>
     </section>
@@ -137,7 +140,7 @@
             <span class="flow-idx">01</span>
             <div class="flow-info">
               <h4>Android Runtime & Toolchain</h4>
-              <p>编译适配 Android 16 (API 36.1)，向下兼容至 Android 8.0 (API 26)</p>
+              <p>专为 Android 平台设计：编译适配 Android 16 (API 36.1)，向下兼容至 Android 8.0 (API 26)。暂无 iOS / 苹果版本支持计划。</p>
             </div>
           </div>
           <span class="flow-tag">compileSdk 36.1 / minSdk 26</span>
