@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>映辞 · Elocue - 专为创作者打造的干净好用的开源提词器</title>
+  <meta name="description" content="映辞 (Elocue) 是一款面向 Android 手机和平板的开源提词器，不用注册登录，文稿不传云端，没有开屏广告。支持 Word/Markdown 文档直接导入、专业分光镜镜像与两台手机扫码无线遥控。">
+  
+  <!-- 矢量 Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="alternate icon" href="assets/logo.png">
+
+  <!-- 样式表 -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/home.css">
+</head>
+<body>
+
+  <!-- ================= 顶部导航 ================= -->
+  <header class="site-header">
+    <div class="container nav-container">
+      <a href="index.html" class="brand">
+        <img src="assets/logo.png" alt="映辞 Logo" class="brand-icon">
+        <div class="brand-meta">
+          <span class="brand-name">映辞 · Elocue</span>
+          <span class="brand-en">提词器</span>
+        </div>
+      </a>
+
+      <!-- 桌面端菜单 -->
+      <nav aria-label="主要导航">
+        <ul class="nav-links">
+          <li><a href="#workflow" class="nav-link">功能演示</a></li>
+          <li><a href="#specs" class="nav-link">为什么选映辞</a></li>
+          <li><a href="details.html" class="nav-link">技术与开源详情</a></li>
+          <li>
+            <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="nav-link" data-bind-href="githubRepoUrl">
+              GitHub 源码
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- 快速下载按钮 -->
+      <div class="nav-actions">
+        <a href="#download" class="btn btn-primary btn-sm btn-nav-desktop">
+          获取 APK
+        </a>
+        <button class="menu-toggle" id="menuToggle" aria-label="展开导航菜单" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 移动端侧边抽屉 -->
+  <div class="mobile-drawer" id="mobileDrawer">
+    <ul class="mobile-menu-list">
+      <li><a href="#workflow">功能演示</a></li>
+      <li><a href="#specs">为什么选映辞</a></li>
+      <li><a href="details.html">技术与开源详情</a></li>
+      <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl">GitHub 源码仓库</a></li>
+    </ul>
+    <div>
+      <a href="#download" class="btn btn-primary" style="width: 100%;">获取安装包 / 源码</a>
+    </div>
+  </div>
+
+  <main>
+    <!-- ================= Hero 首屏：非对称左文右图布局 ================= -->
+    <section class="hero-split-section">
+      <div class="container">
+        <div class="hero-grid">
+          <!-- 左侧：左对齐信息流与下载行动点 -->
+          <div class="hero-copy">
+            <div class="hero-pill-badge">
+              <span class="pill-dot green"></span>
+              <span>开源提词器</span>
+              <span style="opacity: 0.3;">&middot;</span>
+              <span>纯本地运行</span>
+              <span style="opacity: 0.3;">&middot;</span>
+              <span>Android 8.0+</span>
+            </div>
+
+            <h1 class="hero-headline">
+              台词在眼前，<br>
+              <span>从容看镜头。</span>
+            </h1>
+
+            <p class="hero-subhead">
+              不用注册账号，文稿不传云端，没有开屏广告。平时常用的 Word 与 Markdown 格式直接导入，提供专业分光镜镜像翻转，还能用两台手机扫码无线遥控。
+            </p>
+
+            <div class="hero-cta-group">
+              <a href="#download" class="btn btn-primary btn-lg">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                获取安装包 / 源码
+              </a>
+              <a href="details.html" class="btn btn-secondary btn-lg">
+                技术架构与开源详情
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              </a>
+            </div>
+
+            <div class="hero-meta-row">
+              <span>完全免费开源</span>
+              <span>&middot;</span>
+              <span>手机与平板均已适配</span>
+              <span>&middot;</span>
+              <span>遵循 Apache-2.0 协议</span>
+            </div>
+          </div>
+
+          <!-- 右侧：大画幅实机提词演播台与手持遥控机联动 (真实真机界面设计包装 + 直觉点击特写) -->
+          <div class="hero-stage-container" id="heroStageContainer">
+            <!-- 背后微环境漫射光晕 -->
+            <div class="hero-stage-glow"></div>
+
+            <!-- 主角：演播室专业提词大屏 (平板/外接屏硬件外框) -->
+            <div class="stage-monitor-chassis" id="stagePrompterMonitor">
+              <!-- 顶部金属边框传感器微点与运行状态 -->
+              <div class="stage-monitor-header">
+                <span class="stage-monitor-dot"></span>
+                <div class="stage-monitor-status">
+                  <span class="pulse-dot"></span>
+                  <span>演播端已就绪 &middot; 纯本地运行</span>
+                </div>
+                <span class="stage-monitor-dot"></span>
+              </div>
+
+              <!-- 屏幕视口：真机截图与物理高光漫反射层 -->
+              <div class="stage-monitor-screen">
+                <img 
+                  src="assets/screenshots/prompter-screen.jpg" 
+                  alt="映辞提词端真机运行界面" 
+                  class="stage-screen-img" 
+                  width="1024" 
+                  height="723" 
+                  loading="eager" 
+                />
+                <div class="stage-glass-glare"></div>
+              </div>
+            </div>
+
+            <!-- 配角：手持控制端旗舰手机 (错落浮动层叠 + 直觉点击特写) -->
+            <div class="stage-phone-mockup" id="stageControllerPhone">
+              <!-- 手机硬件机身 -->
+              <div class="phone-chassis">
+                <!-- 手机顶部微开孔前摄 -->
+                <div class="phone-camera-hole"></div>
+
+                <!-- 手机屏幕视口 -->
+                <div class="phone-screen">
+                  <img 
+                    src="assets/screenshots/controller-screen.jpg" 
+                    alt="映辞控制端真机运行界面" 
+                    class="phone-screen-img" 
+                    width="525" 
+                    height="1024" 
+                    loading="eager" 
+                  />
+                  <div class="phone-glass-glare"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 核心工作流演示区 (交错图文，打破卡片堆砌) ================= -->
+    <section class="workflow-section" id="workflow">
+      <div class="container">
+        <div class="workflow-header">
+          <div class="workflow-label">WORKFLOW & CAPABILITIES</div>
+          <h2 class="workflow-title">为视频录制与公开演讲打造的实用体验</h2>
+        </div>
+
+        <!-- 环节 1: 双机无线遥控 -->
+        <div class="workflow-row">
+          <div class="workflow-copy">
+            <span class="workflow-copy-tag">01 / DUAL DEVICE REMOTE</span>
+            <h3 class="workflow-copy-h3">两台手机无线遥控，不用单独买遥控器</h3>
+            <p class="workflow-copy-p">
+              一台大屏手机或平板放在镜头前当提词板，另一台手机拿在手里当遥控器。打开软件扫个码就能连上。手里的遥控手机不仅能暂停、加速、快进快退，还能实时同步看到当前读到了哪一句，长文阅读平滑顺畅，一个人拍视频也能掌控全场。
+            </p>
+            <ul class="workflow-check-list">
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>连同一 Wi-Fi 或直接开手机热点即可使用，零消耗流量</span>
+              </li>
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>手持机实时同步文字游标，不用扭头看大屏即可掌控进度</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="workflow-media">
+            <div class="workflow-panel">
+              <div class="remote-console-card">
+                <div class="remote-console-header">
+                  <div class="remote-console-status">
+                    <span class="live-dot"></span>
+                    <span>局域网 WebSocket 直连 (延迟 &lt; 15ms)</span>
+                  </div>
+                  <span style="font-family: var(--font-mono); color: var(--text-tertiary); font-size: 0.72rem;">PORT 8080</span>
+                </div>
+
+                <!-- 手持机同步视窗：当前朗读台词卡片 -->
+                <div class="remote-sync-text-box">
+                  <div class="remote-sync-text-label">
+                    <span>当前朗读同步视窗</span>
+                    <span style="color: var(--brand-orange); font-family: var(--font-mono);">进度 42%</span>
+                  </div>
+                  <div class="remote-sync-text-content">
+                    <strong>各位创作者朋友，大家好。</strong>今天站在这里，我们想聊聊关于表达的初心...
+                  </div>
+                </div>
+
+                <!-- 调速与操控按键模拟 -->
+                <div class="remote-keypad-grid">
+                  <div class="remote-key-btn">
+                    <span>- 减速</span>
+                    <span style="color: var(--brand-orange); font-weight: 700;">1.0x</span>
+                    <span>+ 加速</span>
+                  </div>
+                  <div class="remote-key-btn">
+                    <span>向后微调</span>
+                    <span>&middot;</span>
+                    <span>向前微调</span>
+                  </div>
+                  <button type="button" class="remote-pause-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <span>暂停播放 (点击随时叫停)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 环节 2: 多格式文档直接导入 (交错反向) -->
+        <div class="workflow-row reversed">
+          <div class="workflow-copy">
+            <span class="workflow-copy-tag">02 / DOCUMENT INGESTION</span>
+            <h3 class="workflow-copy-h3">常用的 Word、Markdown 和文本直接导入</h3>
+            <p class="workflow-copy-p">
+              平时写好的台词稿，不用麻烦地一段段复制粘贴。点一下直接导入微信或电脑发来的 Word (.docx/.doc)、Markdown (.md) 和 TXT 纯文本，自动提取正文，自动处理繁简编码，中文绝不乱码。
+            </p>
+            <ul class="workflow-check-list">
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>支持 GB18030、UTF-8、UTF-16 智能编码检测</span>
+              </li>
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>纯本地安全清洗正文，绝不上传到任何云端服务器</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="workflow-media">
+            <div class="workflow-panel">
+              <div class="format-showcase-grid">
+                <div class="format-chip">
+                  <span class="format-ext">.docx / .doc</span>
+                  <span class="format-note">Word 文档自动提取正文</span>
+                </div>
+                <div class="format-chip">
+                  <span class="format-ext">.md</span>
+                  <span class="format-note">Markdown 纯文直接导入</span>
+                </div>
+                <div class="format-chip">
+                  <span class="format-ext">.txt</span>
+                  <span class="format-note">GB18030 中文大字符防乱码</span>
+                </div>
+                <div class="format-chip">
+                  <span class="format-ext">SAF 框架</span>
+                  <span class="format-note">零外部存储多余权限申请</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 环节 3: 重点字句排版与分光镜镜像 -->
+        <div class="workflow-row">
+          <div class="workflow-copy">
+            <span class="workflow-copy-tag">03 / PROMPTER CRAFT</span>
+            <h3 class="workflow-copy-h3">台词重点随手标，专业提词箱镜像翻转</h3>
+            <p class="workflow-copy-p">
+              录视频最怕语气平淡像背书。提词器支持选中台词一键加粗、加下划线，提醒自己哪里该停顿、哪里该加重。配合专业提词架使用时，一键水平镜像翻转，透过分光镜看就是完全正常的文字。
+            </p>
+            <ul class="workflow-check-list">
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>打字实时自动保存，手滑误退出不丢稿</span>
+              </li>
+              <li class="workflow-check-item">
+                <span class="workflow-check-bullet">&check;</span>
+                <span>专业分光镜水平镜像，匀速推进不忽快忽慢</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="workflow-media">
+            <div class="workflow-panel">
+              <div class="mirror-demo-container">
+                <div class="mirror-side-box">
+                  <div class="mirror-side-label">屏幕显示状态 (水平镜像)</div>
+                  <div class="mirror-text-flipped">从容面对镜头表达</div>
+                </div>
+                <div class="mirror-side-box">
+                  <div class="mirror-side-label">分光镜中看到的正像</div>
+                  <div style="font-size: 0.9rem; color: var(--text-white); font-weight: 600;">从容面对镜头表达</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 规格指标条 (Horizontal Spec Ledger) ================= -->
+    <section class="spec-section" id="specs">
+      <div class="container">
+        <div class="spec-ledger-grid">
+          <div class="spec-ledger-item highlight">
+            <div class="spec-ledger-k">PRIVACY FIRST</div>
+            <div class="spec-ledger-v">稿件只在手机里</div>
+            <div class="spec-ledger-sub">台本只保存在你自己设备上，不传云端，发言文稿零泄露风险。</div>
+          </div>
+
+          <div class="spec-ledger-item">
+            <div class="spec-ledger-k">NO ADVERTISING</div>
+            <div class="spec-ledger-v">没有开屏广告</div>
+            <div class="spec-ledger-sub">没有倒计时开屏广告与弹窗推荐，打开软件就能直接沉浸录制。</div>
+          </div>
+
+          <div class="spec-ledger-item">
+            <div class="spec-ledger-k">ZERO FRICTION</div>
+            <div class="spec-ledger-v">无需注册登录</div>
+            <div class="spec-ledger-sub">不收手机验证码，不强制授权微信，安装后打开就能直接用。</div>
+          </div>
+
+          <div class="spec-ledger-item">
+            <div class="spec-ledger-k">RESPONSIVE</div>
+            <div class="spec-ledger-v">手机平板都好用</div>
+            <div class="spec-ledger-sub">手机竖屏握持舒适，平板横屏自动切换双栏视野，大字看得很清楚。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 终极下载卡 (Terminal Card) ================= -->
+    <section class="download-section" id="download">
+      <div class="container">
+        <div class="terminal-box">
+          <div style="margin-bottom: 16px;">
+            <span class="pill-badge">
+              <span class="pill-dot green"></span>
+              <span data-bind="version">开发中</span>
+              <span style="opacity: 0.3;">/</span>
+              <span>源码开放</span>
+            </span>
+          </div>
+
+          <h2 class="terminal-title">获取映辞 · Elocue</h2>
+          <p class="terminal-subtitle">
+            面向 Android 8.0 及以上系统的安卓手机与平板设备。完全开源，遵循 Apache-2.0 协议。
+          </p>
+
+          <div class="terminal-buttons">
+            <a href="javascript:void(0);" class="btn btn-primary btn-lg" id="btnDownloadGitcode">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              获取 APK 安装包 (发布准备中)
+            </a>
+            <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg" data-bind-href="githubRepoUrl">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              GitHub 仓库源码
+            </a>
+          </div>
+
+          <div style="font-size: 0.82rem; color: var(--text-tertiary); line-height: 1.6;">
+            开发者可前往 <a href="details.html" style="color: var(--text-secondary); text-decoration: underline;">技术与开源详情</a> 页面查看代码架构或通过源码直接编译。
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= 下载状态提示弹窗 ================= -->
+  <div class="modal-overlay" id="downloadModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-window">
+      <div class="modal-title-row">
+        <h3 id="modalTitle">发布状态说明</h3>
+        <button class="modal-close" id="modalCloseBtn" aria-label="关闭">&times;</button>
+      </div>
+      <div class="modal-text">
+        当前项目处于开发阶段，尚未发布正式 Release 安装包。
+        您可以前往 GitHub 仓库关注最新动态，或通过克隆源码直接构建 APK 安装包。
+      </div>
+      <div class="modal-footer">
+        <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" data-bind-href="githubRepoUrl">
+          前往 GitHub 仓库
+        </a>
+        <button class="btn btn-secondary btn-sm" id="modalOkBtn">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 极简页脚 ================= -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <h4>映辞 · Elocue</h4>
+          <p>
+            面向 Android 手机和平板的现代化开源提词器，专为讲演者、博主与视频创作者量身定制。
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h5>网站导航</h5>
+          <ul class="footer-col-links">
+            <li><a href="#workflow">功能演示</a></li>
+            <li><a href="#specs">为什么选映辞</a></li>
+            <li><a href="#download">下载安装包</a></li>
+            <li><a href="details.html">技术与架构详情</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h5>开源与代码</h5>
+          <ul class="footer-col-links">
+            <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl">GitHub 源码仓库</a></li>
+            <li><a href="details.html#privacy">权限与隐私安全说明</a></li>
+            <li><a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache-2.0 开源协议</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 映辞 · Elocue 开源项目. 保留所有权利.</div>
+        <div>完全开源免费 &middot; 遵循 Apache License 2.0</div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 脚本 -->
+  <script src="js/config.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

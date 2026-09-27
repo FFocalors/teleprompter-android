@@ -1,0 +1,786 @@
+/* ==========================================================================
+   首页专用样式 (home.css)
+   基于 frontend-design 规范：非对称左文右图、拒绝全居中、工作流韵律感
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Hero 首屏：非对称双翼布局 (Asymmetrical Split Hero)
+   彻底消灭全居中堆叠，左侧利落文案行动流，右侧大画幅真实提词演播台
+   -------------------------------------------------------------------------- */
+.hero-split-section {
+  padding: 56px 0 72px;
+  position: relative;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  align-items: center;
+  gap: 48px;
+}
+
+@media (max-width: 1024px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+}
+
+/* 左侧信息流 (左对齐，严整有力) */
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.hero-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-full);
+  margin-bottom: 24px;
+}
+
+.hero-headline {
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+  color: var(--text-white);
+  margin-bottom: 20px;
+}
+
+.hero-headline span {
+  color: var(--text-secondary);
+  display: block;
+}
+
+.hero-subhead {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 32px;
+  max-width: 480px;
+}
+
+.hero-cta-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.hero-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* --------------------------------------------------------------------------
+   右侧大画幅实机提词舞台 (Studio Hardware Stage with Click-to-Focus)
+   无多余文字与选择器：点击哪个设备就给哪个特写，点击空白处复原
+   -------------------------------------------------------------------------- */
+.hero-stage-container {
+  position: relative;
+  width: 100%;
+  padding-top: 16px;
+  padding-bottom: 40px;
+  padding-right: 28px;
+}
+
+/* 舞台背景深邃环境辉光 */
+.hero-stage-glow {
+  position: absolute;
+  top: 15%;
+  left: 5%;
+  width: 90%;
+  height: 80%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(237, 125, 28, 0.08) 0%, rgba(30, 41, 59, 0.12) 40%, transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* 主角：演播室专业提词大屏 (横屏平板/监视器硬件外框) */
+.stage-monitor-chassis {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(155deg, #1a1e22 0%, #121417 100%);
+  border-radius: 20px;
+  padding: 10px 10px 12px 10px;
+  box-shadow: 
+    0 30px 80px -15px rgba(0, 0, 0, 0.85),
+    0 12px 28px -8px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.7);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, opacity 0.45s ease, filter 0.45s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.stage-monitor-chassis:hover {
+  box-shadow: 
+    0 36px 90px -15px rgba(0, 0, 0, 0.9),
+    0 16px 36px -8px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* 顶部微传感器开孔与状态标签 */
+.stage-monitor-header {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  margin-bottom: 6px;
+}
+
+.stage-monitor-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #252a30;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.stage-monitor-status {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stage-monitor-status .pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--status-green);
+  box-shadow: 0 0 8px var(--status-green);
+}
+
+/* 监视器屏幕视口包裹 */
+.stage-monitor-screen {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #060709;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stage-screen-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1024 / 723;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 屏幕物理漫反射高光层 */
+.stage-glass-glare {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 35%, transparent 60%);
+  pointer-events: none;
+}
+
+/* 配角：手持控制端手机 (优化位姿：修长精致，偏右下，大幅减少遮挡) */
+.stage-phone-mockup {
+  position: absolute;
+  right: -32px;
+  bottom: -32px;
+  width: 198px;
+  z-index: 5;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s ease, box-shadow 0.45s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 手机机身硬件 */
+.phone-chassis {
+  background: linear-gradient(160deg, #242930 0%, #15181b 100%);
+  border-radius: 34px;
+  padding: 7px 7px 9px 7px;
+  box-shadow: 
+    0 32px 64px -12px rgba(0, 0, 0, 0.95),
+    0 16px 28px -6px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.8);
+  transition: box-shadow 0.45s ease;
+}
+
+/* 手机顶部微开孔 */
+.phone-camera-hole {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #0b0d0f;
+  margin: 2px auto 5px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* 手机屏幕视口 */
+.phone-screen {
+  position: relative;
+  border-radius: 26px;
+  overflow: hidden;
+  background-color: #121416;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.phone-screen-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 525 / 1024;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 手机屏幕微反光 */
+.phone-glass-glare {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.015) 30%, transparent 55%);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   设备点击聚焦与交互特写系统 (Click-to-Focus States)
+   ========================================================================== */
+
+/* 1. 默认状态下的自然悬停联动：鼠标悬停提词端时手机轻度退让，鼠标悬停手机时微浮 */
+.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-monitor-chassis:hover {
+  transform: translateY(-2px) scale(1.01);
+  z-index: 4;
+}
+
+.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-monitor-chassis:hover ~ .stage-phone-mockup {
+  transform: translate(56px, 18px) scale(0.93);
+  opacity: 0.72;
+}
+
+.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-phone-mockup:hover {
+  transform: translate(-12px, -15px) scale(1.06);
+  opacity: 1 !important;
+  z-index: 20;
+}
+
+.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-phone-mockup:hover .phone-chassis {
+  box-shadow: 
+    0 40px 80px -10px rgba(0, 0, 0, 0.98),
+    0 20px 36px -6px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.hero-stage-container:not(.mode-prompter):not(.mode-controller):has(.stage-phone-mockup:hover) .stage-monitor-chassis {
+  transform: scale(0.985);
+  opacity: 0.75;
+}
+
+/* 2. 点击特写状态一：提词端全景模式 (点击大平板触发) */
+.hero-stage-container.mode-prompter .stage-monitor-chassis {
+  transform: scale(1.025);
+  z-index: 10;
+  opacity: 1;
+  box-shadow: 
+    0 40px 100px -15px rgba(0, 0, 0, 0.95),
+    0 20px 40px -8px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.hero-stage-container.mode-prompter .stage-phone-mockup {
+  transform: translate(96px, 28px) scale(0.85);
+  opacity: 0.22;
+}
+
+.hero-stage-container.mode-prompter .stage-phone-mockup:hover {
+  transform: translate(10px, 0px) scale(1.0);
+  opacity: 1;
+}
+
+/* 3. 点击特写状态二：控制端特写模式 (点击手机触发) */
+.hero-stage-container.mode-controller .stage-monitor-chassis {
+  transform: scale(0.96);
+  opacity: 0.35;
+  filter: blur(2px);
+}
+
+.hero-stage-container.mode-controller .stage-phone-mockup {
+  transform: translate(-90px, -45px) scale(1.22);
+  z-index: 25;
+  opacity: 1;
+}
+
+.hero-stage-container.mode-controller .stage-phone-mockup .phone-chassis {
+  box-shadow: 
+    0 48px 90px -10px rgba(0, 0, 0, 0.98),
+    0 24px 44px -6px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+/* 响应式断点处理 */
+@media (max-width: 900px) {
+  .hero-stage-container {
+    padding-top: 24px;
+    padding-bottom: 30px;
+    padding-right: 0;
+  }
+  .stage-phone-mockup {
+    width: 175px;
+    right: -15px;
+    bottom: -20px;
+  }
+  .hero-stage-container.mode-controller .stage-phone-mockup {
+    transform: translate(-30px, -20px) scale(1.15);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-stage-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding-top: 10px;
+    padding-bottom: 0;
+    padding-right: 0;
+  }
+  .stage-mode-switcher {
+    margin-bottom: 10px;
+  }
+  .stage-phone-mockup {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 205px;
+    margin-top: -20px;
+    z-index: 5;
+  }
+  .hero-stage-container.mode-controller .stage-phone-mockup {
+    transform: none;
+    margin-top: 0;
+  }
+  .hero-stage-container.mode-prompter .stage-phone-mockup {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   工作流韵律区 (Workflow Rows - 彻底打破无脑卡片墙)
+   图文交错穿插，展示真实操作细节
+   -------------------------------------------------------------------------- */
+.workflow-section {
+  padding: 64px 0 88px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.workflow-header {
+  margin-bottom: 56px;
+}
+
+.workflow-label {
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--brand-orange);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.workflow-title {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text-white);
+}
+
+/* 交错工作流行 (Alternating Rows) */
+.workflow-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 56px;
+  margin-bottom: 72px;
+}
+
+.workflow-row:last-child {
+  margin-bottom: 0;
+}
+
+.workflow-row.reversed {
+  direction: rtl;
+}
+
+.workflow-row.reversed .workflow-copy,
+.workflow-row.reversed .workflow-media {
+  direction: ltr;
+}
+
+@media (max-width: 860px) {
+  .workflow-row,
+  .workflow-row.reversed {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    direction: ltr;
+  }
+}
+
+.workflow-copy-tag {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--brand-orange);
+  margin-bottom: 8px;
+}
+
+.workflow-copy-h3 {
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--text-white);
+  letter-spacing: -0.015em;
+  margin-bottom: 12px;
+}
+
+.workflow-copy-p {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
+
+.workflow-check-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.workflow-check-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.workflow-check-bullet {
+  color: var(--brand-orange);
+  font-weight: 700;
+}
+
+/* 右侧具体功能操作板 (Visual Panels) */
+.workflow-panel {
+  background-color: var(--bg-surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* 双机协同实操控制面板特写 */
+.remote-console-card {
+  background-color: #0d0f12;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.remote-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.78rem;
+}
+
+.remote-console-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--status-green);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.remote-sync-text-box {
+  background-color: #15191d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.remote-sync-text-label {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.remote-sync-text-content {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.remote-sync-text-content strong {
+  color: var(--text-white);
+  background-color: rgba(237, 125, 28, 0.16);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+.remote-keypad-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.remote-key-btn {
+  background-color: #1a1e23;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.remote-pause-btn {
+  grid-column: span 2;
+  background-color: var(--brand-orange);
+  color: #0b0d0f;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* 格式识别列表演示 */
+.format-showcase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.format-chip {
+  background-color: #0b0d0f;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.format-ext {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.format-note {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* 富文本排版演示板 */
+.rich-text-demo-box {
+  background-color: #0b0d0f;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+
+.rich-tools-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rich-tool-tag {
+  font-size: 0.74rem;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-default);
+  padding: 3px 8px;
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+.rich-tool-tag.active {
+  color: var(--brand-orange);
+  background-color: var(--brand-orange-dim);
+  border-color: rgba(237, 125, 28, 0.4);
+}
+
+/* 分光镜镜像翻转演示板 */
+.mirror-demo-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.mirror-side-box {
+  background-color: #0b0d0f;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  text-align: center;
+}
+
+.mirror-side-label {
+  font-size: 0.74rem;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+}
+
+.mirror-text-flipped {
+  transform: scaleX(-1);
+  font-size: 0.9rem;
+  color: var(--brand-orange);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   参数规格矩阵条 (Horizontal Spec Ledger)
+   -------------------------------------------------------------------------- */
+.spec-section {
+  padding: 56px 0 72px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.spec-ledger-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 820px) {
+  .spec-ledger-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .spec-ledger-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.spec-ledger-item {
+  border-left: 2px solid var(--border-default);
+  padding-left: 16px;
+}
+
+.spec-ledger-item.highlight {
+  border-left-color: var(--brand-orange);
+}
+
+.spec-ledger-k {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.spec-ledger-v {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 4px;
+}
+
+.spec-ledger-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   终极下载卡 (Download Terminal)
+   -------------------------------------------------------------------------- */
+.download-section {
+  padding: 40px 0 96px;
+}
+
+.terminal-box {
+  background-color: var(--bg-surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: 52px 36px;
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+}
+
+.terminal-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text-white);
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+
+.terminal-subtitle {
+  font-size: 0.98rem;
+  color: var(--text-secondary);
+  max-width: 480px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+
+.terminal-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.terminal-buttons .btn {
+  min-width: 190px;
+}

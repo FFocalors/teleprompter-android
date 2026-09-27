@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2A2F30" />
+      <stop offset="100%" stop-color="#181B1C" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEE935" />
+      <stop offset="100%" stop-color="#ED8F19" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#ED8F19" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- 背景圆角矩形 -->
+  <rect width="128" height="128" rx="28" fill="url(#bgGrad)" stroke="#3D4445" stroke-width="2"/>
+  <!-- 播放提词器象征符号 -->
+  <g filter="url(#glow)">
+    <!-- 提词线标杆 -->
+    <rect x="24" y="60" width="80" height="8" rx="4" fill="#FF453A" opacity="0.9"/>
+    <!-- 播放与文字流动流线 -->
+    <path d="M42 36 L86 36" stroke="#F5F7FA" stroke-width="7" stroke-linecap="round"/>
+    <path d="M42 84 L76 84" stroke="#8B9594" stroke-width="7" stroke-linecap="round"/>
+    <!-- 提词器聚光三角形 / 标识 -->
+    <polygon points="56,48 56,80 80,64" fill="url(#accentGrad)"/>
+  </g>
+</svg>
