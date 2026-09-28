@@ -12,17 +12,18 @@
   --bg-surface-hover: #22272a;
 
   /* 边框体系 (精确 1px 微反光线) */
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-default: rgba(255, 255, 255, 0.09);
-  --border-hover: rgba(255, 255, 255, 0.18);
-  --border-glass: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --border-glass: rgba(255, 255, 255, 0.14);
 
   /* 工业精炼品牌色 */
   --brand-orange: #ed7d1c;
-  --brand-orange-hover: #fa8b2a;
+  --brand-orange-hover: #ff9640;
   --brand-orange-pressed: #d96d14;
-  --brand-orange-glow: rgba(237, 125, 28, 0.28);
+  --brand-orange-glow: rgba(237, 125, 28, 0.32);
   --brand-orange-dim: rgba(237, 125, 28, 0.12);
+  --brand-orange-border: rgba(237, 125, 28, 0.38);
 
   /* 提词红线 */
   --guide-red: #ff3b30;
@@ -35,12 +36,12 @@
   /* 文字系统 */
   --text-white: #ffffff;
   --text-primary: #f0f2f4;
-  --text-secondary: #9da5ab;
-  --text-tertiary: #676e73;
+  --text-secondary: #a4acb3;
+  --text-tertiary: #6b7278;
 
-  /* 字体栈 */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  /* 字体栈：Inter + 系统中文回退 */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
   /* 圆角规范 */
   --radius-xs: 4px;
@@ -56,6 +57,7 @@
 
   /* 动效 */
   --transition: 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 180ms;
 }
 
 /* 基础重置 */
@@ -73,6 +75,8 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -83,10 +87,13 @@ body {
   overflow-x: hidden;
 }
 
-/* 纯净暗黑背景（彻底杜绝廉价大方格线条） */
+/* 纯净暗黑背景（顶部聚光 + 细腻双色径向漫射） */
 body {
-  background-image: radial-gradient(circle at 50% 0%, rgba(237, 125, 28, 0.05) 0%, transparent 60%);
+  background-image:
+    radial-gradient(ellipse 80% 520px at 50% -180px, rgba(237, 125, 28, 0.075) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 480px at 90% 110%, rgba(52, 64, 78, 0.1) 0%, transparent 70%);
   background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 ::selection {
@@ -108,6 +115,16 @@ img, svg {
   display: block;
 }
 
+code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background-color: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+}
+
 /* 容器规范 */
 .container {
   width: 100%;
@@ -124,9 +141,9 @@ img, svg {
   top: 0;
   z-index: 100;
   height: var(--header-height);
-  background-color: rgba(10, 12, 13, 0.82);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background-color: rgba(10, 12, 13, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -144,11 +161,14 @@ img, svg {
 }
 
 .brand-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 0 14px var(--brand-orange-glow);
 }
 
 .brand-meta {
@@ -165,28 +185,33 @@ img, svg {
 }
 
 .brand-en {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 6px;
   list-style: none;
 }
 
 .nav-link {
-  font-size: 0.86rem;
+  display: inline-block;
+  font-size: 0.85rem;
   color: var(--text-secondary);
   font-weight: 500;
-  transition: color var(--transition);
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  transition: color var(--transition), background-color var(--transition);
 }
 
 .nav-link:hover,
 .nav-link.active {
   color: var(--text-white);
+  background-color: rgba(255, 255, 255, 0.06);
 }
 
 .nav-actions {
@@ -214,35 +239,45 @@ img, svg {
 
 /* 主行动按钮：温润有力的活力品牌橙 */
 .btn-primary {
-  background-color: var(--brand-orange);
-  color: #0b0d0e;
-  border-color: rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, #ff9440 0%, var(--brand-orange) 52%, #e1700f 100%);
+  color: #140a02;
+  border-color: rgba(255, 200, 150, 0.35);
   font-weight: 600;
-  box-shadow: 0 2px 10px var(--brand-orange-glow);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.22) inset,
+    0 2px 12px var(--brand-orange-glow),
+    0 6px 24px -8px rgba(237, 125, 28, 0.5);
 }
 
 .btn-primary:hover {
-  background-color: var(--brand-orange-hover);
-  color: #0b0d0e;
+  background: linear-gradient(180deg, #ffa55c 0%, var(--brand-orange-hover) 52%, #ed7d1c 100%);
+  color: #140a02;
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px var(--brand-orange-glow);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.2) inset,
+    0 4px 18px var(--brand-orange-glow),
+    0 10px 32px -8px rgba(237, 125, 28, 0.6);
 }
 
 .btn-primary:active {
-  background-color: var(--brand-orange-pressed);
   transform: translateY(0);
+  filter: brightness(0.94);
 }
 
 /* 次级按钮：高透玻璃质感 */
 .btn-secondary {
-  background-color: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.035) 100%);
   color: var(--text-primary);
   border-color: var(--border-glass);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
   backdrop-filter: blur(8px);
 }
 
 .btn-secondary:hover {
-  background-color: rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
   border-color: var(--border-hover);
   color: var(--text-white);
 }
@@ -254,7 +289,7 @@ img, svg {
 
 .btn-lg {
   font-size: 0.95rem;
-  padding: 12px 24px;
+  padding: 13px 26px;
   border-radius: var(--radius-md);
 }
 
@@ -292,7 +327,9 @@ img, svg {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: var(--bg-canvas);
+    background-color: rgba(10, 12, 13, 0.97);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     z-index: 99;
     padding: 24px;
     border-top: 1px solid var(--border-subtle);
@@ -312,16 +349,16 @@ img, svg {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 4px;
     margin-bottom: 28px;
   }
 
   .mobile-menu-list a {
     display: block;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
     font-weight: 500;
     color: var(--text-primary);
-    padding: 8px 0;
+    padding: 13px 4px;
     border-bottom: 1px solid var(--border-subtle);
   }
 }
@@ -334,11 +371,12 @@ img, svg {
   align-items: center;
   gap: 8px;
   padding: 5px 14px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
-  background-color: rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-full);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
 .pill-dot {
@@ -350,7 +388,7 @@ img, svg {
 
 .pill-dot.green {
   background-color: var(--status-green);
-  box-shadow: 0 0 8px rgba(52, 199, 89, 0.4);
+  box-shadow: 0 0 8px rgba(52, 199, 89, 0.5);
 }
 
 /* ==========================================================================
@@ -359,8 +397,10 @@ img, svg {
 .site-footer {
   margin-top: auto;
   border-top: 1px solid var(--border-subtle);
-  background-color: #08090a;
-  padding: 56px 0 36px;
+  background:
+    radial-gradient(ellipse 60% 200px at 50% 0%, rgba(237, 125, 28, 0.04) 0%, transparent 70%),
+    #08090a;
+  padding: 64px 0 36px;
   font-size: 0.84rem;
   color: var(--text-tertiary);
 }
@@ -384,20 +424,21 @@ img, svg {
   font-weight: 600;
   color: var(--text-white);
   margin-bottom: 10px;
+  letter-spacing: -0.01em;
 }
 
 .footer-brand p {
   color: var(--text-secondary);
   max-width: 380px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .footer-col h5 {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
   margin-bottom: 16px;
 }
 
@@ -410,6 +451,7 @@ img, svg {
 
 .footer-col-links a {
   color: var(--text-secondary);
+  font-size: 0.85rem;
 }
 
 .footer-col-links a:hover {
@@ -460,11 +502,13 @@ img, svg {
 .modal-window {
   width: 100%;
   max-width: 440px;
-  background-color: var(--bg-surface);
+  background: linear-gradient(180deg, #171b1d 0%, var(--bg-surface) 100%);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-md);
   padding: 24px;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 24px 56px rgba(0, 0, 0, 0.65);
   transform: translateY(8px);
   transition: transform var(--transition);
 }
@@ -501,7 +545,7 @@ img, svg {
 .modal-text {
   color: var(--text-secondary);
   font-size: 0.9rem;
-  line-height: 1.6;
+  line-height: 1.7;
   margin-bottom: 24px;
 }
 
@@ -550,17 +594,12 @@ img, svg {
     width: 28px;
     height: 28px;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
   }
   .brand-name {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
   .brand-en {
-    font-size: 0.68rem;
-  }
-  .footer-grid {
-    grid-template-columns: 1fr;
-    gap: 32px;
+    font-size: 0.66rem;
   }
   .footer-bottom {
     flex-direction: column;
