@@ -154,6 +154,151 @@ code {
   height: 100%;
 }
 
+/* 顶部导航左侧组合 (品牌 Logo + 紧凑语言切换胶囊，顶栏同一行) */
+.nav-left-combo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* 顶栏同行的自定义深黑玻璃语言选择器 (绝对无系统原生组件感) */
+.nav-lang-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lang-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+  outline: none;
+}
+
+.lang-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: var(--text-white);
+}
+
+.lang-pill-btn[aria-expanded="true"] {
+  background: var(--brand-orange-dim);
+  border-color: var(--brand-orange-border);
+  color: var(--brand-orange);
+}
+
+.lang-pill-icon {
+  color: var(--brand-orange);
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.lang-pill-arrow {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform var(--transition);
+}
+
+.lang-pill-btn[aria-expanded="true"] .lang-pill-arrow {
+  transform: rotate(180deg);
+}
+
+/* 纯手工深黑磨砂悬浮菜单 (彻底杜绝系统白色大框) */
+.lang-pill-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 130px;
+  background: #14171a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 5px;
+  box-shadow:
+    0 16px 36px -8px rgba(0, 0, 0, 0.92),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 250;
+  animation: langFade 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lang-pill-dropdown.open {
+  display: flex;
+}
+
+@keyframes langFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.lang-pill-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+  outline: none;
+}
+
+.lang-pill-option:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-white);
+}
+
+.lang-pill-option.active {
+  color: var(--brand-orange);
+  background: var(--brand-orange-dim);
+  font-weight: 600;
+}
+
+.lang-pill-option .opt-dot {
+  display: none;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--brand-orange);
+}
+
+.lang-pill-option.active .opt-dot {
+  display: inline-block;
+}
+
+/* 品牌与选择器之间的一丝极细分割线 */
+.nav-combo-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -590,6 +735,18 @@ code {
   .site-header {
     height: var(--header-height);
   }
+  .nav-left-combo {
+    gap: 8px;
+  }
+  .lang-pill-btn {
+    height: 26px;
+    padding: 0 7px;
+    font-size: 0.7rem;
+    gap: 4px;
+  }
+  .nav-combo-divider {
+    height: 12px;
+  }
   .brand-icon {
     width: 28px;
     height: 28px;
@@ -605,5 +762,17 @@ code {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+}
+
+@media (max-width: 440px) {
+  .brand-en {
+    display: none;
+  }
+  .nav-left-combo {
+    gap: 6px;
+  }
+  .lang-pill-btn {
+    padding: 0 5px;
   }
 }

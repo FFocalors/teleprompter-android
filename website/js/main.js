@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initMobileNav();
   initDownloadHandlers();
   initStudioTabs();
-  initHeroStageInteractive();
+  initHeroStageScrollMotion();
   initCopyActions();
 });
 
@@ -180,65 +180,55 @@ function showToast(msg) {
 }
 
 /**
- * 首屏真机硬件展示交互：
- * 点击哪个设备就给哪个特写，点击空白处恢复默认双机协同展示，无额外文字提示
+ * 移动端：随页面上下滑动自动顺滑切换小幅度特写
+ * 桌面端则纯粹通过 CSS :hover 实现，无需任何点击或 JS 干扰
  */
-function initHeroStageInteractive() {
+function initHeroStageScrollMotion() {
   const container = document.getElementById("heroStageContainer");
   if (!container) return;
 
-  const prompterMonitor = document.getElementById("stagePrompterMonitor");
-  const controllerPhone = document.getElementById("stageControllerPhone");
+  const isMobileOrTablet = () => window.innerWidth <= 900;
+  let ticking = false;
 
-  const resetDefault = () => {
-    container.classList.remove("mode-prompter", "mode-controller");
-  };
-
-  const showPrompterFocus = () => {
-    container.classList.remove("mode-controller");
-    container.classList.add("mode-prompter");
-  };
-
-  const showControllerFocus = () => {
-    container.classList.remove("mode-prompter");
-    container.classList.add("mode-controller");
-  };
-
-  // 1. 点击提词端大平板：切换全景特写，再次点击恢复默认
-  if (prompterMonitor) {
-    prompterMonitor.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (container.classList.contains("mode-prompter")) {
-        resetDefault();
-      } else {
-        showPrompterFocus();
-      }
-    });
-  }
-
-  // 2. 点击手持控制端手机：切换手持特写，再次点击恢复默认
-  if (controllerPhone) {
-    controllerPhone.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (container.classList.contains("mode-controller")) {
-        resetDefault();
-      } else {
-        showControllerFocus();
-      }
-    });
-  }
-
-  // 3. 点击舞台空白处恢复默认展示
-  container.addEventListener("click", (e) => {
-    if (e.target === container || e.target.classList.contains("hero-stage-glow")) {
-      resetDefault();
+  const onScroll = () => {
+    if (!isMobileOrTablet()) {
+      container.classList.remove("scroll-focus-prompter", "scroll-focus-controller");
+      return;
     }
-  });
 
-  // 4. 点击页面其他任意空白处恢复默认展示
-  document.addEventListener("click", (e) => {
-    if (!container.contains(e.target)) {
-      resetDefault();
+    const rect = container.getBoundingClientRect();
+    const winHeight = window.innerHeight;
+
+    // 舞台中心相对于视口的垂直位置比率 (0 为视口顶部，1 为视口底部)
+    const stageCenterRatio = (rect.top + rect.height * 0.5) / winHeight;
+
+    // 当舞台处于视口中下部 (刚滑入核心视觉区 0.50 ~ 0.80): 平板小幅度微特写
+    if (stageCenterRatio > 0.50 && stageCenterRatio <= 0.80) {
+      container.classList.remove("scroll-focus-controller");
+      container.classList.add("scroll-focus-prompter");
     }
-  });
+    // 当舞台继续上移至视口中偏上位置 (0.20 ~ 0.50): 控制端手机小幅度微特写
+    else if (stageCenterRatio >= 0.20 && stageCenterRatio <= 0.50) {
+      container.classList.remove("scroll-focus-prompter");
+      container.classList.add("scroll-focus-controller");
+    }
+    // 离开中段视觉核心区时，顺滑恢复默认静态错落
+    else {
+      container.classList.remove("scroll-focus-prompter", "scroll-focus-controller");
+    }
+  };
+
+  window.addEventListener("scroll", () => {
+    if (!ticking) {
+      window.requestAnimationFrame(() => {
+        onScroll();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
+
+  window.addEventListener("resize", onScroll, { passive: true });
+  // 首次初始化
+  onScroll();
 }

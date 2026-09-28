@@ -23,25 +23,62 @@
 </head>
 <body>
 
-  <!-- ================= 极简顶部导航 ================= -->
+  <!-- ================= 极简顶部导航 (顶栏同一行：品牌与暗黑定制语言切换胶囊) ================= -->
   <header class="site-header">
     <div class="container nav-container">
-      <a href="index.html" class="brand">
-        <img src="assets/logo.png" alt="映辞 Logo" class="brand-icon">
-        <div class="brand-meta">
-          <span class="brand-name">映辞 · Elocue</span>
-          <span class="brand-en">teleprompter-android</span>
+      <div class="nav-left-combo">
+        <a href="index.html" class="brand">
+          <img src="assets/logo.png" alt="映辞 Logo" class="brand-icon">
+          <div class="brand-meta">
+            <span class="brand-name" data-i18n="brand.name">映辞 · Elocue</span>
+            <span class="brand-en">teleprompter-android</span>
+          </div>
+        </a>
+
+        <div class="nav-combo-divider"></div>
+
+        <!-- 顶栏同行的自定义深黑玻璃语言选择器 (非系统原生组件) -->
+        <div class="nav-lang-picker" id="navLangPickerDetails">
+          <button class="lang-pill-btn" id="langPillBtnDetails" type="button" aria-haspopup="true" aria-expanded="false" title="切换语言 / Language">
+            <svg class="lang-pill-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span class="current-lang-text-sync">简体中文</span>
+            <svg class="lang-pill-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+          <div class="lang-pill-dropdown" id="langPillDropdownDetails" role="menu">
+            <button class="lang-pill-option active" data-lang="zh-CN" type="button" role="menuitem">
+              <span>简体中文</span>
+              <span class="opt-dot"></span>
+            </button>
+            <button class="lang-pill-option" data-lang="zh-TW" type="button" role="menuitem">
+              <span>繁體中文</span>
+              <span class="opt-dot"></span>
+            </button>
+            <button class="lang-pill-option" data-lang="en" type="button" role="menuitem">
+              <span>English</span>
+              <span class="opt-dot"></span>
+            </button>
+            <button class="lang-pill-option" data-lang="ja" type="button" role="menuitem">
+              <span>日本語</span>
+              <span class="opt-dot"></span>
+            </button>
+          </div>
         </div>
-      </a>
+      </div>
 
       <nav aria-label="主要导航">
         <ul class="nav-links">
-          <li><a href="index.html" class="nav-link">返回首页</a></li>
-          <li><a href="#overview" class="nav-link">设计目标</a></li>
-          <li><a href="#pipeline" class="nav-link">技术路线</a></li>
-          <li><a href="#architecture" class="nav-link">系统架构</a></li>
-          <li><a href="#remote-sync" class="nav-link">游标算法</a></li>
-          <li><a href="#privacy" class="nav-link">权限白皮书</a></li>
+          <li><a href="index.html" class="nav-link" data-i18n="nav.back_home">返回首页</a></li>
+          <li><a href="#overview" class="nav-link" data-i18n="nav.design_goals">设计目标</a></li>
+          <li><a href="#pipeline" class="nav-link" data-i18n="nav.pipeline">技术路线</a></li>
+          <li><a href="#architecture" class="nav-link" data-i18n="nav.arch">系统架构</a></li>
+          <li><a href="#remote-sync" class="nav-link" data-i18n="nav.cursor_algo">游标算法</a></li>
+          <li><a href="#privacy" class="nav-link" data-i18n="nav.privacy">权限白皮书</a></li>
           <li>
             <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="nav-link" data-bind-href="githubRepoUrl">
               GitHub
@@ -51,7 +88,7 @@
       </nav>
 
       <div class="nav-actions">
-        <a href="index.html#download" class="btn btn-primary btn-sm btn-nav-desktop">
+        <a href="index.html#download" class="btn btn-primary btn-sm btn-nav-desktop" data-i18n="nav.get_apk">
           获取 APK
         </a>
         <button class="menu-toggle" id="menuToggle" aria-label="展开导航菜单" aria-expanded="false">
@@ -64,13 +101,13 @@
   <!-- 移动端侧边抽屉 -->
   <div class="mobile-drawer" id="mobileDrawer">
     <ul class="mobile-menu-list">
-      <li><a href="index.html">返回首页</a></li>
-      <li><a href="#overview">设计目标</a></li>
-      <li><a href="#pipeline">技术路线</a></li>
-      <li><a href="#architecture">系统架构</a></li>
-      <li><a href="#remote-sync">游标算法</a></li>
-      <li><a href="#privacy">权限白皮书</a></li>
-      <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl">GitHub 仓库</a></li>
+      <li><a href="index.html" data-i18n="nav.back_home">返回首页</a></li>
+      <li><a href="#overview" data-i18n="details.subnav_01">01 设计目标</a></li>
+      <li><a href="#pipeline" data-i18n="details.subnav_02">02 技术路线</a></li>
+      <li><a href="#architecture" data-i18n="details.subnav_04">04 系统架构</a></li>
+      <li><a href="#remote-sync" data-i18n="details.subnav_06">06 游标同步算法</a></li>
+      <li><a href="#privacy" data-i18n="details.subnav_07">07 权限白皮书</a></li>
+      <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl" data-i18n="footer.code_title">GitHub 仓库</a></li>
     </ul>
   </div>
 
@@ -78,12 +115,12 @@
   <section class="doc-header">
     <div class="container">
       <div class="doc-breadcrumb">
-        <a href="index.html">INDEX</a>
+        <a href="index.html" data-i18n="details.breadcrumb_index">INDEX</a>
         <span>/</span>
-        <span style="color: var(--text-white);">TECHNICAL SPECIFICATIONS</span>
+        <span style="color: var(--text-white);" data-i18n="details.breadcrumb_current">TECHNICAL SPECIFICATIONS</span>
       </div>
-      <h1 class="doc-title">技术档案与架构规范</h1>
-      <p class="doc-lead">
+      <h1 class="doc-title" data-i18n="details.doc_title">技术档案与架构规范</h1>
+      <p class="doc-lead" data-i18n="details.doc_lead">
         为开发者、极客用户与开源贡献者提供完整、真实、可复现的技术路线、分层架构、同步算法与隐私安全准则。
       </p>
     </div>
@@ -92,14 +129,14 @@
   <!-- ================= 浮动粘性子导航条 ================= -->
   <div class="doc-subnav">
     <div class="container subnav-links">
-      <a href="#overview" class="subnav-item active">01 设计目标</a>
-      <a href="#pipeline" class="subnav-item">02 技术路线</a>
-      <a href="#stack" class="subnav-item">03 依赖清单</a>
-      <a href="#architecture" class="subnav-item">04 系统架构</a>
-      <a href="#parsing" class="subnav-item">05 文档流水线</a>
-      <a href="#remote-sync" class="subnav-item">06 游标同步算法</a>
-      <a href="#privacy" class="subnav-item">07 权限白皮书</a>
-      <a href="#build" class="subnav-item">08 源码构建</a>
+      <a href="#overview" class="subnav-item active" data-i18n="details.subnav_01">01 设计目标</a>
+      <a href="#pipeline" class="subnav-item" data-i18n="details.subnav_02">02 技术路线</a>
+      <a href="#stack" class="subnav-item" data-i18n="details.subnav_03">03 依赖清单</a>
+      <a href="#architecture" class="subnav-item" data-i18n="details.subnav_04">04 系统架构</a>
+      <a href="#parsing" class="subnav-item" data-i18n="details.subnav_05">05 文档流水线</a>
+      <a href="#remote-sync" class="subnav-item" data-i18n="details.subnav_06">06 游标同步算法</a>
+      <a href="#privacy" class="subnav-item" data-i18n="details.subnav_07">07 权限白皮书</a>
+      <a href="#build" class="subnav-item" data-i18n="details.subnav_08">08 源码构建</a>
     </div>
   </div>
 
@@ -109,24 +146,24 @@
     <section class="doc-section" id="overview">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 01</div>
-        <h2 class="doc-sec-title">设计背景与核心宗旨</h2>
-        <p class="doc-sec-desc">解决传统商业提词软件过度商业化与隐私滥用的现实痛点</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec01_title">设计背景与核心宗旨</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec01_desc">解决传统商业提词软件过度商业化与隐私滥用的现实痛点</p>
       </div>
 
       <div class="arch-panel">
-        <h4>解决提词行业的现实困境</h4>
-        <p>
-          市面商业提词应用长期存在三大硬伤：<strong>强制手机号注册绑定</strong>、<strong>强行将隐私演讲文稿上传云端</strong>、以及<strong>高额买断/连续订阅与广告插播</strong>。在多端协同方面，双机远控大多依赖昂贵或高延迟的公网服务器中继，在演播厅、展会弱网或无网络环境下极易瘫痪。
+        <h4 data-i18n="details.sec01_pain_title">解决提词行业的现实困境</h4>
+        <p data-i18n="details.sec01_pain_p1">
+          市面商业提词应用长期存在三大硬伤：强制手机号注册绑定、强行将隐私演讲文稿上传云端、以及高额买断/连续订阅与广告插播。在多端协同方面，双机远控大多依赖昂贵或高延迟的公网服务器中继，在演播厅、展会弱网或无网络环境下极易瘫痪。
         </p>
-        <p>
+        <p data-i18n="details.sec01_pain_p2">
           映辞从首行代码起即确立了四个不可动摇的工程原则：
         </p>
         <div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.8; margin-top: 12px;">
-          <div>&middot; <strong>Local-First（纯本地优先）</strong>：台本正文与配置全量存储于设备 SQLite (Room)，无云端依赖，用户掌握绝对数据控制权。</div>
-          <div>&middot; <strong>原生响应式排版</strong>：全栈采用 Jetpack Compose 构建，统一测量视口，手机单手与平板大屏双栏兼顾。</div>
-          <div>&middot; <strong>单调时钟推进</strong>：采用单调时间轴与锚点位移，杜绝刷新率波动引起的抖动与丢行。</div>
-          <div>&middot; <strong>无中继局域网直连</strong>：基于原生 WebSocket 实现同网段点对点通信，杜绝第三方公网中转。</div>
-          <div>&middot; <strong>原生 Android 专注</strong>：专为 Android 原生生态打造，全面适配 Android 手机与平板设备。暂不支持 iOS (iPhone/iPad) 苹果系统或桌面端。</div>
+          <div data-i18n="details.principle_local">&middot; <strong>Local-First（纯本地优先）</strong>：台本正文与配置全量存储于设备 SQLite (Room)，无云端依赖，用户掌握绝对数据控制权。</div>
+          <div data-i18n="details.principle_compose">&middot; <strong>原生响应式排版</strong>：全栈采用 Jetpack Compose 构建，统一测量视口，手机单手与平板大屏双栏兼顾。</div>
+          <div data-i18n="details.principle_clock">&middot; <strong>单调时钟推进</strong>：采用单调时间轴与锚点位移，杜绝刷新率波动引起的抖动与丢行。</div>
+          <div data-i18n="details.principle_p2p">&middot; <strong>无中继局域网直连</strong>：基于原生 WebSocket 实现同网段点对点通信，杜绝第三方公网中转。</div>
+          <div data-i18n="details.principle_android">&middot; <strong>原生 Android 专注</strong>：专为 Android 原生生态打造，全面适配 Android 手机与平板设备。暂不支持 iOS (iPhone/iPad) 苹果系统或桌面端。</div>
         </div>
       </div>
     </section>
@@ -135,8 +172,8 @@
     <section class="doc-section" id="pipeline">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 02</div>
-        <h2 class="doc-sec-title">技术路线与架构拓扑</h2>
-        <p class="doc-sec-desc">基于仓库真实代码提炼的技术层级流转</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec02_title">技术路线与架构拓扑</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec02_desc">基于仓库真实代码提炼的技术层级流转</p>
       </div>
 
       <div class="flow-container">
@@ -145,7 +182,7 @@
             <span class="flow-idx">01</span>
             <div class="flow-info">
               <h4>Android Runtime & Toolchain</h4>
-              <p>专为 Android 平台设计：编译适配 Android 16 (API 36.1)，向下兼容至 Android 8.0 (API 26)。暂无 iOS / 苹果版本支持计划。</p>
+              <p data-i18n="details.step1_desc">专为 Android 平台设计：编译适配 Android 16 (API 36.1)，向下兼容至 Android 8.0 (API 26)。暂无 iOS / 苹果版本支持计划。</p>
             </div>
           </div>
           <span class="flow-tag">compileSdk 36.1 / minSdk 26</span>
@@ -156,7 +193,7 @@
             <span class="flow-idx">02</span>
             <div class="flow-info">
               <h4>Kotlin & Build Pipeline</h4>
-              <p>采用 Kotlin 2.2.10，Gradle 9.4.1 构建套件与协程并发流 (Flow)</p>
+              <p data-i18n="details.step2_desc">采用 Kotlin 2.2.10，Gradle 9.4.1 构建套件与协程并发流 (Flow)</p>
             </div>
           </div>
           <span class="flow-tag">Kotlin 2.2.10 / AGP 9.2.1</span>
@@ -167,7 +204,7 @@
             <span class="flow-idx">03</span>
             <div class="flow-info">
               <h4>Jetpack Compose & Material 3</h4>
-              <p>声明式 UI 架构，BOM 2026.02.01，单 Activity + Navigation Compose</p>
+              <p data-i18n="details.step3_desc">声明式 UI 架构，BOM 2026.02.01，单 Activity + Navigation Compose</p>
             </div>
           </div>
           <span class="flow-tag">Compose BOM / Navigation 2.9.6</span>
@@ -178,7 +215,7 @@
             <span class="flow-idx">04</span>
             <div class="flow-info">
               <h4>AppContainer DI & Repository</h4>
-              <p>轻量无反射延迟注入，单向数据流驱动，ViewModel 响应式状态流</p>
+              <p data-i18n="details.step4_desc">轻量无反射延迟注入，单向数据流驱动，ViewModel 响应式状态流</p>
             </div>
           </div>
           <span class="flow-tag">Clean Architecture / UDF</span>
@@ -189,7 +226,7 @@
             <span class="flow-idx">05</span>
             <div class="flow-info">
               <h4>Room & DataStore & WebSocket</h4>
-              <p>版本化 SQLite Schema 存储台本，局域网 Java-WebSocket 双机点对点通信</p>
+              <p data-i18n="details.step5_desc">版本化 SQLite Schema 存储台本，局域网 Java-WebSocket 双机点对点通信</p>
             </div>
           </div>
           <span class="flow-tag">Room 2.8.4 / Java-WebSocket 1.5.6</span>
@@ -201,58 +238,58 @@
     <section class="doc-section" id="stack">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 03</div>
-        <h2 class="doc-sec-title">核心依赖清单与版本</h2>
-        <p class="doc-sec-desc">全部直接对应项目 <code>gradle/libs.versions.toml</code> 声明</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec03_title">核心依赖清单与版本</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec03_desc">全部直接对应项目 <code>gradle/libs.versions.toml</code> 声明</p>
       </div>
 
       <table class="tech-spec-table">
         <thead>
           <tr>
-            <th>COMPONENT / LIBRARY</th>
-            <th>VERSION</th>
-            <th>ROLE & SCOPE</th>
+            <th data-i18n="details.th_component">COMPONENT / LIBRARY</th>
+            <th data-i18n="details.th_version">VERSION</th>
+            <th data-i18n="details.th_role">ROLE & SCOPE</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td class="code-cell">androidx.compose.bom</td>
             <td class="code-cell">2026.02.01</td>
-            <td>Compose 基础运行环境与版本协调</td>
+            <td data-i18n="details.role_compose_bom">Compose 基础运行环境与版本协调</td>
           </tr>
           <tr>
             <td class="code-cell">kotlin</td>
             <td class="code-cell">2.2.10</td>
-            <td>主工程编译语言与标准库</td>
+            <td data-i18n="details.role_kotlin">主工程编译语言与标准库</td>
           </tr>
           <tr>
             <td class="code-cell">agp (Android Gradle Plugin)</td>
             <td class="code-cell">9.2.1</td>
-            <td>Android 官方构建工具链插件</td>
+            <td data-i18n="details.role_agp">Android 官方构建工具链插件</td>
           </tr>
           <tr>
             <td class="code-cell">androidx.navigation.compose</td>
             <td class="code-cell">2.9.6</td>
-            <td>单 Activity 纯声明式路由导航</td>
+            <td data-i18n="details.role_nav">单 Activity 纯声明式路由导航</td>
           </tr>
           <tr>
             <td class="code-cell">androidx.room</td>
             <td class="code-cell">2.8.4</td>
-            <td>本地 SQLite 数据库与 Schema 版本管理</td>
+            <td data-i18n="details.role_room">本地 SQLite 数据库与 Schema 版本管理</td>
           </tr>
           <tr>
             <td class="code-cell">androidx.datastore.preferences</td>
             <td class="code-cell">1.2.1</td>
-            <td>全局播放设置与偏好持久化</td>
+            <td data-i18n="details.role_datastore">全局播放设置与偏好持久化</td>
           </tr>
           <tr>
             <td class="code-cell">java-websocket</td>
             <td class="code-cell">1.5.6</td>
-            <td>局域网提词端 Server 与控制端 Client 通信</td>
+            <td data-i18n="details.role_websocket">局域网提词端 Server 与控制端 Client 通信</td>
           </tr>
           <tr>
             <td class="code-cell">zxing-android-embedded</td>
             <td class="code-cell">4.3.0</td>
-            <td>局域网配对二维码扫码识别</td>
+            <td data-i18n="details.role_zxing">局域网配对二维码扫码识别</td>
           </tr>
         </tbody>
       </table>
@@ -262,15 +299,15 @@
     <section class="doc-section" id="architecture">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 04</div>
-        <h2 class="doc-sec-title">系统分层与数据流</h2>
-        <p class="doc-sec-desc">单工程模块设计，清晰划分 UI、Domain、Data 边界</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec04_title">系统分层与数据流</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec04_desc">单工程模块设计，清晰划分 UI、Domain、Data 边界</p>
       </div>
 
       <div class="arch-matrix">
         <div class="arch-panel">
-          <h4>单向数据流与容器注入</h4>
-          <p>
-            <code>TeleprompterApplication</code> 初始化单一 <code>DefaultAppContainer</code>，负责延迟构造 Room 数据库与 Repositories。UI 层通过 ViewModel 暴露不可变 StateFlow，页面永远不直接触碰持久化底层。
+          <h4 data-i18n="details.sec04_p1_title">单向数据流与容器注入</h4>
+          <p data-i18n="details.sec04_p1_body">
+            TeleprompterApplication 初始化单一 DefaultAppContainer，负责延迟构造 Room 数据库与 Repositories。UI 层通过 ViewModel 暴露不可变 StateFlow，页面永远不直接触碰持久化底层。
           </p>
           <div class="code-terminal">
 Compose Screen (UI)
@@ -283,9 +320,9 @@ Room DAO / DataStore</div>
         </div>
 
         <div class="arch-panel">
-          <h4>提词端作为唯一状态源</h4>
-          <p>
-            在双机远控架构中，<strong>提词端是唯一真实状态源 (Single Source of Truth)</strong>。控制端发送的命令经校验后转换为业务事件；提词端将最新排版快照与阅读游标反向推回控制端，避免双向时钟分歧。
+          <h4 data-i18n="details.sec04_p2_title">提词端作为唯一状态源</h4>
+          <p data-i18n="details.sec04_p2_body">
+            在双机远控架构中，提词端是唯一真实状态源 (Single Source of Truth)。控制端发送的命令经校验后转换为业务事件；提词端将最新排版快照与阅读游标反向推回控制端，避免双向时钟分歧。
           </p>
           <div class="code-terminal">
 [提词端 (Server)] ── Snapshot / Window ──&gt; [控制端 (Client)]
@@ -298,21 +335,21 @@ Room DAO / DataStore</div>
     <section class="doc-section" id="parsing">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 05</div>
-        <h2 class="doc-sec-title">本地文档解析流水线</h2>
-        <p class="doc-sec-desc">不依赖任何第三方服务端，全流程在终端设备内存中安全流式解析</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec05_title">本地文档解析流水线</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec05_desc">不依赖任何第三方服务端，全流程在终端设备内存中安全流式解析</p>
       </div>
 
       <div class="arch-matrix">
         <div class="arch-panel">
-          <h4>智能字符编码识别 (TXT)</h4>
-          <p>
-            自动检测文件头 BOM 标记，智能识别 <strong>UTF-8</strong>、<strong>UTF-16 LE/BE</strong> 以及中文常见的 <strong>GB18030</strong> 字符集。5 MiB 严格大小阈值校验，彻底规避乱码现象。
+          <h4 data-i18n="details.sec05_p1_title">智能字符编码识别 (TXT)</h4>
+          <p data-i18n="details.sec05_p1_body">
+            自动检测文件头 BOM 标记，智能识别 UTF-8、UTF-16 LE/BE 以及中文常见的 GB18030 字符集。5 MiB 严格大小阈值校验，彻底规避乱码现象。
           </p>
         </div>
 
         <div class="arch-panel">
-          <h4>Word (DOC / DOCX) 纯本地提取</h4>
-          <p>
+          <h4 data-i18n="details.sec05_p2_title">Word (DOC / DOCX) 纯本地提取</h4>
+          <p data-i18n="details.sec05_p2_body">
             DOCX 基于 OOXML 规范在本地解压提取主正文段落；DOC 基于 OLE2 二进制流进行控制状态机清洗，自动跳过表格、图片、超链接与目录等干扰结构，严防 XML 外部实体攻击。
           </p>
         </div>
@@ -323,22 +360,22 @@ Room DAO / DataStore</div>
     <section class="doc-section" id="remote-sync">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 06</div>
-        <h2 class="doc-sec-title">局域网阅读游标同步算法</h2>
-        <p class="doc-sec-desc">攻克双设备屏幕尺寸与折行不一致导致的长文错位问题</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec06_title">局域网阅读游标同步算法</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec06_desc">攻克双设备屏幕尺寸与折行不一致导致的长文错位问题</p>
       </div>
 
       <div class="arch-panel" style="margin-bottom: 20px;">
-        <h4>绝对 UTF-16 游标与滑动阅读窗口</h4>
-        <p>
+        <h4 data-i18n="details.sec06_body_title">绝对 UTF-16 游标与滑动阅读窗口</h4>
+        <p data-i18n="details.sec06_body_p1">
           传统提词软件双机同步多采用“直接推送屏幕可见文字字符串”的粗暴方案，一旦提词端是横屏大平板而控制端是竖屏窄手机，极易引发严重换行错乱与跳变。
         </p>
-        <p>
-          映辞采用<strong>双流解耦同步</strong>算法：
+        <p data-i18n="details.sec06_body_p2">
+          映辞采用双流解耦同步算法：
         </p>
         <div style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.8; margin-top: 10px;">
-          <div>&middot; <strong>绝对阅读游标 (Cursor)</strong>：提词端 <code>PlaybackReadingTracker</code> 根据实际排版几何与固定阅读锚点，持续计算全文绝对 UTF-16 字符偏移量与行内亚字符进度（约 12~20Hz 高频传输）。</div>
-          <div>&middot; <strong>滑动窗口 (Window)</strong>：<code>ReadingWindowManager</code> 维护低频约 700 字符的大上下文窗口，在游标触达前进 72% / 后退 18% 阈值时平滑滑动。</div>
-          <div>&middot; <strong>控制端重排版 (Retargeting)</strong>：控制端 <code>ControllerReadingViewport</code> 利用本地 <code>TextLayoutResult</code> 排版窗口文字，配合 <strong>Pending Cursor</strong> 机制，确保长文持续滚动零空白与零回跳。</div>
+          <div data-i18n="details.sec06_c1">&middot; <strong>绝对阅读游标 (Cursor)</strong>：提词端 PlaybackReadingTracker 根据实际排版几何与固定阅读锚点，持续计算全文绝对 UTF-16 字符偏移量与行内亚字符进度（约 12~20Hz 高频传输）。</div>
+          <div data-i18n="details.sec06_c2">&middot; <strong>滑动窗口 (Window)</strong>：ReadingWindowManager 维护低频约 700 字符的大上下文窗口，在游标触达前进 72% / 后退 18% 阈值时平滑滑动。</div>
+          <div data-i18n="details.sec06_c3">&middot; <strong>控制端重排版 (Retargeting)</strong>：控制端 ControllerReadingViewport 利用本地 TextLayoutResult 排版窗口文字，配合 Pending Cursor 机制，确保长文持续滚动零空白与零回跳。</div>
         </div>
       </div>
     </section>
@@ -347,43 +384,43 @@ Room DAO / DataStore</div>
     <section class="doc-section" id="privacy">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 07</div>
-        <h2 class="doc-sec-title">权限与隐私安全白皮书</h2>
-        <p class="doc-sec-desc">透明列出应用所声明的每一项系统权限与真实代码调用场景</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec07_title">权限与隐私安全白皮书</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec07_desc">透明列出应用所声明的每一项系统权限与真实代码调用场景</p>
       </div>
 
       <table class="tech-spec-table">
         <thead>
           <tr>
-            <th>PERMISSION</th>
-            <th>STATUS</th>
-            <th>USAGE CONTEXT</th>
-            <th>SECURITY GUARANTEE</th>
+            <th data-i18n="details.th_perm">PERMISSION</th>
+            <th data-i18n="details.th_status">STATUS</th>
+            <th data-i18n="details.th_usage">USAGE CONTEXT</th>
+            <th data-i18n="details.th_security">SECURITY GUARANTEE</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td class="code-cell">android.permission.INTERNET</td>
             <td><span class="perm-badge safe">SAFE / LAN ONLY</span></td>
-            <td>提词端与控制端之间建立局域网 WebSocket 连接</td>
-            <td>代码中无公网请求，不连接任何第三方中继或遥测服务。</td>
+            <td data-i18n="details.perm1_usage">提词端与控制端之间建立局域网 WebSocket 连接</td>
+            <td data-i18n="details.perm1_sec">代码中无公网请求，不连接任何第三方中继或遥测服务。</td>
           </tr>
           <tr>
             <td class="code-cell">android.permission.ACCESS_NETWORK_STATE</td>
             <td><span class="perm-badge safe">SAFE / LOCAL</span></td>
-            <td>提词端启动远控时解析当前设备的局域网 IPv4 地址</td>
-            <td>仅用于在本地生成配对二维码，不读取或上传网络标识符。</td>
+            <td data-i18n="details.perm2_usage">提词端启动远控时解析当前设备的局域网 IPv4 地址</td>
+            <td data-i18n="details.perm2_sec">仅用于在本地生成配对二维码，不读取或上传网络标识符。</td>
           </tr>
           <tr>
             <td class="code-cell">android.permission.CAMERA</td>
             <td><span class="perm-badge">OPTIONAL DYNAMIC</span></td>
-            <td>控制端扫描提词端配对二维码时使用</td>
-            <td>非必需硬件（required=false），支持手动输入连接信息；画面纯本地分析不上传。</td>
+            <td data-i18n="details.perm3_usage">控制端扫描提词端配对二维码时使用</td>
+            <td data-i18n="details.perm3_sec">非必需硬件（required=false），支持手动输入连接信息；画面纯本地分析不上传。</td>
           </tr>
           <tr>
-            <td class="code-cell">外部存储读写权限</td>
+            <td class="code-cell" data-i18n="details.perm4_title">外部存储读写权限</td>
             <td><span class="perm-badge safe">ZERO PERMISSION</span></td>
-            <td>文档导入基于 Android Storage Access Framework (SAF)</td>
-            <td>不申请 READ_EXTERNAL_STORAGE，单次流式读取，不长期持有文件 URI。</td>
+            <td data-i18n="details.perm4_usage">文档导入基于 Android Storage Access Framework (SAF)</td>
+            <td data-i18n="details.perm4_sec">不申请 READ_EXTERNAL_STORAGE，单次流式读取，不长期持有文件 URI。</td>
           </tr>
         </tbody>
       </table>
@@ -393,8 +430,8 @@ Room DAO / DataStore</div>
     <section class="doc-section" id="build">
       <div class="doc-sec-header">
         <div class="doc-sec-num">SECTION 08</div>
-        <h2 class="doc-sec-title">源码获取与本地复现</h2>
-        <p class="doc-sec-desc">基于标准开源规范，任何开发者均可直接在本地独立复现完整构建</p>
+        <h2 class="doc-sec-title" data-i18n="details.sec08_title">源码获取与本地复现</h2>
+        <p class="doc-sec-desc" data-i18n="details.sec08_desc">基于标准开源规范，任何开发者均可直接在本地独立复现完整构建</p>
       </div>
 
       <div class="code-terminal" style="padding: 20px;">
@@ -411,7 +448,7 @@ cd teleprompter-android
 ./gradlew testDebugUnitTest</div>
 
       <div style="margin-top: 24px;">
-        <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-primary" data-bind-href="githubRepoUrl">
+        <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-primary" data-bind-href="githubRepoUrl" data-i18n="details.sec08_cta">
           前往 GitHub 查阅完整源码
         </a>
       </div>
@@ -424,26 +461,26 @@ cd teleprompter-android
     <div class="container">
       <div class="footer-top">
         <div class="footer-brand">
-          <h4>映辞 · Elocue</h4>
-          <p>
+          <h4 data-i18n="brand.name">映辞 · Elocue</h4>
+          <p data-i18n="details.footer_desc">
             面向 Android 手机和平板的现代化开源提词器，专为讲演者、博主与视频创作者量身定制。
           </p>
         </div>
 
         <div class="footer-col">
-          <h5>NAVIGATION</h5>
+          <h5 data-i18n="footer.nav_title">NAVIGATION</h5>
           <ul class="footer-col-links">
-            <li><a href="index.html">返回首页</a></li>
-            <li><a href="#pipeline">技术路线</a></li>
-            <li><a href="#stack">依赖清单</a></li>
-            <li><a href="#privacy">权限白皮书</a></li>
+            <li><a href="index.html" data-i18n="nav.back_home">返回首页</a></li>
+            <li><a href="#pipeline" data-i18n="details.subnav_02">02 技术路线</a></li>
+            <li><a href="#stack" data-i18n="details.subnav_03">03 依赖清单</a></li>
+            <li><a href="#privacy" data-i18n="details.subnav_07">07 权限白皮书</a></li>
           </ul>
         </div>
 
         <div class="footer-col">
-          <h5>OPEN SOURCE</h5>
+          <h5 data-i18n="footer.code_title">OPEN SOURCE</h5>
           <ul class="footer-col-links">
-            <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl">GitHub 仓库</a></li>
+            <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl" data-i18n="nav.github">GitHub 仓库</a></li>
             <li><a href="https://github.com/FFocalors/teleprompter-android/releases" target="_blank" rel="noopener noreferrer" data-bind-href="githubReleasesUrl">GitHub Releases</a></li>
             <li><a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" rel="noopener noreferrer">Apache-2.0 License</a></li>
           </ul>
@@ -451,13 +488,14 @@ cd teleprompter-android
       </div>
 
       <div class="footer-bottom">
-        <div>&copy; 2026 映辞 · Elocue 开源项目. 保留所有权利.</div>
-        <div>遵循 Apache License 2.0 开源协议</div>
+        <div data-i18n="details.footer_rights">&copy; 2026 映辞 · Elocue 开源项目. 保留所有权利.</div>
+        <div data-i18n="details.footer_license">遵循 Apache License 2.0 开源协议</div>
       </div>
     </div>
   </footer>
 
   <script src="js/config.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/main.js"></script>
   <script src="js/details.js"></script>
 </body>

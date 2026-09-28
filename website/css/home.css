@@ -149,7 +149,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset 0 -1px 0 rgba(0, 0, 0, 0.7);
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s ease, opacity 0.45s ease, filter 0.45s ease;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
 }
 
@@ -243,7 +243,7 @@
   width: 198px;
   z-index: 5;
   transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.45s ease, box-shadow 0.45s ease;
-  cursor: pointer;
+  cursor: default;
   user-select: none;
 }
 
@@ -303,81 +303,59 @@
 }
 
 /* ==========================================================================
-   设备点击聚焦与交互特写系统 (Click-to-Focus States)
+   设备展示交互动效系统 (Hover-Only on Desktop, 移除点击特写)
    ========================================================================== */
 
-/* 1. 默认状态下的自然悬停联动：鼠标悬停提词端时手机轻度退让，鼠标悬停手机时微浮 */
-.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-monitor-chassis:hover {
-  transform: translateY(-2px) scale(1.01);
-  z-index: 4;
+/* 硬件底座平滑过渡定义 */
+.stage-monitor-chassis,
+.stage-phone-mockup {
+  transition: 
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.5s ease,
+    filter 0.5s ease,
+    box-shadow 0.5s ease;
+  will-change: transform, opacity;
 }
 
-.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-monitor-chassis:hover ~ .stage-phone-mockup {
-  transform: translate(56px, 18px) scale(0.93);
-  opacity: 0.72;
-}
+/* 桌面端：仅保留鼠标悬停 Hover 动画 */
+@media (hover: hover) and (min-width: 901px) {
+  /* 1. 悬停提词端大平板：平板微浮上提，手机自然向右下方稍退让，完整展露大屏内容 */
+  .stage-monitor-chassis:hover {
+    transform: translateY(-4px) scale(1.015);
+    z-index: 6;
+    box-shadow:
+      0 42px 92px -16px rgba(0, 0, 0, 0.95),
+      0 20px 36px -6px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.18),
+      0 0 60px -8px rgba(237, 125, 28, 0.2);
+  }
 
-.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-phone-mockup:hover {
-  transform: translate(-12px, -15px) scale(1.06);
-  opacity: 1 !important;
-  z-index: 20;
-}
+  .stage-monitor-chassis:hover ~ .stage-phone-mockup {
+    transform: translate(46px, 16px) scale(0.92);
+    opacity: 0.72;
+  }
 
-.hero-stage-container:not(.mode-prompter):not(.mode-controller) .stage-phone-mockup:hover .phone-chassis {
-  box-shadow:
-    0 44px 84px -12px rgba(0, 0, 0, 0.98),
-    0 20px 36px -6px rgba(0, 0, 0, 0.85),
-    0 0 0 1px rgba(255, 255, 255, 0.24),
-    0 0 48px -4px rgba(237, 125, 28, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36);
-}
+  /* 2. 悬停手持控制端手机：手机上浮前置放大，投影立体加深，平板背景微虚化降调 */
+  .stage-phone-mockup:hover {
+    transform: translate(-14px, -18px) scale(1.08);
+    z-index: 20;
+    opacity: 1 !important;
+  }
 
-.hero-stage-container:not(.mode-prompter):not(.mode-controller):has(.stage-phone-mockup:hover) .stage-monitor-chassis {
-  transform: scale(0.985);
-  opacity: 0.75;
-}
+  .stage-phone-mockup:hover .phone-chassis {
+    box-shadow:
+      0 48px 88px -12px rgba(0, 0, 0, 0.98),
+      0 22px 40px -6px rgba(0, 0, 0, 0.9),
+      0 0 0 1px rgba(255, 255, 255, 0.26),
+      0 0 52px -6px rgba(237, 125, 28, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  }
 
-/* 2. 点击特写状态一：提词端全景模式 (点击大平板触发) */
-.hero-stage-container.mode-prompter .stage-monitor-chassis {
-  transform: scale(1.025);
-  z-index: 10;
-  opacity: 1;
-  box-shadow:
-    0 44px 110px -16px rgba(0, 0, 0, 0.95),
-    0 22px 44px -8px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.18),
-    0 0 80px -8px rgba(237, 125, 28, 0.22);
-}
-
-.hero-stage-container.mode-prompter .stage-phone-mockup {
-  transform: translate(96px, 28px) scale(0.85);
-  opacity: 0.22;
-}
-
-.hero-stage-container.mode-prompter .stage-phone-mockup:hover {
-  transform: translate(10px, 0px) scale(1.0);
-  opacity: 1;
-}
-
-/* 3. 点击特写状态二：控制端特写模式 (点击手机触发) */
-.hero-stage-container.mode-controller .stage-monitor-chassis {
-  transform: scale(0.96);
-  opacity: 0.35;
-  filter: blur(2px);
-}
-
-.hero-stage-container.mode-controller .stage-phone-mockup {
-  transform: translate(-90px, -45px) scale(1.22);
-  z-index: 25;
-  opacity: 1;
-}
-
-.hero-stage-container.mode-controller .stage-phone-mockup .phone-chassis {
-  box-shadow:
-    0 52px 96px -12px rgba(0, 0, 0, 0.98),
-    0 26px 46px -6px rgba(0, 0, 0, 0.9),
-    0 0 0 1px rgba(255, 255, 255, 0.28),
-    0 0 56px -6px rgba(237, 125, 28, 0.2);
+  .hero-stage-container:has(.stage-phone-mockup:hover) .stage-monitor-chassis {
+    transform: scale(0.985);
+    opacity: 0.76;
+    filter: blur(0.5px);
+  }
 }
 
 /* ==========================================================================
@@ -1030,29 +1008,36 @@
     border-radius: 16px;
   }
 
-  /* 移动端点击特写状态 */
-  .hero-stage-container.mode-prompter .stage-monitor-chassis {
-    width: 100%;
-    transform: scale(1.02);
+  /* 移动端上下滑动自动小幅度顺滑特写状态 (Scroll-Driven Micro-Focus) */
+  .hero-stage-container.scroll-focus-prompter .stage-monitor-chassis {
+    transform: scale(1.025);
+    z-index: 6;
+    box-shadow:
+      0 26px 58px -12px rgba(0, 0, 0, 0.95),
+      0 0 36px -4px rgba(237, 125, 28, 0.16);
   }
 
-  .hero-stage-container.mode-prompter .stage-phone-mockup {
-    transform: translate(40px, 15px) scale(0.7);
-    opacity: 0.15;
+  .hero-stage-container.scroll-focus-prompter .stage-phone-mockup {
+    transform: translate(16px, 8px) scale(0.92);
+    opacity: 0.65;
   }
 
-  .hero-stage-container.mode-controller .stage-monitor-chassis {
-    transform: scale(0.92);
-    opacity: 0.25;
-    filter: blur(2px);
+  .hero-stage-container.scroll-focus-controller .stage-monitor-chassis {
+    transform: scale(0.965);
+    opacity: 0.72;
+    filter: blur(0.5px);
   }
 
-  .hero-stage-container.mode-controller .stage-phone-mockup {
-    width: 165px;
-    right: 50%;
-    transform: translate(50%, -24px);
-    z-index: 25;
+  .hero-stage-container.scroll-focus-controller .stage-phone-mockup {
+    transform: translate(-12px, -12px) scale(1.1);
+    z-index: 15;
     opacity: 1;
+  }
+
+  .hero-stage-container.scroll-focus-controller .stage-phone-mockup .phone-chassis {
+    box-shadow:
+      0 30px 60px -10px rgba(0, 0, 0, 0.98),
+      0 0 36px -4px rgba(237, 125, 28, 0.22);
   }
 
   /* 工作流区域移动端精修 */
