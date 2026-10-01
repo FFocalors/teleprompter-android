@@ -3,41 +3,48 @@
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-  initStickyNavSpy();
+  initSubnavSpy();
 });
 
 /**
- * 详情页粘性锚点导航根据滚动自动高亮
+ * 目录条随滚动高亮当前小节。
+ * 用 IntersectionObserver 而不是 offsetTop 比较——粘性头部会让 offsetTop 失真。
  */
-function initStickyNavSpy() {
-  const navLinks = document.querySelectorAll(".details-nav-link");
-  const sections = [];
+function initSubnavSpy() {
+  const links = Array.from(document.querySelectorAll(".subnav-item"));
+  if (!links.length || !window.IntersectionObserver) return;
 
-  navLinks.forEach((link) => {
-    const targetId = link.getAttribute("href");
-    if (targetId && targetId.startsWith("#")) {
-      const sec = document.querySelector(targetId);
-      if (sec) {
-        sections.push({ el: sec, link: link });
-      }
-    }
+  const pairs = [];
+  links.forEach((link) => {
+    const href = link.getAttribute("href");
+    if (!href || !href.startsWith("#")) return;
+    const section = document.querySelector(href);
+    if (section) pairs.push({ section, link });
   });
 
-  if (!sections.length) return;
+  if (!pairs.length) return;
 
-  const onScroll = () => {
-    const scrollPos = window.scrollY + 140; // 偏移量
+  const visible = new Set();
 
-    for (let i = sections.length - 1; i >= 0; i--) {
-      const item = sections[i];
-      if (item.el.offsetTop <= scrollPos) {
-        navLinks.forEach((l) => l.classList.remove("active"));
-        item.link.classList.add("active");
-        break;
-      }
-    }
+  const setActive = (link) => {
+    links.forEach((l) => l.classList.toggle("active", l === link));
   };
 
-  window.addEventListener("scroll", onScroll, { passive: true });
-  onScroll();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          visible.add(entry.target);
+        } else {
+          visible.delete(entry.target);
+        }
+      });
+
+      const current = pairs.find((p) => visible.has(p.section));
+      if (current) setActive(current.link);
+    },
+    { rootMargin: "-20% 0px -70% 0px" }
+  );
+
+  pairs.forEach((p) => observer.observe(p.section));
 }

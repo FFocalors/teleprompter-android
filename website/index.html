@@ -5,48 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>映辞 · Elocue - 专为创作者打造的干净好用的开源提词器</title>
   <meta name="description" content="映辞 (Elocue) 是一款面向 Android 手机和平板的开源提词器，不用注册登录，文稿不传云端，没有开屏广告。支持 Word/Markdown 文档直接导入、专业分光镜镜像与两台手机扫码无线遥控。">
-  
+
   <!-- 官方应用图标与 Favicon -->
   <link rel="icon" type="image/png" sizes="192x192" href="assets/logo.png">
   <link rel="apple-touch-icon" sizes="192x192" href="assets/logo.png">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="shortcut icon" href="assets/favicon.ico">
 
-  <!-- 字体：Inter（英文/数字）+ 系统中文回退，离线时优雅降级 -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <!-- 字体在 css/main.css 里自托管（Archivo 仅拉丁子集） -->
 
-  <!-- 样式表 -->
   <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/prompter.css">
   <link rel="stylesheet" href="css/home.css">
 </head>
 <body>
 
-  <!-- ================= 顶部导航 (顶栏同一行：品牌与暗黑定制语言切换胶囊，绝无系统组件感) ================= -->
   <header class="site-header">
     <div class="container nav-container">
       <div class="nav-left-combo">
         <a href="index.html" class="brand">
-          <img src="assets/logo.png" alt="映辞 Logo" class="brand-icon">
+          <img src="assets/logo.png" alt="映辞" class="brand-icon">
           <div class="brand-meta">
-            <span class="brand-name" data-i18n="brand.name">映辞 · Elocue</span>
-            <span class="brand-en" data-i18n="nav.brand_sub">提词器</span>
+            <span class="brand-name">映辞 Elocue</span>
+            <span class="brand-en" data-i18n="nav.brand_sub">Android 提词器</span>
           </div>
         </a>
 
-        <div class="nav-combo-divider"></div>
-
-        <!-- 顶栏同行的自定义深黑玻璃语言选择器 (非系统原生组件) -->
         <div class="nav-lang-picker" id="navLangPicker">
           <button class="lang-pill-btn" id="langPillBtn" type="button" aria-haspopup="true" aria-expanded="false" title="切换语言 / Language">
-            <svg class="lang-pill-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="lang-pill-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="2" y1="12" x2="22" y2="12"></line>
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
             </svg>
             <span id="currentLangText">简体中文</span>
-            <svg class="lang-pill-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="lang-pill-arrow" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
           </button>
@@ -71,7 +64,6 @@
         </div>
       </div>
 
-      <!-- 桌面端菜单 -->
       <nav aria-label="主要导航">
         <ul class="nav-links">
           <li><a href="#workflow" class="nav-link" data-i18n="nav.workflow">功能演示</a></li>
@@ -85,19 +77,17 @@
         </ul>
       </nav>
 
-      <!-- 快速下载按钮 -->
       <div class="nav-actions">
         <a href="#download" class="btn btn-primary btn-sm btn-nav-desktop" data-i18n="nav.get_apk">
           获取 APK
         </a>
         <button class="menu-toggle" id="menuToggle" aria-label="展开导航菜单" aria-expanded="false">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- 移动端侧边抽屉 -->
   <div class="mobile-drawer" id="mobileDrawer">
     <ul class="mobile-menu-list">
       <li><a href="#workflow" data-i18n="nav.workflow">功能演示</a></li>
@@ -105,341 +95,295 @@
       <li><a href="details.html" data-i18n="nav.details">技术与开源详情</a></li>
       <li><a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" data-bind-href="githubRepoUrl" data-i18n="nav.github">GitHub 源码仓库</a></li>
     </ul>
-    <div>
-      <a href="#download" class="btn btn-primary" style="width: 100%;" data-i18n="nav.get_apk">获取安装包 / 源码</a>
-    </div>
+    <a href="#download" class="btn btn-primary" data-i18n="nav.get_apk">获取 APK</a>
   </div>
 
   <main>
-    <!-- ================= Hero 首屏：非对称左文右图布局 ================= -->
-    <section class="hero-split-section">
+
+    <!-- ================= 首屏 ================= -->
+    <section class="hero">
       <div class="container">
-        <div class="hero-grid">
-          <!-- 左侧：左对齐信息流与下载行动点 -->
-          <div class="hero-copy">
-            <div class="hero-pill-badge">
-              <span class="pill-dot green"></span>
-              <span data-i18n="hero.badge">仅支持 Android</span>
-              <span style="opacity: 0.3;">&middot;</span>
-              <span data-i18n="hero.badge_offline">纯本地运行</span>
-              <span style="opacity: 0.3;">&middot;</span>
-              <span>Android 8.0+</span>
-            </div>
+        <div class="hero-copy">
+          <h1 class="hero-headline">
+            <span class="cue-mark" data-i18n="hero.title">台词在眼前，从容看镜头</span>
+          </h1>
 
-            <h1 class="hero-headline" data-i18n="hero.title">
-              台词在眼前，从容看镜头
-            </h1>
-
-            <p class="hero-subhead" data-i18n="hero.desc">
-              专为 Android 打造的纯本地提词器。无需多花钱买提词硬件，两台手机无线遥控，文字随语速从容走，目光紧锁镜头不漂移。
-            </p>
-
-            <div class="hero-cta-group">
-              <a href="#download" class="btn btn-primary btn-lg" data-i18n="hero.cta_download">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                获取 Android 安装包
-              </a>
-              <a href="details.html" class="btn btn-secondary btn-lg" data-i18n="hero.cta_details">
-                查看技术架构与算法
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-              </a>
-            </div>
-
-            <div class="hero-meta-row" data-i18n="hero.meta">
-              仅限 Android 端 · 安卓手机与平板均已适配 · 暂不支持 iOS / 苹果端
-            </div>
-          </div>
-
-          <!-- 右侧：大画幅实机提词演播台与手持遥控机联动 (真实真机界面设计包装 + 直觉点击特写) -->
-          <div class="hero-stage-container" id="heroStageContainer">
-            <!-- 背后微环境漫射光晕 -->
-            <div class="hero-stage-glow"></div>
-
-            <!-- 主角：演播室专业提词大屏 (平板/外接屏硬件外框) -->
-            <div class="stage-monitor-chassis" id="stagePrompterMonitor">
-              <!-- 顶部金属边框传感器微点与运行状态 -->
-              <div class="stage-monitor-header">
-                <span class="stage-monitor-dot"></span>
-                <div class="stage-monitor-status">
-                  <span class="pulse-dot"></span>
-                  <span data-i18n="hero.stage_monitor_ready">演播端已就绪 &middot; 纯本地运行</span>
-                </div>
-                <span class="stage-monitor-dot"></span>
-              </div>
-
-              <!-- 屏幕视口：真机截图与物理高光漫反射层 -->
-              <div class="stage-monitor-screen">
-                <img 
-                  src="assets/screenshots/prompter-screen.jpg" 
-                  alt="映辞提词端真机运行界面" 
-                  class="stage-screen-img" 
-                  width="1024" 
-                  height="723" 
-                  loading="eager" 
-                />
-                <div class="stage-glass-glare"></div>
-              </div>
-            </div>
-
-            <!-- 配角：手持控制端旗舰手机 (错落浮动层叠 + 直觉点击特写) -->
-            <div class="stage-phone-mockup" id="stageControllerPhone">
-              <!-- 手机硬件机身 -->
-              <div class="phone-chassis">
-                <!-- 手机顶部微开孔前摄 -->
-                <div class="phone-camera-hole"></div>
-
-                <!-- 手机屏幕视口 -->
-                <div class="phone-screen">
-                  <img 
-                    src="assets/screenshots/controller-screen.jpg" 
-                    alt="映辞控制端真机运行界面" 
-                    class="phone-screen-img" 
-                    width="525" 
-                    height="1024" 
-                    loading="eager" 
-                  />
-                  <div class="phone-glass-glare"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= 核心工作流演示区 (交错图文，打破卡片堆砌) ================= -->
-    <section class="workflow-section" id="workflow">
-      <div class="container">
-        <div class="workflow-header">
-          <div class="workflow-label" data-i18n="flow.section_label">WORKFLOW & CAPABILITIES</div>
-          <h2 class="workflow-title" data-i18n="flow.section_title">为视频录制与公开演讲打造的实用体验</h2>
-        </div>
-
-        <!-- 环节 1: 双机无线遥控 -->
-        <div class="workflow-row">
-          <div class="workflow-copy">
-            <span class="workflow-copy-tag" data-i18n="flow.02_tag">02 / DUAL DEVICE REMOTE</span>
-            <h3 class="workflow-copy-h3" data-i18n="flow.02_title">两台手机无线遥控，不用单独买遥控器</h3>
-            <p class="workflow-copy-p" data-i18n="flow.02_desc">
-              一台大屏手机或平板放在镜头前当提词板，另一台手机拿在手里当遥控器。打开软件扫个码就能连上。手里的遥控手机不仅能暂停、加速、快进快退，还能实时同步看到当前读到了哪一句，长文阅读零错位，一个人拍视频也能掌控全场。
-            </p>
-            <ul class="workflow-check-list">
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.02_check1">连同一 Wi-Fi 或直接开手机热点即可使用，零网络依赖</span>
-              </li>
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.02_check2">手持机实时同步文字排版，不用抬头看大屏即可掌控进度</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="workflow-media">
-            <div class="workflow-panel">
-              <div class="remote-console-card">
-                <div class="remote-console-header">
-                  <div class="remote-console-status">
-                    <span class="live-dot"></span>
-                    <span data-i18n="flow.02_panel_status">局域网 WebSocket 直连 (延迟 &lt; 11ms)</span>
-                  </div>
-                  <span style="font-family: var(--font-mono); color: var(--text-tertiary); font-size: 0.72rem;">PORT 8080</span>
-                </div>
-
-                <!-- 手持机同步视窗：当前朗读台词卡片 -->
-                <div class="remote-sync-text-box">
-                  <div class="remote-sync-text-label">
-                    <span data-i18n="flow.02_panel_curr_line">当前阅读行 同步监视</span>
-                    <span style="color: var(--brand-orange); font-family: var(--font-mono);">42%</span>
-                  </div>
-                  <div class="remote-sync-text-content" data-i18n="flow.02_reading_body_sample">
-                    各位创作者朋友，大家好。今天在此演讲，我们将探讨如何在镜头前保持自信与专注……
-                  </div>
-                </div>
-
-                <!-- 调速与操控按键模拟 -->
-                <div class="remote-keypad-grid">
-                  <div class="remote-key-btn">
-                    <span data-i18n="flow.02_btn_slow">减速 1.0x · 慢读</span>
-                  </div>
-                  <div class="remote-key-btn">
-                    <span data-i18n="flow.02_btn_fast">加速 1.5x · 适度加快</span>
-                  </div>
-                  <button type="button" class="remote-pause-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-                    <span data-i18n="flow.02_btn_pause">暂停播读 (点击随时挂起)</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 环节 2: 多格式文档直接导入 (交错反向) -->
-        <div class="workflow-row reversed">
-          <div class="workflow-copy">
-            <span class="workflow-copy-tag" data-i18n="flow.03_tag">03 / DOCUMENT INGESTION</span>
-            <h3 class="workflow-copy-h3" data-i18n="flow.03_title">常用的 Word、Markdown 和文本直接导入</h3>
-            <p class="workflow-copy-p" data-i18n="flow.03_desc">
-              平时写好的台词稿，不用麻烦地一段段复制粘贴。直接导入微信或电脑发来的 Word (.docx/.doc)、Markdown (.md) 和 TXT 纯文本，自动提取正文，自动处理繁杂编码，中文绝不乱码。
-            </p>
-            <ul class="workflow-check-list">
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.03_check1">支持 GB18030、UTF-8、UTF-16 智能解码检测</span>
-              </li>
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.03_check2">纯本地安全读取正文，绝不上传到任何云端服务器</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="workflow-media">
-            <div class="workflow-panel">
-              <div class="format-showcase-grid">
-                <div class="format-chip">
-                  <span class="format-ext">.docx / .doc</span>
-                  <span class="format-note" data-i18n="flow.03_card_word">Word 文档提取正文</span>
-                </div>
-                <div class="format-chip">
-                  <span class="format-ext">.md</span>
-                  <span class="format-note" data-i18n="flow.03_card_md">Markdown 流文直接导入</span>
-                </div>
-                <div class="format-chip">
-                  <span class="format-ext">.txt</span>
-                  <span class="format-note" data-i18n="flow.03_card_txt">GB18030 中文字符集校验</span>
-                </div>
-                <div class="format-chip">
-                  <span class="format-ext" data-i18n="flow.03_card_saf_ext">SAF 框架</span>
-                  <span class="format-note" data-i18n="flow.03_card_saf">SAF 框架零存储权限调用</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 环节 3: 视线聚焦与分光镜镜像 -->
-        <div class="workflow-row">
-          <div class="workflow-copy">
-            <span class="workflow-copy-tag" data-i18n="flow.01_tag">01 / VISUAL ANCHOR & READING FOCUS</span>
-            <h3 class="workflow-copy-h3" data-i18n="flow.01_title">视线对焦与平滑滚屏，镜头感自然从容</h3>
-            <p class="workflow-copy-p" data-i18n="flow.01_desc">
-              视线紧锁镜头是专业演讲的核心。映辞支持按字/分（WPM）精细调节行进速率，配合醒目的水平阅读基准准线，彻底消除眼球上下游移的飘忽感。
-            </p>
-            <ul class="workflow-check-list">
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.01_check1">内置分光镜水平镜像反转，装上专业单反提词罩直接演播</span>
-              </li>
-              <li class="workflow-check-item">
-                <span class="workflow-check-bullet">&check;</span>
-                <span data-i18n="flow.01_check2">字体无级缩放与自适应行距，大字清晰、远距离一目了然</span>
-              </li>
-            </ul>
-          </div>
-
-          <div class="workflow-media">
-            <div class="workflow-panel">
-              <div class="mirror-demo-container">
-                <div class="mirror-side-box">
-                  <div class="mirror-side-label" data-i18n="flow.01_mirror_flipped">水平分光镜像</div>
-                  <div class="mirror-text-flipped" data-i18n="flow.01_sample_text">从容面对镜头表达</div>
-                </div>
-                <div class="mirror-side-box">
-                  <div class="mirror-side-label" data-i18n="flow.01_mirror_normal">正常正向显示</div>
-                  <div style="font-size: 0.9rem; color: var(--text-white); font-weight: 600;" data-i18n="flow.01_sample_text">从容面对镜头表达</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= 规格指标条 (Horizontal Spec Ledger) ================= -->
-    <section class="spec-section" id="specs">
-      <div class="container">
-        <div class="spec-ledger-grid">
-          <div class="spec-ledger-item highlight">
-            <div class="spec-ledger-k">PRIVACY FIRST</div>
-            <div class="spec-ledger-v" data-i18n="specs.card1_val">稿件只在手机里</div>
-            <div class="spec-ledger-sub" data-i18n="specs.card1_sub">台本只保存在你自己设备上，不传云端，发言文稿零泄露风险。</div>
-          </div>
-
-          <div class="spec-ledger-item">
-            <div class="spec-ledger-k">NO ADVERTISING</div>
-            <div class="spec-ledger-v" data-i18n="specs.card2_val">没有开屏广告</div>
-            <div class="spec-ledger-sub" data-i18n="specs.card2_sub">没有倒计时开屏广告与弹窗推荐，打开软件就能直接沉浸录制。</div>
-          </div>
-
-          <div class="spec-ledger-item">
-            <div class="spec-ledger-k">ZERO FRICTION</div>
-            <div class="spec-ledger-v" data-i18n="specs.card3_val">无需注册登录</div>
-            <div class="spec-ledger-sub" data-i18n="specs.card3_sub">不收手机验证码，不强制授权微信，安装后打开就能直接用。</div>
-          </div>
-
-          <div class="spec-ledger-item">
-            <div class="spec-ledger-k">ANDROID ONLY</div>
-            <div class="spec-ledger-v" data-i18n="specs.card4_val">仅支持安卓端</div>
-            <div class="spec-ledger-sub" data-i18n="specs.card4_sub">专为 Android 8.0+ 手机与平板原生适配，暂不支持 iOS (iPhone/iPad) 苹果端。</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= 终极下载卡 (Terminal Card) ================= -->
-    <section class="download-section" id="download">
-      <div class="container">
-        <div class="terminal-box">
-          <div style="margin-bottom: 16px;">
-            <span class="pill-badge">
-              <span class="pill-dot green"></span>
-              <span data-bind="version" data-i18n="download.status_dev">开发中</span>
-              <span style="opacity: 0.3;">/</span>
-              <span data-i18n="download.status_open">源码开放</span>
-            </span>
-          </div>
-
-          <h2 class="terminal-title" data-i18n="terminal.title">获取「映辞 · Elocue」提词器</h2>
-          <p class="terminal-subtitle" data-i18n="terminal.subtitle">
-            面向 Android 系统的纯本地演播工具，全面适配手机与平板
+          <p class="hero-subhead" data-i18n="hero.desc">
+            专为 Android 打造的纯本地提词器。不用多买一套提词硬件，两台手机无线遥控，文字跟着你的语速走，目光始终落在镜头上。
           </p>
 
-          <!-- 明确平台声明提示 -->
-          <div class="terminal-platform-notice" data-i18n="terminal.notice">
-            支持平台提示：本项目目前仅针对 Android (安卓) 原生系统开发，支持 Android 手机与平板设备；暂不提供 iOS (iPhone/iPad) 苹果版本或电脑端。
+          <div class="hero-cta-group">
+            <a href="#download" class="btn btn-primary btn-lg" data-i18n="hero.cta_download">
+              获取 Android 安装包
+            </a>
+            <a href="details.html" class="btn btn-secondary btn-lg" data-i18n="hero.cta_details">
+              查看技术架构与算法
+            </a>
           </div>
 
-          <div class="terminal-buttons">
+          <p class="hero-note" data-i18n="hero.note">
+            仅支持 Android 手机与平板，系统需 8.0 及以上，暂不提供 iOS 版本。
+          </p>
+        </div>
+
+        <!--
+          播放屏复刻：尺寸与配色全部取自 Android 工程源码，
+          不是照着截图估的。下面这台的控件都是真的能用的。
+        -->
+        <div class="tp-demo">
+          <div class="tp-screen" id="tpScreen">
+
+            <div class="tp-status">
+              <span><span data-i18n="tp.elapsed">已用</span> <b id="tpElapsed">0:00</b></span>
+              <span class="tp-status-side">
+                <span><span data-i18n="tp.remaining">剩余</span> <b id="tpRemain">0:00</b></span>
+                <span class="tp-status-progress" id="tpStatusBar">
+                  <i class="tp-status-fill"></i>
+                  <i class="tp-status-rest"></i>
+                </span>
+              </span>
+            </div>
+
+            <div class="tp-viewport" id="tpViewport">
+              <div class="tp-script" id="tpScript" data-i18n="hero.demo_script">各位创作者朋友，大家好。今天想聊聊表达的初心。</div>
+              <div class="tp-guide tp-guide--bar" id="tpGuide" aria-hidden="true"></div>
+            </div>
+
+            <div class="tp-card">
+
+              <div class="tp-row tp-row--primary">
+                <button class="tp-exit" id="tpExit" type="button" data-i18n-attr="aria-label:tp.exit" aria-label="长按退出">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                  </svg>
+                </button>
+
+                <div class="tp-speed">
+                  <button class="tp-icon" id="tpSlower" type="button" data-i18n-attr="aria-label:tp.speed_down" aria-label="减速">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  </button>
+                  <span class="tp-speed-read">
+                    <span class="tp-speed-label" data-i18n="tp.current_speed">当前速度</span>
+                    <span class="tp-speed-value"><b id="tpSpeed">1.0</b>&times;</span>
+                  </span>
+                  <button class="tp-icon" id="tpFaster" type="button" data-i18n-attr="aria-label:tp.speed_up" aria-label="加速">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"></line><line x1="12" y1="5" x2="12" y2="19"></line></svg>
+                  </button>
+                </div>
+
+                <button class="tp-primary" id="tpPlay" type="button" aria-pressed="false" data-i18n-attr="aria-label:tp.play" aria-label="播放">
+                  <svg class="tp-i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                  <svg class="tp-i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="5" width="3.6" height="14"/><rect x="13.4" y="5" width="3.6" height="14"/></svg>
+                </button>
+
+                <div class="tp-toggle">
+                  <span class="tp-toggle-label" data-i18n="tp.countdown">3 秒倒计时</span>
+                  <button class="tp-switch" id="tpCountdown" type="button" role="switch" aria-checked="false" data-i18n-attr="aria-label:tp.countdown"></button>
+                </div>
+              </div>
+
+              <div class="tp-row tp-row--secondary">
+                <div class="tp-progress">
+                  <span class="tp-progress-label"><span data-i18n="tp.progress">进度</span> <b id="tpPercent">0%</b></span>
+                  <span class="tp-slider" id="tpSeek">
+                    <i class="tp-slider-fill"></i>
+                    <i class="tp-slider-rest"></i>
+                    <i class="tp-slider-thumb"></i>
+                    <input class="tp-slider-input" id="tpSeekInput" type="range" min="0" max="1000" value="0" step="1" data-i18n-attr="aria-label:tp.progress" aria-label="进度">
+                  </span>
+                </div>
+
+                <div class="tp-modes" role="group" data-i18n-attr="aria-label:tp.guide_modes" aria-label="引导条">
+                  <button class="tp-mode" type="button" data-mode="off" aria-pressed="false" data-i18n="tp.guide_off">关闭</button>
+                  <button class="tp-mode" type="button" data-mode="line" aria-pressed="false" data-i18n="tp.guide_line">横线</button>
+                  <button class="tp-mode" type="button" data-mode="bar" aria-pressed="true" data-i18n="tp.guide_bar">提词条</button>
+                </div>
+              </div>
+
+              <!-- 只在暂停时出现，与工程一致 -->
+              <div class="tp-row tp-row--position" id="tpPositionRow" hidden>
+                <span class="tp-position-label" data-i18n="tp.guide_position">引导线位置</span>
+                <span class="tp-slider" id="tpGuideSlider">
+                  <i class="tp-slider-fill"></i>
+                  <i class="tp-slider-rest"></i>
+                  <i class="tp-slider-thumb"></i>
+                  <input class="tp-slider-input" id="tpGuideInput" type="range" min="15" max="75" value="44" step="1" data-i18n-attr="aria-label:tp.guide_position" aria-label="引导线位置">
+                </span>
+              </div>
+
+            </div>
+
+            <div class="tp-countdown" id="tpCountdownOverlay" hidden aria-hidden="true">
+              <span id="tpCountdownNumber">3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 功能演示 ================= -->
+    <section class="section" id="workflow">
+      <div class="container">
+        <div class="section-head">
+          <h2 class="section-title" data-i18n="flow.section_title">为视频录制与公开演讲打造的实用体验</h2>
+          <p class="section-lead" data-i18n="flow.section_lead">三件在真实拍摄现场最容易被卡住的事：遥控、导入、看镜头。</p>
+        </div>
+
+        <!-- 双机遥控 -->
+        <div class="flow-row">
+          <div class="flow-copy">
+            <h3 class="flow-copy-title" data-i18n="flow.02_title">两台手机无线遥控，不用单独买遥控器</h3>
+            <p class="flow-copy-text" data-i18n="flow.02_desc">
+              一台手机或平板放在镜头前当提词板，另一台拿在手里当遥控器，扫码就连上。手里的这台能暂停、加速、快进快退，也能实时看到当前读到哪一句。
+            </p>
+            <ul class="flow-list">
+              <li data-i18n="flow.02_check1">连同一个 Wi-Fi 或直接开手机热点即可使用，不依赖公网</li>
+              <li data-i18n="flow.02_check2">手持机实时同步文字排版，不用抬头看大屏也能掌控进度</li>
+            </ul>
+          </div>
+
+          <div class="device-pair">
+            <figure>
+              <div class="device-shot">
+                <img src="assets/screenshots/prompter-screen.jpg" alt="映辞提词端在真机上运行：正文随语速滚动，当前行落在红色基准带上" width="1024" height="723" loading="lazy">
+              </div>
+              <figcaption data-i18n="flow.device_prompter">提词端 · 镜头前的大屏</figcaption>
+            </figure>
+            <figure>
+              <div class="device-shot">
+                <img src="assets/screenshots/controller-screen.jpg" alt="映辞控制端在真机上运行：显示同步文本与播放控制" width="525" height="1024" loading="lazy">
+              </div>
+              <figcaption data-i18n="flow.device_controller">控制端 · 手里的遥控机</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <!-- 文档导入 -->
+        <div class="flow-row flow-row--flip">
+          <div class="flow-copy">
+            <h3 class="flow-copy-title" data-i18n="flow.03_title">常用的 Word、Markdown 和文本直接导入</h3>
+            <p class="flow-copy-text" data-i18n="flow.03_desc">
+              写好的稿子不用再一段段复制粘贴。微信或电脑发过来的文档直接选进来，自动提取正文，自动判断编码。
+            </p>
+            <ul class="flow-list">
+              <li data-i18n="flow.03_check1">支持 GB18030、UTF-8、UTF-16 智能解码检测</li>
+              <li data-i18n="flow.03_check2">纯本地安全读取正文，绝不上传到任何云端服务器</li>
+            </ul>
+          </div>
+
+          <ul class="format-list">
+            <li>
+              <span class="format-ext">.docx / .doc</span>
+              <span class="format-note" data-i18n="flow.03_card_word">Word 文档提取正文</span>
+            </li>
+            <li>
+              <span class="format-ext">.md</span>
+              <span class="format-note" data-i18n="flow.03_card_md">Markdown 流文直接导入</span>
+            </li>
+            <li>
+              <span class="format-ext">.txt</span>
+              <span class="format-note" data-i18n="flow.03_card_txt">GB18030 中文字符集校验</span>
+            </li>
+            <li>
+              <span class="format-ext" data-i18n="flow.03_card_saf_ext">SAF 框架</span>
+              <span class="format-note" data-i18n="flow.03_card_saf">零存储权限调用，单次流式读取</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- 视线与镜像 -->
+        <div class="flow-row">
+          <div class="flow-copy">
+            <h3 class="flow-copy-title" data-i18n="flow.01_title">视线对焦与平滑滚屏，镜头感自然从容</h3>
+            <p class="flow-copy-text" data-i18n="flow.01_desc">
+              按字/分精细调节行进速率，配上一条醒目的水平阅读基准线，眼睛有固定的落点，就不会上下游移。
+            </p>
+            <ul class="flow-list">
+              <li data-i18n="flow.01_check1">内置分光镜水平镜像反转，装上专业单反提词罩直接演播</li>
+              <li data-i18n="flow.01_check2">字体无级缩放与自适应行距，远距离也一目了然</li>
+            </ul>
+          </div>
+
+          <div class="mirror-compare">
+            <div class="mirror-cell mirror-cell--flipped">
+              <div class="mirror-cell-label" data-i18n="flow.01_mirror_flipped">分光镜镜像</div>
+              <div class="mirror-sample" data-i18n="flow.01_sample_text">从容面对镜头表达</div>
+            </div>
+            <div class="mirror-cell">
+              <div class="mirror-cell-label" data-i18n="flow.01_mirror_normal">正常显示</div>
+              <div class="mirror-sample" data-i18n="flow.01_sample_text">从容面对镜头表达</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 三个取舍 ================= -->
+    <section class="section" id="specs">
+      <div class="container">
+        <div class="ledger">
+          <div class="ledger-item">
+            <div class="ledger-term" data-i18n="specs.card1_val">稿件只在手机里</div>
+            <p class="ledger-desc" data-i18n="specs.card1_sub">台本只保存在你自己设备上，不传云端，发言文稿零泄露风险。</p>
+          </div>
+
+          <div class="ledger-item">
+            <div class="ledger-term" data-i18n="specs.card2_val">没有开屏广告</div>
+            <p class="ledger-desc" data-i18n="specs.card2_sub">没有倒计时开屏广告与弹窗推荐，打开软件就能直接沉浸录制。</p>
+          </div>
+
+          <div class="ledger-item">
+            <div class="ledger-term" data-i18n="specs.card3_val">无需注册登录</div>
+            <p class="ledger-desc" data-i18n="specs.card3_sub">不收手机验证码，不强制授权微信，安装后打开就能直接用。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 下载 ================= -->
+    <section class="section" id="download">
+      <div class="container">
+        <div class="download-panel">
+          <h2 class="download-title" data-i18n="terminal.title">获取「映辞 · Elocue」提词器</h2>
+          <p class="download-lead" data-i18n="terminal.subtitle">
+            面向 Android 手机与平板的纯本地演播工具。
+          </p>
+
+          <div class="download-meta">
+            <span data-i18n="download.status_dev">开发中</span>
+            <span data-i18n="download.status_open">源码开放</span>
+            <span data-i18n="download.compat">Android 8.0 及以上 · 手机与平板</span>
+          </div>
+
+          <div class="download-actions">
             <a href="https://gitcode.com/FFocalors/teleprompter-android/releases" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg" id="btnDownloadGitcode" data-bind-href="gitcodeReleaseUrl" data-i18n="terminal.btn_gitcode">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               从 GitCode 下载
             </a>
             <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg" data-bind-href="githubRepoUrl" data-i18n="terminal.btn_github">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
               从 GitHub Releases 下载
             </a>
           </div>
 
-          <div style="font-size: 0.82rem; color: var(--text-tertiary); line-height: 1.6;">
-            <span data-i18n="download.dev_prefix">开发者可前往</span> <a href="details.html" style="color: var(--text-secondary); text-decoration: underline;" data-i18n="nav.details">技术与开源详情</a> <span data-i18n="download.dev_suffix">页面查看代码架构或通过源码直接编译。</span>
-          </div>
+          <p class="download-note">
+            <span data-i18n="download.dev_prefix">开发者可以直接前往</span>
+            <a href="details.html" data-i18n="nav.details">技术与开源详情</a>
+            <span data-i18n="download.dev_suffix">查看代码架构，或从源码自行编译。</span>
+          </p>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- ================= 下载状态提示弹窗 ================= -->
   <div class="modal-overlay" id="downloadModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-window">
       <div class="modal-title-row">
         <h3 id="modalTitle" data-i18n="modal.title">发布状态说明</h3>
         <button class="modal-close" id="modalCloseBtn" aria-label="关闭">&times;</button>
       </div>
-      <div class="modal-text" data-i18n="modal.desc">
-        当前项目处于开发阶段，专为 Android (安卓) 端打造（暂不支持 iOS / 苹果设备）。尚未发布正式 Release 安装包，您可以前往 GitHub 仓库关注最新动态，或通过克隆源码直接构建 APK 安装包。
-      </div>
+      <p class="modal-text" data-i18n="modal.desc">
+        当前项目处于开发阶段，专为 Android 打造（暂不支持 iOS）。尚未发布正式 Release 安装包，可以关注 GitHub 仓库的最新动态，或克隆源码自行构建 APK。
+      </p>
       <div class="modal-footer">
         <a href="https://github.com/FFocalors/teleprompter-android" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" data-bind-href="githubRepoUrl" data-i18n="modal.cta_github">
           前往 GitHub 仓库
@@ -449,7 +393,6 @@
     </div>
   </div>
 
-  <!-- ================= 极简页脚 ================= -->
   <footer class="site-footer">
     <div class="container">
       <div class="footer-top">
@@ -482,12 +425,11 @@
 
       <div class="footer-bottom">
         <div data-i18n="footer.copyright">&copy; 2026 映辞 · Elocue 开源项目. 保留所有权利.</div>
-        <div data-i18n="footer.license_note">完全开源免费 &middot; 遵循 Apache License 2.0</div>
+        <div data-i18n="footer.license_note">完全开源免费，遵循 Apache License 2.0</div>
       </div>
     </div>
   </footer>
 
-  <!-- 脚本 -->
   <script src="js/config.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/main.js"></script>

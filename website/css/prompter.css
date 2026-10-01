@@ -1,0 +1,687 @@
+/* ==========================================================================
+   提词器播放屏复刻 (prompter.css)
+   参数全部取自 Android 工程，不是照着截图估的：
+     feature/prompter/PlaybackControlBar.kt  控制条布局与尺寸
+     core/design/components/PrompterGuide.kt 引导条三态
+     core/design/DesignSystem.kt             配色 / 圆角 / 间距
+     core/model/Models.kt                    播放屏背景、字号、预设
+     core/util/PlaybackEngine.kt             滚动端点与 offset 公式
+
+   尺寸单位：--u = 1dp。基准屏宽取真机截图实测值 3000px / 2.625（420dpi）= 1143dp，
+   所以组件是等比缩放的，比例 1:1。
+
+   注意：Chromium 会把小数 border-width 向下取整成整数 CSS px，本组件在常见宽度下
+   1dp ≈ 0.95px，任何 ≥2dp 的描边都会被压薄一半。凡 ≥2dp 的环／描边一律改用
+   inset box-shadow（它接受小数、带抗锯齿），不要改回 border。
+   ========================================================================== */
+
+.tp-demo {
+  container: tp / inline-size;
+}
+
+.tp-screen {
+  /* 1dp；窄屏兜底到 0.75px，否则标签小到看不清 */
+  --u: max(calc(100cqi / 1143), 0.75px);
+
+  /* DesignSystem.kt: AppColors */
+  --tp-bg: #121719;            /* Models.kt:92  backgroundColor 默认值 */
+  --tp-text: #f5f7fa;          /* TextPrimary */
+  --tp-text-2: #c8ced3;        /* TextSecondary */
+  --tp-weak: #8b9594;          /* TextWeak */
+  --tp-surface: #2a2f30;       /* Surface（卡片容器，叠 94%） */
+  --tp-raised: #343a3b;        /* SurfaceRaised */
+  --tp-secondary: #3b4243;     /* Secondary */
+  --tp-primary: #ed8f19;       /* Primary */
+  --tp-on-primary: #1b1f20;    /* OnPrimary */
+  --tp-border: #3d4445;        /* Border */
+  --tp-danger: #e96c62;        /* Danger */
+  --tp-guide: #ff453a;         /* Models.kt:127 guideLineDarkModeColor */
+
+  /* Material3 基线配色：工程未覆盖 secondaryContainer / surfaceContainerHighest，
+     所以滑块未激活轨道与开关轨道露出的是 M3 默认的紫灰，不是 AppColors 里的色。 */
+  --tp-m3-secondary-container: #4a4458;
+  --tp-m3-surface-container-highest: #36343b;
+
+  position: relative;
+  background-color: var(--tp-bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* ==========================================================================
+   顶部状态条  PrompterViewport.kt:138 / PrompterScreen.kt:278-302
+   高 64dp，内边距 24×12，文字 labelLarge 14sp SemiBold @ .72，右列行距 6dp
+   ========================================================================== */
+.tp-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: calc(12 * var(--u));
+  height: calc(64 * var(--u));
+  padding: calc(12 * var(--u)) calc(24 * var(--u));
+  font-size: calc(14 * var(--u));
+  font-weight: 600;
+  line-height: calc(20 * var(--u));
+  color: rgba(245, 247, 250, 0.72);
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-status-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(6 * var(--u));
+}
+
+/* 自动进度条  180dp 宽 6dp 高；填充与轨道之间留 4dp（M3 TrackActiveSpace） */
+.tp-status-progress {
+  position: relative;
+  width: calc(180 * var(--u));
+  height: calc(6 * var(--u));
+}
+
+.tp-status-fill,
+.tp-status-rest {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.tp-status-fill {
+  left: 0;
+  width: calc(var(--p, 0%) - calc(2 * var(--u)));
+  background-color: var(--tp-primary);
+}
+
+.tp-status-rest {
+  left: calc(var(--p, 0%) + calc(2 * var(--u)));
+  right: 0;
+  background-color: rgba(245, 247, 250, 0.16);
+}
+
+/* 端点指示点：直径 4dp，距组件右端 1dp（= (6-4)/2） */
+.tp-status-rest::after {
+  content: "";
+  position: absolute;
+  right: calc(1 * var(--u));
+  top: 50%;
+  width: calc(4 * var(--u));
+  height: calc(4 * var(--u));
+  margin-top: calc(-2 * var(--u));
+  border-radius: 50%;
+  background-color: var(--tp-primary);
+}
+
+/* ==========================================================================
+   提词视口：文字在下，引导条在上（PrompterViewport.kt:295 → :320 的绘制顺序）
+   ========================================================================== */
+.tp-viewport {
+  position: relative;
+  height: calc(var(--tp-vh, 620) * var(--u));
+  overflow: hidden;
+}
+
+.tp-script {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0 calc(72 * var(--u));
+  font-size: calc(40 * var(--u));
+  line-height: 1.18;
+  color: var(--tp-text);
+  /* 工程用 "
+
+" 连接段落（RichTextEditor.kt:112-118），段间就是一个空行 */
+  white-space: pre-wrap;
+  will-change: transform;
+}
+
+/* 引导条：三态互斥  PrompterGuide.kt:31-51 */
+.tp-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* HighlightBar：56dp 高、以引导线居中、引导色 26% 叠在文字之上 */
+.tp-guide--bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(56 * var(--u));
+  top: calc(var(--gy) - calc(28 * var(--u)));
+  background-color: rgba(255, 69, 58, 0.26);
+}
+
+/* Line：3dp 实色横线 */
+.tp-guide--line::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: calc(3 * var(--u));
+  top: var(--gy);
+  background-color: var(--tp-guide);
+}
+
+/* Off：两态都不画 */
+.tp-guide--off::after {
+  content: none;
+}
+
+/* ==========================================================================
+   控制条卡片  PlaybackControlBar.kt:100-118
+   94% 宽、顶距 64dp、圆角 16dp、容器 Surface@.94、描边 1dp Border、内边距 8dp、行距 4dp
+   ========================================================================== */
+.tp-card {
+  position: absolute;
+  top: calc(64 * var(--u));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 94%;
+  padding: calc(8 * var(--u));
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--u));
+  background-color: rgba(42, 47, 48, 0.94);
+  border: 1px solid var(--tp-border);
+  border-radius: calc(16 * var(--u));
+  z-index: 3;
+}
+
+.tp-row {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+}
+
+.tp-row[hidden] {
+  display: none;
+}
+
+/* --- 第一行 -------------------------------------------------------------- */
+.tp-row--primary {
+  justify-content: space-between;
+  gap: calc(8 * var(--u));
+  height: calc(56 * var(--u));
+}
+
+/* 长按退出：56dp 圆环 + Close 图标，环色 Danger@18%（进度弧同色），环宽 3dp。
+   环的外径就是 56dp（inset:0），不是内缩后的 53dp。 */
+.tp-exit {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(56 * var(--u));
+  height: calc(56 * var(--u));
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--tp-danger);
+}
+
+.tp-exit svg {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* 轨道环：外径 56dp、环宽 3dp */
+.tp-exit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 calc(3 * var(--u)) rgba(233, 108, 98, 0.18);
+}
+
+/* 长按进度弧：按住时从 12 点方向顺时针填充 */
+.tp-exit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--tp-danger) calc(var(--hold, 0) * 360deg),
+    transparent 0
+  );
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - calc(3 * var(--u))),
+    #000 calc(100% - calc(3 * var(--u)))
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - calc(3 * var(--u))),
+    #000 calc(100% - calc(3 * var(--u)))
+  );
+  opacity: 0;
+  transition: opacity 120ms linear;
+}
+
+.tp-exit.is-holding::after {
+  opacity: 1;
+}
+
+/* 速度组：260×56dp，SurfaceRaised，圆角 12dp，描边 1dp Border@72%，内边距水平 4dp */
+.tp-speed {
+  flex: 0 0 auto;
+  width: calc(260 * var(--u));
+  height: calc(56 * var(--u));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 calc(4 * var(--u));
+  background-color: var(--tp-raised);
+  border: 1px solid rgba(61, 68, 69, 0.72);
+  border-radius: calc(12 * var(--u));
+}
+
+/* 次级图标按钮 48dp */
+.tp-icon {
+  flex: 0 0 auto;
+  width: calc(48 * var(--u));
+  height: calc(48 * var(--u));
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--tp-text);
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.tp-icon svg {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.tp-speed-read {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: calc(76 * var(--u));
+  max-width: calc(90 * var(--u));
+}
+
+.tp-speed-label {
+  font-size: calc(11 * var(--u));
+  line-height: calc(16 * var(--u));
+  color: var(--tp-text-2);
+  white-space: nowrap;
+}
+
+.tp-speed-value {
+  font-size: calc(16 * var(--u));
+  font-weight: 700;
+  line-height: calc(24 * var(--u));
+  color: var(--tp-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 主按钮：56dp 实心圆，Primary，图标 OnPrimary */
+.tp-primary {
+  flex: 0 0 auto;
+  width: calc(56 * var(--u));
+  height: calc(56 * var(--u));
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--tp-primary);
+  color: var(--tp-on-primary);
+  cursor: pointer;
+}
+
+.tp-primary svg {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  fill: currentColor;
+}
+
+.tp-primary .tp-i-pause,
+.tp-primary.is-playing .tp-i-play {
+  display: none;
+}
+
+.tp-primary.is-playing .tp-i-pause {
+  display: block;
+}
+
+/* 倒计时开关：184×56dp */
+.tp-toggle {
+  flex: 0 0 auto;
+  width: calc(184 * var(--u));
+  height: calc(56 * var(--u));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(8 * var(--u));
+  padding: 0 calc(12 * var(--u));
+  background-color: var(--tp-raised);
+  border: 1px solid rgba(61, 68, 69, 0.72);
+  border-radius: calc(12 * var(--u));
+}
+
+.tp-toggle-label {
+  font-size: calc(12 * var(--u));
+  line-height: calc(18 * var(--u));
+  color: var(--tp-text-2);
+  white-space: nowrap;
+}
+
+/* Material3 Switch 未选中态：轨道 surfaceContainerHighest、2dp outline 描边、
+   16dp 拇指，距轨道外缘 8dp（含 2dp 描边，所以 padding box 内是 6dp） */
+.tp-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: calc(52 * var(--u));
+  height: calc(32 * var(--u));
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--tp-m3-surface-container-highest);
+  box-shadow: inset 0 0 0 calc(2 * var(--u)) var(--tp-border);
+  cursor: pointer;
+  transition: background-color var(--t), box-shadow var(--t);
+}
+
+.tp-switch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(8 * var(--u));
+  width: calc(16 * var(--u));
+  height: calc(16 * var(--u));
+  margin-top: calc(-8 * var(--u));
+  border-radius: 50%;
+  background-color: var(--tp-border);
+  transition: transform var(--t), width var(--t), height var(--t), margin-top var(--t), background-color var(--t);
+}
+
+.tp-switch[aria-checked="true"] {
+  background-color: var(--tp-primary);
+  box-shadow: inset 0 0 0 calc(2 * var(--u)) var(--tp-primary);
+}
+
+.tp-switch[aria-checked="true"]::after {
+  width: calc(24 * var(--u));
+  height: calc(24 * var(--u));
+  margin-top: calc(-12 * var(--u));
+  background-color: var(--tp-on-primary);
+  transform: translateX(calc(16 * var(--u)));
+}
+
+/* --- 第二行：进度（权重 1.25） + 引导模式（权重 1），行高由 48dp 的滑块决定 --- */
+.tp-row--secondary {
+  align-items: center;
+  gap: calc(12 * var(--u));
+}
+
+.tp-progress {
+  flex: 1.25;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* 源码里标签盒后面直接接滑块，中间没有间距 */
+.tp-progress-label {
+  flex: 0 0 auto;
+  min-width: calc(88 * var(--u));
+  font-size: calc(12 * var(--u));
+  line-height: calc(18 * var(--u));
+  color: var(--tp-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 引导模式选择器：三个等宽 40dp 高按钮，间距 4dp */
+.tp-modes {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: calc(4 * var(--u));
+}
+
+.tp-mode {
+  flex: 1;
+  min-width: 0;
+  height: calc(40 * var(--u));
+  padding: 0 calc(4 * var(--u));
+  font-family: inherit;
+  font-size: calc(12 * var(--u));
+  line-height: calc(18 * var(--u));
+  color: var(--tp-text-2);
+  background-color: var(--tp-raised);
+  border: 1px solid var(--tp-border);
+  border-radius: calc(8 * var(--u));
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--t), background-color var(--t), box-shadow var(--t);
+}
+
+/* 选中态：Secondary@72 + 2dp Primary 描边（PlaybackControlBar.kt:450-451）
+   2dp 用 inset box-shadow 画，border-width 会被 Chromium 取整成 1px */
+.tp-mode[aria-pressed="true"] {
+  color: var(--tp-text);
+  background-color: rgba(59, 66, 67, 0.72);
+  border-color: var(--tp-primary);
+  box-shadow: inset 0 0 0 calc(1 * var(--u)) var(--tp-primary);
+}
+
+/* --- 第三行：只在暂停时出现（PlaybackControlBar.kt:168），源码是竖排 --------------
+   标签 18dp 在上、滑块 48dp 占满整宽，行高 66dp */
+.tp-row--position {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+
+.tp-position-label {
+  font-size: calc(12 * var(--u));
+  line-height: calc(18 * var(--u));
+  color: var(--tp-text-2);
+}
+
+/* 竖排里 flex:1 会让高度变成 flex-basis:0，滑块直接塌成 0 高 */
+.tp-row--position .tp-slider {
+  flex: none;
+  height: calc(48 * var(--u));
+}
+
+/* ==========================================================================
+   Material3 表达式滑块
+   轨道 16dp、拇指 4×44dp、最小交互高度 48dp、拇指两侧各留 8dp（含拇指半宽 2dp，
+   所以填充止于 --p-8dp、轨道起于 --p+8dp）
+   ========================================================================== */
+.tp-slider {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: calc(48 * var(--u));
+  cursor: pointer;
+}
+
+.tp-slider-fill,
+.tp-slider-rest {
+  position: absolute;
+  top: 50%;
+  height: calc(16 * var(--u));
+  margin-top: calc(-8 * var(--u));
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.tp-slider-fill {
+  left: calc(2 * var(--u));
+  width: calc(var(--p, 0%) - calc(10 * var(--u)));
+  background-color: var(--tp-primary);
+}
+
+.tp-slider-rest {
+  left: calc(var(--p, 0%) + calc(8 * var(--u)));
+  right: calc(2 * var(--u));
+  background-color: var(--tp-m3-secondary-container);
+}
+
+/* 端点指示点：直径 5dp，距轨道右端 5dp */
+.tp-slider-rest::after {
+  content: "";
+  position: absolute;
+  right: calc(5 * var(--u));
+  top: 50%;
+  width: calc(5 * var(--u));
+  height: calc(5 * var(--u));
+  margin-top: calc(-2.5 * var(--u));
+  border-radius: 50%;
+  background-color: var(--tp-primary);
+}
+
+.tp-slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--p, 0%);
+  width: calc(4 * var(--u));
+  height: calc(44 * var(--u));
+  margin-top: calc(-22 * var(--u));
+  margin-left: calc(-2 * var(--u));
+  border-radius: 999px;
+  background-color: var(--tp-primary);
+  pointer-events: none;
+}
+
+/* 真正的输入控件：透明覆盖，键盘与指针行为都交给浏览器 */
+.tp-slider-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+}
+
+.tp-slider:focus-within {
+  outline: 2px solid var(--cue);
+  outline-offset: 2px;
+  border-radius: calc(6 * var(--u));
+}
+
+.tp-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: calc(4 * var(--u));
+  height: calc(44 * var(--u));
+}
+
+.tp-slider-input::-moz-range-thumb {
+  width: calc(4 * var(--u));
+  height: calc(44 * var(--u));
+  border: none;
+  background: transparent;
+}
+
+/* 倒计时遮罩  PrompterScreen.kt:318 —— Scrim #CC16191A + 居中 112sp 粗体 */
+.tp-countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background-color: rgba(22, 25, 26, 0.8);
+  z-index: 4;
+  /* 只是盖一层视觉遮罩，不能吃掉控件的点击——否则「再按一次取消倒计时」点不到 */
+  pointer-events: none;
+}
+
+.tp-countdown[hidden] {
+  display: none;
+}
+
+.tp-countdown span {
+  font-size: calc(112 * var(--u));
+  font-weight: 700;
+  line-height: 1;
+  color: var(--tp-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   窄屏：与工程一致地切成堆叠布局（PlaybackControlBar.kt:157-166 的 else 分支）
+   真机判据是控制条宽度 < 640dp，这里换算成容器宽度 520px
+   ========================================================================== */
+@container tp (max-width: 520px) {
+  /* 窄屏控制条堆成四行、高度接近翻倍，阅读区要跟着放高，否则带子没地方站 */
+  .tp-screen {
+    --tp-vh: 760;
+  }
+
+  .tp-row--primary {
+    flex-wrap: wrap;
+    height: auto;
+    gap: calc(12 * var(--u));
+  }
+
+  .tp-speed {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .tp-toggle {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .tp-row--secondary {
+    flex-wrap: wrap;
+  }
+
+  .tp-progress,
+  .tp-modes {
+    flex: 1 1 100%;
+  }
+}
+
+/* 播完态：主按钮变灰、自动进度条收起（PlaybackControlBar.kt:285-293、PlaybackEngine.kt:125-128） */
+.tp-screen.is-finished .tp-primary {
+  background-color: var(--tp-raised);
+  color: var(--tp-weak);
+  cursor: default;
+}
+
+.tp-screen.is-finished .tp-status-progress {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-switch,
+  .tp-switch::after {
+    transition: none;
+  }
+}
